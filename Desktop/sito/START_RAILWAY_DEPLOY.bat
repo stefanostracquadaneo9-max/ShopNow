@@ -39,6 +39,9 @@ echo  ovqvuktgrevsbwur
 echo.
 echo NODE_ENV
 echo  production
+echo.
+echo DATABASE_URL
+echo  (Railway will auto-generate this when PostgreSQL is added to your project)
 echo ════════════════════════════════════════════
 echo.
 
