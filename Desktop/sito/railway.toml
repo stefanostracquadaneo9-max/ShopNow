@@ -1,6 +1,9 @@
 [build]
 builder = "nixpacks"
 
+[build.nixpacks]
+node_version = "18"
+
 [deploy]
 startCommand = "node server.js"
 numReplicas = 1
