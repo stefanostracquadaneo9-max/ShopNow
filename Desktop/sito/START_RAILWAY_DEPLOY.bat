@@ -76,7 +76,8 @@ echo.
 echo Repository Status:
 echo   ✓ Code pushed to GitHub
 echo   ✓ Database migrated to PostgreSQL
-echo   ✓ Ready for Railway auto-deployment
+echo   ✓ Docker + Nixpacks configuration added
+echo   ✓ Ready for Railway deployment
 echo   Repository: %REPO_URL%
 echo.
 echo Estimated Deploy Time: 5-10 minutes total
