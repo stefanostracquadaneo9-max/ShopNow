@@ -1,0 +1,855 @@
+<!doctype html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>🛒 ShopNow - Il Tuo Marketplace Online</title>
+        <link rel="icon" type="image/png" href="favicon.png" />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            rel="stylesheet"
+        />
+        <link href="style.css" rel="stylesheet" />
+    </head>
+    <body>
+        <header class="amazon-header">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <a class="navbar-brand" href="products.html">
+                            <i class="fas fa-shopping-bag me-2"></i>ShopNow
+                        </a>
+                    </div>
+                    <div class="col">
+                        <div class="search-bar d-flex">
+                            <input
+                                type="text"
+                                id="search-input"
+                                class="form-control"
+                                placeholder="Cerca prodotti nel catalogo ShopNow..."
+                            />
+                            <button class="btn" onclick="searchProducts()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="nav-icons">
+                            <a href="account.html" class="nav-icon">
+                                <i class="fas fa-user"></i>
+                            </a>
+                            <a href="orders.html" class="nav-icon">
+                                <i class="fas fa-box"></i>
+                            </a>
+                            <a href="cart.html" class="nav-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                                <span id="cart-count" class="cart-count"
+                                    >0</span
+                                >
+                            </a>
+                            <a
+                                href="#"
+                                class="nav-icon"
+                                onclick="
+                                    logout();
+                                    return false;
+                                "
+                            >
+                                <i class="fas fa-sign-out-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container-fluid my-4">
+            <div class="row">
+                <!-- Sidebar Categories -->
+                <div class="col-lg-2 mb-4">
+                    <div class="categories-sidebar">
+                        <h5 class="mb-3">
+                            <i class="fas fa-list me-2"></i>Categorie
+                        </h5>
+                        <div id="categories-list">
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('all')"
+                            >
+                                Tutte le categorie
+                            </div>
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('elettronica')"
+                            >
+                                Elettronica
+                            </div>
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('abbigliamento')"
+                            >
+                                Abbigliamento
+                            </div>
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('casa')"
+                            >
+                                Casa e Giardino
+                            </div>
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('sport')"
+                            >
+                                Sport e Tempo Libero
+                            </div>
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('libri')"
+                            >
+                                Libri
+                            </div>
+                            <div
+                                class="category-item"
+                                onclick="filterByCategory('altro')"
+                            >
+                                Altro
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="filters-section">
+                        <h6 class="filter-title">
+                            <i class="fas fa-filter me-2"></i>Filtri
+                        </h6>
+
+                        <div class="filter-group">
+                            <label class="form-label">Prezzo</label>
+                            <div class="price-range">
+                                <input
+                                    type="number"
+                                    id="min-price"
+                                    class="price-input"
+                                    placeholder="Min"
+                                />
+                                <span>-</span>
+                                <input
+                                    type="number"
+                                    id="max-price"
+                                    class="price-input"
+                                    placeholder="Max"
+                                />
+                                <button
+                                    class="btn btn-sm btn-outline-primary"
+                                    onclick="applyPriceFilter()"
+                                >
+                                    Applica
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label class="form-label">Valutazione</label>
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="rating-4"
+                                    onchange="applyRatingFilter()"
+                                />
+                                <label class="form-check-label" for="rating-4">
+                                    <i class="fas fa-star text-warning"></i>
+                                    <i class="fas fa-star text-warning"></i>
+                                    <i class="fas fa-star text-warning"></i>
+                                    <i class="fas fa-star text-warning"></i>
+                                    <i class="far fa-star text-warning"></i> &
+                                    sopra
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="filter-group">
+                            <label class="form-label">Disponibilità</label>
+                            <div class="form-check">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="in-stock"
+                                    checked
+                                    onchange="applyStockFilter()"
+                                />
+                                <label class="form-check-label" for="in-stock">
+                                    Solo prodotti disponibili
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content -->
+                <div class="col-lg-10">
+                    <!-- Breadcrumb -->
+                    <nav aria-label="breadcrumb" class="mb-3">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item">
+                                <a href="products.html">Home</a>
+                            </li>
+                            <li
+                                class="breadcrumb-item active"
+                                id="current-category"
+                            >
+                                Tutti i prodotti
+                            </li>
+                        </ol>
+                    </nav>
+
+                    <!-- Sort Options -->
+                    <div
+                        class="d-flex justify-content-between align-items-center mb-3"
+                    >
+                        <div>
+                            <span id="results-count" class="text-muted"
+                                >0 prodotti trovati</span
+                            >
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <label class="me-2">Ordina per:</label>
+                            <select
+                                class="form-select form-select-sm"
+                                id="sort-select"
+                                onchange="sortProducts()"
+                                style="width: auto"
+                            >
+                                <option value="name">Nome</option>
+                                <option value="price-low">
+                                    Prezzo: dal più basso
+                                </option>
+                                <option value="price-high">
+                                    Prezzo: dal più alto
+                                </option>
+                                <option value="rating">Valutazione</option>
+                                <option value="newest">Più recenti</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Products Grid -->
+                    <div id="products-container">
+                        <div class="loading">
+                            <div class="spinner-border" role="status">
+                                <span class="sr-only">Caricamento...</span>
+                            </div>
+                            <p class="mt-2">Caricamento prodotti...</p>
+                        </div>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div class="pagination-container">
+                        <nav aria-label="Product pagination">
+                            <ul class="pagination" id="pagination">
+                                <!-- Pagination will be generated here -->
+                            </ul>
+                        </nav>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="amazon-footer">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h5>ShopNow</h5>
+                        <p class="small">
+                            Il tuo marketplace di fiducia dal 2026
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Supporto</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Centro Assistenza</a
+                                >
+                            </li>
+                            <li><a href="#" class="text-muted">Contatti</a></li>
+                            <li><a href="#" class="text-muted">FAQ</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Account</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="account.html" class="text-muted"
+                                    >Il Mio Account</a
+                                >
+                            </li>
+                            <li>
+                                <a href="orders.html" class="text-muted"
+                                    >Ordini</a
+                                >
+                            </li>
+                            <li>
+                                <a href="cart.html" class="text-muted"
+                                    >Carrello</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Informazioni</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted">Chi Siamo</a>
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Condizioni d'Uso</a
+                                >
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Privacy Policy</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="newsletter-signup">
+                            <h6>Rimani aggiornato</h6>
+                            <p class="small mb-2">Iscriviti alla nostra newsletter per ricevere offerte esclusive e novità sui prodotti.</p>
+                            <div class="input-group">
+                                <input type="email" class="form-control" placeholder="La tua email" aria-label="Email per newsletter">
+                                <button class="btn btn-amazon" type="button">Iscriviti</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr />
+                <div class="text-center">
+                    <p class="small text-muted mb-0">
+                        &copy; 2026 ShopNow. Tutti i diritti riservati.
+                    </p>
+                </div>
+            </div>
+        </footer>
+
+        <div
+            class="modal fade"
+            id="productImagePreviewModal"
+            tabindex="-1"
+            aria-hidden="true"
+        >
+            <div class="modal-dialog modal-dialog-centered modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5
+                            class="modal-title"
+                            id="product-image-preview-title"
+                        >
+                            Anteprima prodotto
+                        </h5>
+                        <button
+                            type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Chiudi"
+                        ></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img
+                            id="product-image-preview-element"
+                            src=""
+                            alt=""
+                            class="img-fluid rounded"
+                            style="max-height: 75vh; object-fit: contain"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="auth.js?v=20260409a"></script>
+        <script src="updateCart.js?v=20260409a"></script>
+        <script>
+            let allProducts = [];
+            let filteredProducts = [];
+            let currentPage = 1;
+            const productsPerPage = 12;
+            let currentCategory = "all";
+            let currentSearch = "";
+            let currentSort = "name";
+            let productImagePreviewModal = null;
+
+            // Load products on page load
+            document.addEventListener("DOMContentLoaded", async function () {
+                await initializeLocalDB();
+                loadProducts();
+                updateCartCount();
+            });
+
+            async function loadProducts() {
+                try {
+                    allProducts = getAllProducts();
+                    console.log("Loaded products:", allProducts);
+                    if (!allProducts || !allProducts.length) {
+                        console.log("No products in DB, using defaults");
+                        allProducts = getDefaultProducts();
+                    }
+                    filteredProducts = [...allProducts];
+                    applyInitialFiltersFromQuery();
+                } catch (error) {
+                    console.error("Error loading products:", error);
+                    showEmptyState("Errore nel caricamento dei prodotti");
+                }
+            }
+
+            function applyInitialFiltersFromQuery() {
+                const params = new URLSearchParams(window.location.search);
+                const initialSearch = String(params.get("search") || "")
+                    .trim()
+                    .toLowerCase();
+                const initialCategory = String(params.get("category") || "all")
+                    .trim()
+                    .toLowerCase();
+
+                currentSearch = initialSearch;
+                currentCategory = initialCategory || "all";
+                filteredProducts = [...allProducts];
+
+                const searchInput = document.getElementById("search-input");
+                if (searchInput && initialSearch) {
+                    searchInput.value = initialSearch;
+                }
+
+                if (currentCategory !== "all") {
+                    filteredProducts = filteredProducts.filter(
+                        (product) =>
+                            String(product.category || "").toLowerCase() ===
+                            currentCategory,
+                    );
+                    document.getElementById("current-category").textContent =
+                        currentCategory.charAt(0).toUpperCase() +
+                        currentCategory.slice(1);
+                } else {
+                    document.getElementById("current-category").textContent =
+                        "Tutti i prodotti";
+                }
+
+                if (currentSearch) {
+                    filteredProducts = filteredProducts.filter(
+                        (product) =>
+                            product.name
+                                .toLowerCase()
+                                .includes(currentSearch) ||
+                            (product.description &&
+                                product.description
+                                    .toLowerCase()
+                                    .includes(currentSearch)),
+                    );
+                }
+
+                sortProducts();
+            }
+
+            function getProductImagePreviewModal() {
+                if (!productImagePreviewModal) {
+                    productImagePreviewModal = new bootstrap.Modal(
+                        document.getElementById("productImagePreviewModal"),
+                    );
+                }
+
+                return productImagePreviewModal;
+            }
+
+            function openProductImage(productId) {
+                const product = allProducts.find(
+                    (item) => String(item.id) === String(productId),
+                );
+                if (!product || !product.image) {
+                    alert("Immagine non disponibile per questo prodotto.");
+                    return;
+                }
+
+                document.getElementById(
+                    "product-image-preview-title",
+                ).textContent = product.name || "Anteprima prodotto";
+                const previewImage = document.getElementById(
+                    "product-image-preview-element",
+                );
+                previewImage.src = product.image;
+                previewImage.alt = product.name || "Anteprima prodotto";
+                getProductImagePreviewModal().show();
+            }
+
+            function openProductPage(productId) {
+                window.location.href = `product.html?id=${encodeURIComponent(productId)}`;
+            }
+
+            function renderRatingStars(rating) {
+                const normalizedRating = Math.max(
+                    0,
+                    Math.min(5, Number(rating || 0)),
+                );
+                const fullStars = Math.floor(normalizedRating);
+                const decimalPart = normalizedRating - fullStars;
+                const hasHalfStar = decimalPart >= 0.25 && decimalPart < 0.75;
+                const extraFullStar = decimalPart >= 0.75 ? 1 : 0;
+                const emptyStars =
+                    5 - fullStars - extraFullStar - (hasHalfStar ? 1 : 0);
+
+                return [
+                    '<i class="fas fa-star"></i>'.repeat(
+                        fullStars + extraFullStar,
+                    ),
+                    hasHalfStar ? '<i class="fas fa-star-half-alt"></i>' : "",
+                    '<i class="far fa-star"></i>'.repeat(
+                        Math.max(0, emptyStars),
+                    ),
+                ].join("");
+            }
+
+            function getAvailabilityLabel(stock) {
+                if (stock <= 0) return "Momentaneamente esaurito";
+                if (stock <= 10) return `Ultimi ${stock} rimasti`;
+                return "Disponibile";
+            }
+
+            function displayProducts() {
+                const container = document.getElementById("products-container");
+                const startIndex = (currentPage - 1) * productsPerPage;
+                const endIndex = startIndex + productsPerPage;
+                const productsToShow = filteredProducts.slice(
+                    startIndex,
+                    endIndex,
+                );
+
+                if (productsToShow.length === 0) {
+                    showEmptyState("Non ci sono prodotti che corrispondono ai filtri selezionati. Prova a rimuovere o modificare i criteri.");
+                    return;
+                }
+
+                container.innerHTML = `
+                <div class="products-grid">
+                    ${productsToShow.map((product) => createProductCard(product)).join("")}
+                </div>
+            `;
+
+                updateResultsCount();
+                updatePagination();
+            }
+
+
+            function createProductCard(product) {
+                const rating = Number(product.rating || 0);
+                const reviews = Number(product.reviewCount || 0);
+                const stock = Math.max(
+                    0,
+                    Math.floor(Number(product.stock || 0)),
+                );
+                const isOutOfStock = stock <= 0;
+                const productUrl = `product.html?id=${encodeURIComponent(product.id)}`;
+                const ratingText =
+                    reviews > 0
+                        ? `${rating.toFixed(1)} su 5 · ${reviews === 1 ? "1 recensione" : `${reviews} recensioni`}`
+                        : "Sii il primo a recensire questo prodotto";
+
+                return `
+                <div class="product-card">
+                    <a href="${productUrl}" class="product-media-link">
+                        <img src="${product.image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg=="}"
+                             alt="${product.name}" class="product-image" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg=='">
+                    </a>
+                    <div class="product-info">
+                        <a href="${productUrl}" class="product-title product-title-link">${product.name}</a>
+                        <div class="product-rating">
+                            <span class="product-stars">${renderRatingStars(rating)}</span>
+                            <span class="product-rating-text">${ratingText}</span>
+                        </div>
+                        <div class="product-price">EUR ${Number(product.price || 0).toFixed(2)}</div>
+                        <div class="product-availability ${isOutOfStock ? "out-of-stock" : stock <= 10 ? "low-stock" : ""}">
+                            ${getAvailabilityLabel(stock)}
+                        </div>
+                        <button type="button" class="product-open-btn w-100" onclick="openProductPage(${product.id})">
+                            <i class="fas fa-arrow-right me-2"></i>Dettagli prodotto
+                        </button>
+                        <button type="button" class="add-to-cart-btn mt-2" onclick="window.addToCart(${product.id})" ${isOutOfStock ? "disabled" : ""}>
+                            <i class="fas fa-cart-plus me-2"></i>${isOutOfStock ? "Esaurito" : "Aggiungi al carrello"}
+                        </button>
+                        ${product.image ? `<button type="button" class="btn btn-link btn-sm p-0 mt-2" onclick="openProductImage(${product.id})">Visualizza immagine ingrandita</button>` : ""}
+                    </div>
+                </div>
+            `;
+            }
+
+            function showEmptyState(message) {
+                const container = document.getElementById("products-container");
+                container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h4>${message}</h4>
+                    <p>Prova a modificare i filtri o la ricerca</p>
+                    <button class="btn btn-primary" onclick="resetFilters()">Rimuovi filtri</button>
+                </div>
+            `;
+                updateResultsCount();
+            }
+
+            function updateResultsCount() {
+                const count = filteredProducts.length;
+                document.getElementById("results-count").textContent =
+                    count === 1
+                        ? "1 prodotto trovato"
+                        : `${count} prodotti trovati`;
+            }
+
+            function updatePagination() {
+                const totalPages = Math.ceil(
+                    filteredProducts.length / productsPerPage,
+                );
+                const pagination = document.getElementById("pagination");
+
+                if (totalPages <= 1) {
+                    pagination.innerHTML = "";
+                    return;
+                }
+
+                let paginationHTML = "";
+
+                // Previous button
+                if (currentPage > 1) {
+                    paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${currentPage - 1})">Precedente</a></li>`;
+                }
+
+                // Page numbers
+                for (
+                    let i = Math.max(1, currentPage - 2);
+                    i <= Math.min(totalPages, currentPage + 2);
+                    i++
+                ) {
+                    paginationHTML += `<li class="page-item ${i === currentPage ? "active" : ""}"><a class="page-link" href="#" onclick="changePage(${i})">${i}</a></li>`;
+                }
+
+                // Next button
+                if (currentPage < totalPages) {
+                    paginationHTML += `<li class="page-item"><a class="page-link" href="#" onclick="changePage(${currentPage + 1})">Successivo</a></li>`;
+                }
+
+                pagination.innerHTML = paginationHTML;
+            }
+
+            function changePage(page) {
+                currentPage = page;
+                displayProducts();
+                window.scrollTo(0, 0);
+            }
+
+            function filterByCategory(category) {
+                currentCategory = category;
+                currentPage = 1;
+
+                if (category === "all") {
+                    filteredProducts = [...allProducts];
+                } else {
+                    filteredProducts = allProducts.filter(
+                        (product) =>
+                            product.category &&
+                            product.category.toLowerCase() ===
+                                category.toLowerCase(),
+                    );
+                }
+
+                document.getElementById("current-category").textContent =
+                    category === "all"
+                        ? "Tutti i prodotti"
+                        : category.charAt(0).toUpperCase() + category.slice(1);
+
+                applyFilters();
+            }
+
+            function searchProducts() {
+                const searchTerm = document
+                    .getElementById("search-input")
+                    .value.toLowerCase()
+                    .trim();
+                currentSearch = searchTerm;
+                currentPage = 1;
+
+                if (searchTerm === "") {
+                    filteredProducts = [...allProducts];
+                } else {
+                    filteredProducts = allProducts.filter(
+                        (product) =>
+                            product.name.toLowerCase().includes(searchTerm) ||
+                            (product.description &&
+                                product.description
+                                    .toLowerCase()
+                                    .includes(searchTerm)),
+                    );
+                }
+
+                applyFilters();
+            }
+
+            function applyPriceFilter() {
+                const minPrice =
+                    parseFloat(document.getElementById("min-price").value) || 0;
+                const maxPrice =
+                    parseFloat(document.getElementById("max-price").value) ||
+                    Infinity;
+
+                filteredProducts = filteredProducts.filter(
+                    (product) =>
+                        product.price >= minPrice && product.price <= maxPrice,
+                );
+
+                currentPage = 1;
+                displayProducts();
+            }
+
+            function applyRatingFilter() {
+                const minRating = document.getElementById("rating-4").checked
+                    ? 4
+                    : 0;
+
+                filteredProducts = filteredProducts.filter(
+                    (product) => (product.rating || 0) >= minRating,
+                );
+
+                currentPage = 1;
+                displayProducts();
+            }
+
+            function applyStockFilter() {
+                const inStockOnly = document.getElementById("in-stock").checked;
+
+                if (inStockOnly) {
+                    filteredProducts = filteredProducts.filter(
+                        (product) => (product.stock || 0) > 0,
+                    );
+                }
+
+                currentPage = 1;
+                displayProducts();
+            }
+
+            function applyFilters() {
+                // Apply category filter
+                let tempProducts = [...allProducts];
+                if (currentCategory !== "all") {
+                    tempProducts = tempProducts.filter(
+                        (product) =>
+                            product.category &&
+                            product.category.toLowerCase() ===
+                                currentCategory.toLowerCase(),
+                    );
+                }
+
+                // Apply search filter
+                if (currentSearch !== "") {
+                    tempProducts = tempProducts.filter(
+                        (product) =>
+                            product.name
+                                .toLowerCase()
+                                .includes(currentSearch) ||
+                            (product.description &&
+                                product.description
+                                    .toLowerCase()
+                                    .includes(currentSearch)),
+                    );
+                }
+
+                // Apply price filter
+                const minPrice =
+                    parseFloat(document.getElementById("min-price").value) || 0;
+                const maxPrice =
+                    parseFloat(document.getElementById("max-price").value) ||
+                    Infinity;
+                tempProducts = tempProducts.filter(
+                    (product) =>
+                        product.price >= minPrice && product.price <= maxPrice,
+                );
+
+                // Apply rating filter
+                const minRating = document.getElementById("rating-4").checked
+                    ? 4
+                    : 0;
+                tempProducts = tempProducts.filter(
+                    (product) => (product.rating || 0) >= minRating,
+                );
+
+                // Apply stock filter
+                const inStockOnly = document.getElementById("in-stock").checked;
+                if (inStockOnly) {
+                    tempProducts = tempProducts.filter(
+                        (product) => (product.stock || 0) > 0,
+                    );
+                }
+
+                filteredProducts = tempProducts;
+                sortProducts();
+                displayProducts();
+            }
+
+            function sortProducts() {
+                const sortBy = document.getElementById("sort-select").value;
+                currentSort = sortBy;
+
+                filteredProducts.sort((a, b) => {
+                    switch (sortBy) {
+                        case "price-low":
+                            return a.price - b.price;
+                        case "price-high":
+                            return b.price - a.price;
+                        case "rating":
+                            return (b.rating || 0) - (a.rating || 0);
+                        case "newest":
+                            return (
+                                new Date(b.createdAt || 0) -
+                                new Date(a.createdAt || 0)
+                            );
+                        case "name":
+                        default:
+                            return a.name.localeCompare(b.name);
+                    }
+                });
+
+                currentPage = 1;
+                displayProducts();
+            }
+
+            function resetFilters() {
+                document.getElementById("search-input").value = "";
+                document.getElementById("min-price").value = "";
+                document.getElementById("max-price").value = "";
+                document.getElementById("rating-4").checked = false;
+                document.getElementById("in-stock").checked = true;
+                currentCategory = "all";
+                currentSearch = "";
+                currentPage = 1;
+
+                document.getElementById("current-category").textContent =
+                    "Tutti i prodotti";
+                filteredProducts = [...allProducts];
+                sortProducts();
+            }
+
+            // Search on Enter key
+            document
+                .getElementById("search-input")
+                .addEventListener("keypress", function (e) {
+                    if (e.key === "Enter") {
+                        searchProducts();
+                    }
+                });
+        </script>
+    </body>
+</html>
