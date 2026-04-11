@@ -75,7 +75,8 @@ echo    - Click it to verify your site is live!
 echo.
 echo Repository Status:
 echo   ✓ Code pushed to GitHub
-echo   ✓ Ready for Railway deployment
+echo   ✓ Database migrated to PostgreSQL
+echo   ✓ Ready for Railway auto-deployment
 echo   Repository: %REPO_URL%
 echo.
 echo Estimated Deploy Time: 5-10 minutes total
