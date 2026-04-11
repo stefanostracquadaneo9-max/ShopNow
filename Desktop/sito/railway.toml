@@ -9,3 +9,12 @@ startCommand = "node server.js"
 numReplicas = 1
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 5
+
+[[services]]
+id = "postgres"
+source = { image = "postgres:15" }
+
+[services.variables]
+POSTGRES_DB = "railway"
+POSTGRES_USER = "postgres"
+POSTGRES_PASSWORD = { generate = { type = "password", length = 16 } }

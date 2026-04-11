@@ -1,8 +1,11 @@
-const Database = require("better-sqlite3");
-const path = require("path");
+const { Pool } = require("pg");
 const crypto = require("crypto");
-const DB_PATH = path.join(__dirname, "app.db");
-const db = new Database(DB_PATH);
+
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
 const ADMIN_EMAIL = "admin@gmail.com";
 const DEFAULT_PRODUCTS = [
     {
@@ -231,320 +234,350 @@ const DEFAULT_PRODUCTS = [
         rating: 4.2,
     },
 ];
-db.pragma("foreign_keys = ON");
-function initializeDatabase() {
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            passwordHash TEXT NOT NULL,
-            role TEXT DEFAULT 'user',
-            sessionToken TEXT UNIQUE,
-            deletedAt DATETIME,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS addresses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userId INTEGER NOT NULL,
-            street TEXT NOT NULL,
-            city TEXT NOT NULL,
-            postalCode TEXT NOT NULL,
-            country TEXT NOT NULL,
-            phone TEXT,
-            isDefault BOOLEAN DEFAULT 0,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-    `);
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS paymentMethods (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userId INTEGER NOT NULL,
-            cardNumber TEXT NOT NULL,
-            cardHolder TEXT NOT NULL,
-            expiryDate TEXT NOT NULL,
-            isDefault BOOLEAN DEFAULT 0,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-    `);
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS products (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            description TEXT,
-            price REAL NOT NULL,
-            category TEXT,
-            image TEXT,
-            stock INTEGER DEFAULT 0,
-            rating REAL DEFAULT 0,
-            reviewCount INTEGER DEFAULT 0,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
-        )
-    `);
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS productReviews (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            productId INTEGER NOT NULL,
-            userId INTEGER NOT NULL,
-            authorName TEXT NOT NULL,
-            rating INTEGER NOT NULL,
-            comment TEXT NOT NULL,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(productId, userId),
-            FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
-            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-    `);
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userId INTEGER NOT NULL,
-            total REAL NOT NULL,
-            status TEXT DEFAULT 'pending',
-            items TEXT NOT NULL,
-            shippingAddress TEXT,
-            stripePaymentIntentId TEXT,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-    `);
-    db.exec(`
-        CREATE TABLE IF NOT EXISTS cartItems (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            userId INTEGER NOT NULL UNIQUE,
-            items TEXT NOT NULL,
-            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
-        )
-    `);
-    const orderColumns = db.prepare("PRAGMA table_info(orders)").all();
-    const hasStripePaymentIntentId = orderColumns.some(
-        (column) => column.name === "stripePaymentIntentId",
-    );
-    if (!hasStripePaymentIntentId) {
-        db.exec("ALTER TABLE orders ADD COLUMN stripePaymentIntentId TEXT");
+
+async function initializeDatabase() {
+    const client = await pool.connect();
+    try {
+        // Enable UUID extension if needed
+        await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
+
+        // Create tables
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                passwordHash TEXT NOT NULL,
+                role TEXT DEFAULT 'user',
+                sessionToken TEXT UNIQUE,
+                deletedAt TIMESTAMP,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS addresses (
+                id SERIAL PRIMARY KEY,
+                userId INTEGER NOT NULL,
+                street TEXT NOT NULL,
+                city TEXT NOT NULL,
+                postalCode TEXT NOT NULL,
+                country TEXT NOT NULL,
+                phone TEXT,
+                isDefault BOOLEAN DEFAULT false,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS paymentMethods (
+                id SERIAL PRIMARY KEY,
+                userId INTEGER NOT NULL,
+                cardNumber TEXT NOT NULL,
+                cardHolder TEXT NOT NULL,
+                expiryDate TEXT NOT NULL,
+                alias TEXT,
+                brand TEXT,
+                last4 TEXT,
+                expiry TEXT,
+                isDefault BOOLEAN DEFAULT false,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS products (
+                id SERIAL PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                price DECIMAL(10,2) NOT NULL,
+                category TEXT,
+                image TEXT,
+                stock INTEGER DEFAULT 0,
+                rating DECIMAL(3,2) DEFAULT 0,
+                reviewCount INTEGER DEFAULT 0,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS productReviews (
+                id SERIAL PRIMARY KEY,
+                productId INTEGER NOT NULL,
+                userId INTEGER NOT NULL,
+                authorName TEXT NOT NULL,
+                rating INTEGER NOT NULL,
+                comment TEXT NOT NULL,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(productId, userId),
+                FOREIGN KEY (productId) REFERENCES products(id) ON DELETE CASCADE,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS orders (
+                id SERIAL PRIMARY KEY,
+                userId INTEGER NOT NULL,
+                total DECIMAL(10,2) NOT NULL,
+                status TEXT DEFAULT 'pending',
+                items JSONB NOT NULL,
+                shippingAddress JSONB,
+                stripePaymentIntentId TEXT,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        await client.query(`
+            CREATE TABLE IF NOT EXISTS cartItems (
+                id SERIAL PRIMARY KEY,
+                userId INTEGER NOT NULL UNIQUE,
+                items JSONB NOT NULL,
+                createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+
+        console.log("✅ Database PostgreSQL inizializzato con successo");
+    } catch (error) {
+        console.error("❌ Errore inizializzazione database:", error);
+        throw error;
+    } finally {
+        client.release();
     }
-    const userColumns = db.prepare("PRAGMA table_info(users)").all();
-    const hasDeletedAt = userColumns.some(
-        (column) => column.name === "deletedAt",
-    );
-    if (!hasDeletedAt) {
-        db.exec("ALTER TABLE users ADD COLUMN deletedAt DATETIME");
-    }
-    const addressColumns = db.prepare("PRAGMA table_info(addresses)").all();
-    const hasPhone = addressColumns.some((column) => column.name === "phone");
-    if (!hasPhone) {
-        db.exec("ALTER TABLE addresses ADD COLUMN phone TEXT");
-    }
-    const paymentMethodColumns = db
-        .prepare("PRAGMA table_info(paymentMethods)")
-        .all();
-    const paymentMethodExtraColumns = [
-        { name: "alias", type: "TEXT" },
-        { name: "brand", type: "TEXT" },
-        { name: "last4", type: "TEXT" },
-        { name: "expiry", type: "TEXT" },
-    ];
-    paymentMethodExtraColumns.forEach((column) => {
-        const exists = paymentMethodColumns.some(
-            (existingColumn) => existingColumn.name === column.name,
-        );
-        if (!exists) {
-            db.exec(
-                `ALTER TABLE paymentMethods ADD COLUMN ${column.name} ${column.type}`,
-            );
-        }
-    });
-    const productColumns = db.prepare("PRAGMA table_info(products)").all();
-    const hasReviewCount = productColumns.some(
-        (column) => column.name === "reviewCount",
-    );
-    if (!hasReviewCount) {
-        db.exec(
-            "ALTER TABLE products ADD COLUMN reviewCount INTEGER DEFAULT 0",
-        );
-    }
-    console.log("✅ Database inizializzato con successo");
 }
 function hashPassword(password) {
     return crypto.createHash("sha256").update(password).digest("hex");
 }
+
 function generateSessionToken() {
     return crypto.randomBytes(32).toString("hex");
 }
-function createUser(email, name, password, role = "user") {
-    email = String(email || "")
-        .trim()
-        .toLowerCase();
+
+async function createUser(email, name, password, role = "user") {
+    email = String(email || "").trim().toLowerCase();
     const passwordHash = hashPassword(password);
     const sessionToken = generateSessionToken();
+
+    const client = await pool.connect();
     try {
-        const stmt = db.prepare(`
-            INSERT INTO users (email, name, passwordHash, role, sessionToken)
-            VALUES (?, ?, ?, ?, ?)
-        `);
-        const result = stmt.run(email, name, passwordHash, role, sessionToken);
-        return {
-            id: result.lastInsertRowid,
-            email: email,
-            name: name,
-            role: role,
-            sessionToken: sessionToken,
-            createdAt: new Date().toISOString(),
-        };
+        const result = await client.query(
+            `INSERT INTO users (email, name, passwordHash, role, sessionToken)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id, email, name, role, sessionToken, createdAt`,
+            [email, name, passwordHash, role, sessionToken]
+        );
+
+        if (result.rows.length === 0) {
+            throw new Error("Email già in uso");
+        }
+
+        return result.rows[0];
     } catch (error) {
-        throw new Error("Email già in uso");
+        if (error.code === '23505') { // unique constraint violation
+            throw new Error("Email già in uso");
+        }
+        throw error;
+    } finally {
+        client.release();
     }
 }
-function getUserByEmail(email) {
-    email = String(email || "")
-        .trim()
-        .toLowerCase();
-    const stmt = db.prepare(
-        "SELECT * FROM users WHERE email = ? AND deletedAt IS NULL",
-    );
-    return stmt.get(email);
+
+async function getUserByEmail(email) {
+    email = String(email || "").trim().toLowerCase();
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            "SELECT * FROM users WHERE email = $1 AND deletedAt IS NULL",
+            [email]
+        );
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
 }
-function getUserBySessionToken(token) {
-    const stmt = db.prepare(
-        "SELECT * FROM users WHERE sessionToken = ? AND deletedAt IS NULL",
-    );
-    return stmt.get(token);
+
+async function getUserBySessionToken(token) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            "SELECT * FROM users WHERE sessionToken = $1 AND deletedAt IS NULL",
+            [token]
+        );
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
 }
-function getUserById(id) {
-    const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
-    return stmt.get(id);
+
+async function getUserById(id) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM users WHERE id = $1", [id]);
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
 }
-function authenticateUser(email, password) {
-    email = String(email || "")
-        .trim()
-        .toLowerCase();
+
+async function authenticateUser(email, password) {
+    email = String(email || "").trim().toLowerCase();
     password = String(password || "").trim();
-    const user = getUserByEmail(email);
+
+    const user = await getUserByEmail(email);
     if (!user) {
         throw new Error("Utente non trovato");
     }
+
     const passwordHash = hashPassword(password);
     const alternatePasswordHash = password.endsWith("?")
         ? hashPassword(password.slice(0, -1))
         : null;
-    if (
-        user.passwordHash !== passwordHash &&
-        user.passwordHash !== alternatePasswordHash
-    ) {
+
+    if (user.passwordhash !== passwordHash && user.passwordhash !== alternatePasswordHash) {
         throw new Error("Password errata");
     }
+
     const sessionToken = generateSessionToken();
-    const updateStmt = db.prepare(
-        "UPDATE users SET sessionToken = ? WHERE id = ?",
-    );
-    updateStmt.run(sessionToken, user.id);
-    return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        sessionToken: sessionToken,
-        createdAt: user.createdAt,
-    };
+    const client = await pool.connect();
+    try {
+        await client.query(
+            "UPDATE users SET sessionToken = $1 WHERE id = $2",
+            [sessionToken, user.id]
+        );
+
+        return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            role: user.role,
+            sessionToken: sessionToken,
+            createdAt: user.createdat,
+        };
+    } finally {
+        client.release();
+    }
 }
-function getAllUsers() {
-    const stmt = db.prepare(`
-        SELECT id, email, name, role, createdAt, updatedAt,
-               CASE WHEN sessionToken IS NOT NULL AND sessionToken != '' THEN 1 ELSE 0 END AS sessionActive
-        FROM users
-        WHERE deletedAt IS NULL
-    `);
-    return stmt.all();
+
+async function getAllUsers() {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(`
+            SELECT id, email, name, role, createdAt, updatedAt,
+                   CASE WHEN sessionToken IS NOT NULL AND sessionToken != '' THEN 1 ELSE 0 END AS sessionActive
+            FROM users
+            WHERE deletedAt IS NULL
+        `);
+        return result.rows;
+    } finally {
+        client.release();
+    }
 }
-function updateUser(userId, updates) {
+
+async function updateUser(userId, updates) {
     const fields = [];
     const values = [];
+    let paramIndex = 1;
+
     for (const [key, value] of Object.entries(updates)) {
         if (["name", "email"].includes(key)) {
-            fields.push(`${key} = ?`);
+            fields.push(`${key} = $${paramIndex++}`);
             values.push(value);
         }
     }
-    fields.push("updatedAt = CURRENT_TIMESTAMP");
+    fields.push(`updatedAt = CURRENT_TIMESTAMP`);
     values.push(userId);
-    const stmt = db.prepare(
-        `UPDATE users SET ${fields.join(", ")} WHERE id = ?`,
-    );
-    stmt.run(...values);
-    return getUserById(userId);
+
+    const client = await pool.connect();
+    try {
+        await client.query(
+            `UPDATE users SET ${fields.join(", ")} WHERE id = $${paramIndex}`,
+            values
+        );
+        return await getUserById(userId);
+    } finally {
+        client.release();
+    }
 }
-function deleteUser(userId) {
-    const existingUser = getUserById(userId);
+
+async function deleteUser(userId) {
+    const existingUser = await getUserById(userId);
     if (!existingUser) {
         return { changes: 0 };
     }
+
     const deletedEmail = `deleted+${userId}+${Date.now()}@shopnow.local`;
-    const stmt = db.prepare(`
-        UPDATE users
-        SET email = ?, name = ?, role = ?, sessionToken = NULL, deletedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-    `);
-    return stmt.run(deletedEmail, "Utente eliminato", "deleted", userId);
+    const client = await pool.connect();
+    try {
+        const result = await client.query(`
+            UPDATE users
+            SET email = $1, name = $2, role = $3, sessionToken = NULL, deletedAt = CURRENT_TIMESTAMP, updatedAt = CURRENT_TIMESTAMP
+            WHERE id = $4
+        `, [deletedEmail, "Utente eliminato", "deleted", userId]);
+
+        return { changes: result.rowCount };
+    } finally {
+        client.release();
+    }
 }
-function createProduct(name, price, category, description, image, stock) {
+async function createProduct(name, price, category, description, image, stock) {
     const normalizedStock = Number.isFinite(Number(stock))
         ? Math.max(0, Math.floor(Number(stock)))
         : 0;
-    const stmt = db.prepare(`
-        INSERT INTO products (name, price, category, description, image, stock)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-        name,
-        price,
-        category,
-        description,
-        image,
-        normalizedStock,
-    );
-    return getProductById(result.lastInsertRowid);
+
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            `INSERT INTO products (name, price, category, description, image, stock)
+             VALUES ($1, $2, $3, $4, $5, $6)
+             RETURNING *`,
+            [name, price, category, description, image, normalizedStock]
+        );
+        return result.rows[0];
+    } finally {
+        client.release();
+    }
 }
-function getProductById(id) {
-    const stmt = db.prepare("SELECT * FROM products WHERE id = ?");
-    return stmt.get(id);
+
+async function getProductById(id) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM products WHERE id = $1", [id]);
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
 }
-function getAllProducts() {
-    const stmt = db.prepare("SELECT * FROM products ORDER BY createdAt DESC");
-    return stmt.all();
+
+async function getAllProducts() {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM products ORDER BY createdAt DESC");
+        return result.rows;
+    } finally {
+        client.release();
+    }
 }
-function updateProduct(productId, updates) {
+
+async function updateProduct(productId, updates) {
     console.log("updateProduct chiamato con productId:", productId, "updates:", updates);
     const fields = [];
     const values = [];
+    let paramIndex = 1;
+
     for (const [key, value] of Object.entries(updates)) {
-        if (
-            [
-                "name",
-                "price",
-                "category",
-                "description",
-                "image",
-                "stock",
-                "rating",
-            ].includes(key)
-        ) {
-            fields.push(`${key} = ?`);
+        if (["name", "price", "category", "description", "image", "stock", "rating"].includes(key)) {
+            fields.push(`${key} = $${paramIndex++}`);
             if (key === "stock") {
-                values.push(
-                    Number.isFinite(Number(value))
-                        ? Math.max(0, Math.floor(Number(value)))
-                        : 0,
-                );
+                values.push(Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0);
             } else {
                 values.push(value);
             }
@@ -552,444 +585,508 @@ function updateProduct(productId, updates) {
     }
     fields.push("updatedAt = CURRENT_TIMESTAMP");
     values.push(productId);
-    console.log("SQL query:", `UPDATE products SET ${fields.join(", ")} WHERE id = ?`, "values:", values);
-    const stmt = db.prepare(
-        `UPDATE products SET ${fields.join(", ")} WHERE id = ?`,
-    );
-    const result = stmt.run(...values);
-    console.log("Update result:", result);
-    const updatedProduct = getProductById(productId);
-    console.log("Prodotto aggiornato restituito:", updatedProduct);
-    return updatedProduct;
+
+    console.log("SQL query:", `UPDATE products SET ${fields.join(", ")} WHERE id = $${paramIndex}`, "values:", values);
+
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            `UPDATE products SET ${fields.join(", ")} WHERE id = $${paramIndex}`,
+            values
+        );
+        console.log("Update result:", result);
+        const updatedProduct = await getProductById(productId);
+        console.log("Prodotto aggiornato restituito:", updatedProduct);
+        return updatedProduct;
+    } finally {
+        client.release();
+    }
 }
-function deleteProduct(productId) {
-    const stmt = db.prepare("DELETE FROM products WHERE id = ?");
-    stmt.run(productId);
+
+async function deleteProduct(productId) {
+    const client = await pool.connect();
+    try {
+        await client.query("DELETE FROM products WHERE id = $1", [productId]);
+    } finally {
+        client.release();
+    }
 }
-function recalculateProductRating(productId) {
-    const reviewStats = db
-        .prepare(
+
+async function recalculateProductRating(productId) {
+    const client = await pool.connect();
+    try {
+        const reviewStats = await client.query(
             `
-        SELECT COUNT(*) AS reviewCount, AVG(rating) AS averageRating
-        FROM productReviews
-        WHERE productId = ?
-    `,
-        )
-        .get(productId);
-    const reviewCount = Number(reviewStats?.reviewCount || 0);
-    const averageRating =
-        reviewCount > 0
-            ? Number(Number(reviewStats.averageRating || 0).toFixed(2))
+            SELECT COUNT(*) AS reviewCount, AVG(rating) AS averageRating
+            FROM productReviews
+            WHERE productId = $1
+            `,
+            [productId]
+        );
+
+        const reviewCount = Number(reviewStats.rows[0]?.reviewcount || 0);
+        const averageRating = reviewCount > 0
+            ? Number(Number(reviewStats.rows[0]?.averagerating || 0).toFixed(2))
             : 0;
-    db.prepare(
-        `
-        UPDATE products
-        SET rating = ?, reviewCount = ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ?
-    `,
-    ).run(averageRating, reviewCount, productId);
-    return getProductById(productId);
+
+        await client.query(
+            `
+            UPDATE products
+            SET rating = $1, reviewCount = $2, updatedAt = CURRENT_TIMESTAMP
+            WHERE id = $3
+            `,
+            [averageRating, reviewCount, productId]
+        );
+
+        return await getProductById(productId);
+    } finally {
+        client.release();
+    }
 }
-function getReviewsByProductId(productId) {
-    const stmt = db.prepare(`
-        SELECT id, productId, userId, authorName, rating, comment, createdAt, updatedAt
-        FROM productReviews
-        WHERE productId = ?
-        ORDER BY createdAt DESC
-    `);
-    return stmt.all(productId);
+
+async function getReviewsByProductId(productId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(`
+            SELECT id, productId, userId, authorName, rating, comment, createdAt, updatedAt
+            FROM productReviews
+            WHERE productId = $1
+            ORDER BY createdAt DESC
+        `, [productId]);
+        return result.rows;
+    } finally {
+        client.release();
+    }
 }
-function addOrUpdateProductReview(
-    productId,
-    userId,
-    authorName,
-    rating,
-    comment,
-) {
-    const normalizedRating = Math.max(
-        1,
-        Math.min(5, Math.round(Number(rating || 0))),
-    );
+
+async function addOrUpdateProductReview(productId, userId, authorName, rating, comment) {
+    const normalizedRating = Math.max(1, Math.min(5, Math.round(Number(rating || 0))));
     const normalizedComment = String(comment || "").trim();
     const normalizedAuthor = String(authorName || "").trim() || "Cliente";
-    const existingReview = db
-        .prepare(
-            "SELECT id FROM productReviews WHERE productId = ? AND userId = ?",
-        )
-        .get(productId, userId);
-    if (existingReview) {
-        db.prepare(
-            `
-            UPDATE productReviews
-            SET authorName = ?, rating = ?, comment = ?, updatedAt = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `,
-        ).run(
-            normalizedAuthor,
-            normalizedRating,
-            normalizedComment,
-            existingReview.id,
+
+    const client = await pool.connect();
+    try {
+        const existingReview = await client.query(
+            "SELECT id FROM productReviews WHERE productId = $1 AND userId = $2",
+            [productId, userId]
         );
-    } else {
-        db.prepare(
-            `
-            INSERT INTO productReviews (productId, userId, authorName, rating, comment)
-            VALUES (?, ?, ?, ?, ?)
-        `,
-        ).run(
-            productId,
-            userId,
-            normalizedAuthor,
-            normalizedRating,
-            normalizedComment,
-        );
+
+        if (existingReview.rows.length > 0) {
+            await client.query(
+                `
+                UPDATE productReviews
+                SET authorName = $1, rating = $2, comment = $3, updatedAt = CURRENT_TIMESTAMP
+                WHERE id = $4
+                `,
+                [normalizedAuthor, normalizedRating, normalizedComment, existingReview.rows[0].id]
+            );
+        } else {
+            await client.query(
+                `
+                INSERT INTO productReviews (productId, userId, authorName, rating, comment)
+                VALUES ($1, $2, $3, $4, $5)
+                `,
+                [productId, userId, normalizedAuthor, normalizedRating, normalizedComment]
+            );
+        }
+
+        return {
+            product: await recalculateProductRating(productId),
+            reviews: await getReviewsByProductId(productId),
+        };
+    } finally {
+        client.release();
     }
-    return {
-        product: recalculateProductRating(productId),
-        reviews: getReviewsByProductId(productId),
-    };
 }
-function consumeProductStock(items) {
+async function consumeProductStock(items) {
     if (!Array.isArray(items) || !items.length) {
         const error = new Error("Nessun prodotto da scalare dallo stock");
         error.code = "INVALID_ORDER_ITEMS";
         throw error;
     }
+
     const aggregatedItems = new Map();
     items.forEach((item) => {
         const productId = Number(item?.id);
         const quantity = Math.floor(Number(item?.quantity || 0));
-        if (
-            !Number.isInteger(productId) ||
-            productId <= 0 ||
-            !Number.isInteger(quantity) ||
-            quantity <= 0
-        ) {
+        if (!Number.isInteger(productId) || productId <= 0 || !Number.isInteger(quantity) || quantity <= 0) {
             const error = new Error("Articoli ordine non validi");
             error.code = "INVALID_ORDER_ITEMS";
             throw error;
         }
-        aggregatedItems.set(
-            productId,
-            (aggregatedItems.get(productId) || 0) + quantity,
-        );
+        aggregatedItems.set(productId, (aggregatedItems.get(productId) || 0) + quantity);
     });
-    const selectProductStmt = db.prepare("SELECT * FROM products WHERE id = ?");
-    const decrementStockStmt = db.prepare(`
-        UPDATE products
-        SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP
-        WHERE id = ? AND stock >= ?
-    `);
-    const transaction = db.transaction((entries) =>
-        entries.map(([productId, quantity]) => {
-            const product = selectProductStmt.get(productId);
+
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        const results = [];
+        for (const [productId, quantity] of aggregatedItems.entries()) {
+            const productResult = await client.query("SELECT * FROM products WHERE id = $1", [productId]);
+            const product = productResult.rows[0];
+
             if (!product) {
-                const error = new Error(
-                    `Prodotto con ID ${productId} non trovato`,
-                );
+                await client.query('ROLLBACK');
+                const error = new Error(`Prodotto con ID ${productId} non trovato`);
                 error.code = "PRODUCT_NOT_FOUND";
                 error.productId = productId;
                 throw error;
             }
-            const availableStock = Math.max(
-                0,
-                Math.floor(Number(product.stock || 0)),
-            );
+
+            const availableStock = Math.max(0, Math.floor(Number(product.stock || 0)));
             if (availableStock < quantity) {
-                const error = new Error(
-                    `Stock insufficiente per ${product.name}. Disponibili: ${availableStock}.`,
-                );
+                await client.query('ROLLBACK');
+                const error = new Error(`Stock insufficiente per ${product.name}. Disponibili: ${availableStock}.`);
                 error.code = "INSUFFICIENT_STOCK";
                 error.productId = product.id;
                 error.productName = product.name;
                 error.availableStock = availableStock;
                 throw error;
             }
-            const result = decrementStockStmt.run(
-                quantity,
-                product.id,
-                quantity,
+
+            await client.query(
+                "UPDATE products SET stock = stock - $1, updatedAt = CURRENT_TIMESTAMP WHERE id = $2 AND stock >= $3",
+                [quantity, product.id, quantity]
             );
-            if (!result.changes) {
-                const error = new Error(
-                    `Impossibile aggiornare lo stock per ${product.name}`,
-                );
-                error.code = "STOCK_UPDATE_FAILED";
-                error.productId = product.id;
-                throw error;
-            }
-            return {
+
+            results.push({
                 id: product.id,
                 name: product.name,
                 price: Number(product.price || 0),
                 quantity: quantity,
                 image: product.image || "",
                 remainingStock: Math.max(0, availableStock - quantity),
-            };
-        }),
-    );
-    return transaction(Array.from(aggregatedItems.entries()));
+            });
+        }
+
+        await client.query('COMMIT');
+        return results;
+    } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+    } finally {
+        client.release();
+    }
 }
-function createOrder(
-    userId,
-    total,
-    items,
-    shippingAddress,
-    stripePaymentIntentId = null,
-    createdAt = null,
-) {
+
+async function createOrder(userId, total, items, shippingAddress, stripePaymentIntentId = null, createdAt = null) {
     let itemsJson;
     if (Array.isArray(items)) {
         itemsJson = JSON.stringify(items);
     } else {
         itemsJson = items;
     }
-    const stmt = createdAt
-        ? db.prepare(`
-            INSERT INTO orders (userId, total, items, shippingAddress, stripePaymentIntentId, createdAt, updatedAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `)
-        : db.prepare(`
-            INSERT INTO orders (userId, total, items, shippingAddress, stripePaymentIntentId)
-            VALUES (?, ?, ?, ?, ?)
-        `);
-    const result = createdAt
-        ? stmt.run(
-              userId,
-              total,
-              itemsJson,
-              shippingAddress,
-              stripePaymentIntentId,
-              createdAt,
-              createdAt,
-          )
-        : stmt.run(
-              userId,
-              total,
-              itemsJson,
-              shippingAddress,
-              stripePaymentIntentId,
-          );
-    return getOrderById(result.lastInsertRowid);
+
+    const client = await pool.connect();
+    try {
+        let query, values;
+        if (createdAt) {
+            query = `
+                INSERT INTO orders (userId, total, items, shippingAddress, stripePaymentIntentId, createdAt, updatedAt)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                RETURNING *
+            `;
+            values = [userId, total, itemsJson, shippingAddress, stripePaymentIntentId, createdAt, createdAt];
+        } else {
+            query = `
+                INSERT INTO orders (userId, total, items, shippingAddress, stripePaymentIntentId)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING *
+            `;
+            values = [userId, total, itemsJson, shippingAddress, stripePaymentIntentId];
+        }
+
+        const result = await client.query(query, values);
+        return result.rows[0];
+    } finally {
+        client.release();
+    }
 }
-function getOrderByStripePaymentIntentId(stripePaymentIntentId) {
+
+async function getOrderByStripePaymentIntentId(stripePaymentIntentId) {
     if (!stripePaymentIntentId) return null;
-    const stmt = db.prepare(
-        "SELECT * FROM orders WHERE stripePaymentIntentId = ?",
-    );
-    const order = stmt.get(stripePaymentIntentId);
-    if (order) {
-        order.items = JSON.parse(order.items);
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM orders WHERE stripePaymentIntentId = $1", [stripePaymentIntentId]);
+        const order = result.rows[0];
+        if (order) {
+            order.items = order.items; // Already JSONB
+        }
+        return order;
+    } finally {
+        client.release();
     }
-    return order;
 }
-function getOrderById(orderId) {
-    const stmt = db.prepare("SELECT * FROM orders WHERE id = ?");
-    const order = stmt.get(orderId);
-    if (order) {
-        order.items = JSON.parse(order.items);
+
+async function getOrderById(orderId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM orders WHERE id = $1", [orderId]);
+        const order = result.rows[0];
+        if (order) {
+            order.items = order.items; // Already JSONB
+        }
+        return order;
+    } finally {
+        client.release();
     }
-    return order;
 }
-function getOrdersByUserId(userId) {
-    const stmt = db.prepare(
-        "SELECT * FROM orders WHERE userId = ? ORDER BY createdAt DESC",
-    );
-    const orders = stmt.all(userId);
-    return orders.map((order) => ({
-        ...order,
-        items: JSON.parse(order.items),
-    }));
-}
-function getAllOrders() {
-    const stmt = db.prepare("SELECT * FROM orders ORDER BY createdAt DESC");
-    const orders = stmt.all();
-    return orders.map((order) => ({
-        ...order,
-        items: JSON.parse(order.items),
-    }));
-}
-function updateOrderStatus(orderId, status) {
-    const stmt = db.prepare(
-        "UPDATE orders SET status = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
-    );
-    stmt.run(status, orderId);
-    return getOrderById(orderId);
-}
-function addAddress(
-    userId,
-    street,
-    city,
-    postalCode,
-    country,
-    phone = "",
-    isDefault = false,
-) {
-    if (isDefault) {
-        const stdmt = db.prepare(
-            "UPDATE addresses SET isDefault = 0 WHERE userId = ?",
+
+async function getOrdersByUserId(userId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            "SELECT * FROM orders WHERE userId = $1 ORDER BY createdAt DESC",
+            [userId]
         );
-        stdmt.run(userId);
+        return result.rows.map((order) => ({
+            ...order,
+            items: order.items, // Already JSONB
+        }));
+    } finally {
+        client.release();
     }
-    const stmt = db.prepare(`
-        INSERT INTO addresses (userId, street, city, postalCode, country, phone, isDefault)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-        userId,
-        street,
-        city,
-        postalCode,
-        country,
-        phone,
-        isDefault ? 1 : 0,
-    );
-    return getAddressById(result.lastInsertRowid);
 }
-function getAddressById(addressId) {
-    const stmt = db.prepare("SELECT * FROM addresses WHERE id = ?");
-    return stmt.get(addressId);
+
+async function getAllOrders() {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM orders ORDER BY createdAt DESC");
+        return result.rows.map((order) => ({
+            ...order,
+            items: order.items, // Already JSONB
+        }));
+    } finally {
+        client.release();
+    }
 }
-function getAddressesByUserId(userId) {
-    const stmt = db.prepare(
-        "SELECT * FROM addresses WHERE userId = ? ORDER BY createdAt DESC",
-    );
-    return stmt.all(userId);
-}
-function deleteAddress(addressId) {
-    const stmt = db.prepare("DELETE FROM addresses WHERE id = ?");
-    stmt.run(addressId);
-}
-function addPaymentMethod(userId, method, isDefault = false) {
-    if (isDefault) {
-        const stmt = db.prepare(
-            "UPDATE paymentMethods SET isDefault = 0 WHERE userId = ?",
+
+async function updateOrderStatus(orderId, status) {
+    const client = await pool.connect();
+    try {
+        await client.query(
+            "UPDATE orders SET status = $1, updatedAt = CURRENT_TIMESTAMP WHERE id = $2",
+            [status, orderId]
         );
-        stmt.run(userId);
+        return await getOrderById(orderId);
+    } finally {
+        client.release();
     }
-    const alias = String(method.alias || method.cardHolder || "").trim();
-    const brand = String(method.brand || "").trim();
-    const last4 = String(method.last4 || "").trim();
-    const expiry = String(method.expiry || method.expiryDate || "").trim();
-    const stmt = db.prepare(`
-        INSERT INTO paymentMethods (userId, cardNumber, cardHolder, expiryDate, isDefault, alias, brand, last4, expiry)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(
-        userId,
-        last4,
-        alias || "Carta",
-        expiry,
-        isDefault ? 1 : 0,
-        alias,
-        brand,
-        last4,
-        expiry,
-    );
-    return getPaymentMethodById(result.lastInsertRowid);
 }
-function getPaymentMethodById(paymentMethodId) {
-    const stmt = db.prepare("SELECT * FROM paymentMethods WHERE id = ?");
-    return stmt.get(paymentMethodId);
-}
-function getPaymentMethodsByUserId(userId) {
-    const stmt = db.prepare(
-        "SELECT * FROM paymentMethods WHERE userId = ? ORDER BY createdAt DESC",
-    );
-    return stmt.all(userId).map((method) => ({
-        ...method,
-        alias: method.alias || method.cardHolder || "",
-        brand: method.brand || "",
-        last4: method.last4 || method.cardNumber || "",
-        expiry: method.expiry || method.expiryDate || "",
-    }));
-}
-function deletePaymentMethod(paymentMethodId) {
-    const stmt = db.prepare("DELETE FROM paymentMethods WHERE id = ?");
-    stmt.run(paymentMethodId);
-}
-function getCart(userId) {
-    const stmt = db.prepare("SELECT * FROM cartItems WHERE userId = ?");
-    const cart = stmt.get(userId);
-    if (cart) {
-        cart.items = JSON.parse(cart.items);
+async function addAddress(userId, street, city, postalCode, country, phone = "", isDefault = false) {
+    const client = await pool.connect();
+    try {
+        if (isDefault) {
+            await client.query("UPDATE addresses SET isDefault = false WHERE userId = $1", [userId]);
+        }
+
+        const result = await client.query(`
+            INSERT INTO addresses (userId, street, city, postalCode, country, phone, isDefault)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+        `, [userId, street, city, postalCode, country, phone, isDefault]);
+
+        return result.rows[0];
+    } finally {
+        client.release();
     }
-    return cart;
 }
-function updateCart(userId, items) {
+
+async function getAddressById(addressId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM addresses WHERE id = $1", [addressId]);
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
+}
+
+async function getAddressesByUserId(userId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            "SELECT * FROM addresses WHERE userId = $1 ORDER BY createdAt DESC",
+            [userId]
+        );
+        return result.rows;
+    } finally {
+        client.release();
+    }
+}
+
+async function deleteAddress(addressId) {
+    const client = await pool.connect();
+    try {
+        await client.query("DELETE FROM addresses WHERE id = $1", [addressId]);
+    } finally {
+        client.release();
+    }
+}
+
+async function addPaymentMethod(userId, method, isDefault = false) {
+    const client = await pool.connect();
+    try {
+        if (isDefault) {
+            await client.query("UPDATE paymentMethods SET isDefault = false WHERE userId = $1", [userId]);
+        }
+
+        const alias = String(method.alias || method.cardHolder || "").trim();
+        const brand = String(method.brand || "").trim();
+        const last4 = String(method.last4 || "").trim();
+        const expiry = String(method.expiry || method.expiryDate || "").trim();
+
+        const result = await client.query(`
+            INSERT INTO paymentMethods (userId, cardNumber, cardHolder, expiryDate, isDefault, alias, brand, last4, expiry)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+        `, [userId, last4, alias || "Carta", expiry, isDefault, alias, brand, last4, expiry]);
+
+        return result.rows[0];
+    } finally {
+        client.release();
+    }
+}
+
+async function getPaymentMethodById(paymentMethodId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM paymentMethods WHERE id = $1", [paymentMethodId]);
+        return result.rows[0] || null;
+    } finally {
+        client.release();
+    }
+}
+
+async function getPaymentMethodsByUserId(userId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query(
+            "SELECT * FROM paymentMethods WHERE userId = $1 ORDER BY createdAt DESC",
+            [userId]
+        );
+        return result.rows.map((method) => ({
+            ...method,
+            alias: method.alias || method.cardholder || "",
+            brand: method.brand || "",
+            last4: method.last4 || method.cardnumber || "",
+            expiry: method.expiry || method.expirydate || "",
+        }));
+    } finally {
+        client.release();
+    }
+}
+
+async function deletePaymentMethod(paymentMethodId) {
+    const client = await pool.connect();
+    try {
+        await client.query("DELETE FROM paymentMethods WHERE id = $1", [paymentMethodId]);
+    } finally {
+        client.release();
+    }
+}
+async function getCart(userId) {
+    const client = await pool.connect();
+    try {
+        const result = await client.query("SELECT * FROM cartItems WHERE userId = $1", [userId]);
+        const cart = result.rows[0];
+        if (cart) {
+            cart.items = cart.items; // Already JSONB
+        }
+        return cart || null;
+    } finally {
+        client.release();
+    }
+}
+
+async function updateCart(userId, items) {
     const itemsJson = JSON.stringify(items);
-    const stmt = db.prepare(`
-        INSERT INTO cartItems (userId, items)
-        VALUES (?, ?)
-        ON CONFLICT(userId) DO UPDATE SET items = ?, updatedAt = CURRENT_TIMESTAMP
-    `);
-    stmt.run(userId, itemsJson, itemsJson);
-    return getCart(userId);
-}
-function clearCart(userId) {
-    const stmt = db.prepare("DELETE FROM cartItems WHERE userId = ?");
-    stmt.run(userId);
-}
-function seedDatabase() {
-    const userCount = db
-        .prepare("SELECT COUNT(*) as count FROM users")
-        .get().count;
-    const legacyAdmin = db
-        .prepare("SELECT * FROM users WHERE email = ?")
-        .get("admin@gmail.com");
-    const currentAdmin = db
-        .prepare("SELECT * FROM users WHERE email = ?")
-        .get(ADMIN_EMAIL);
-    if (legacyAdmin && !currentAdmin) {
-        db.prepare(
-            `
-            UPDATE users
-            SET email = ?, name = ?, updatedAt = CURRENT_TIMESTAMP
-            WHERE id = ?
-        `,
-        ).run(ADMIN_EMAIL, "Administrator", legacyAdmin.id);
+    const client = await pool.connect();
+    try {
+        await client.query(`
+            INSERT INTO cartItems (userId, items)
+            VALUES ($1, $2)
+            ON CONFLICT (userId) DO UPDATE SET items = $2, updatedAt = CURRENT_TIMESTAMP
+        `, [userId, itemsJson]);
+        return await getCart(userId);
+    } finally {
+        client.release();
     }
-    if (userCount === 0) {
-        createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
+}
+
+async function clearCart(userId) {
+    const client = await pool.connect();
+    try {
+        await client.query("DELETE FROM cartItems WHERE userId = $1", [userId]);
+    } finally {
+        client.release();
     }
-    const existingProducts = getAllProducts();
-    const existingNames = new Set(
-        existingProducts.map((product) => product.name),
-    );
-    let insertedProducts = 0;
-    DEFAULT_PRODUCTS.forEach((product) => {
-        if (existingNames.has(product.name)) return;
-        createProduct(
-            product.name,
-            product.price,
-            product.category,
-            product.description,
-            product.image,
-            product.stock,
-        );
-        insertedProducts += 1;
-    });
-    [
-        ["Laptop Pro", "uploads/Laptop_Pro.jpg"],
-        ["Pantaloni Jeans", "uploads/Pantaloni_Jeans.jpg"],
-    ].forEach(([productName, imagePath]) => {
-        db.prepare(
-            `
-            UPDATE products
-            SET image = ?, updatedAt = CURRENT_TIMESTAMP
-            WHERE name = ?
-              AND (image IS NULL OR image = '' OR image LIKE 'https://via.placeholder.com%')
-        `,
-        ).run(imagePath, productName);
-    });
-    if (userCount === 0 || insertedProducts > 0) {
-        console.log(
-            `✅ Database popolato con dati demo (${insertedProducts} prodotti aggiunti)`,
-        );
+}
+
+async function seedDatabase() {
+    const client = await pool.connect();
+    try {
+        const userCountResult = await client.query("SELECT COUNT(*) as count FROM users");
+        const userCount = parseInt(userCountResult.rows[0].count);
+
+        const legacyAdminResult = await client.query("SELECT * FROM users WHERE email = $1", [ADMIN_EMAIL]);
+        const legacyAdmin = legacyAdminResult.rows[0];
+
+        const currentAdminResult = await client.query("SELECT * FROM users WHERE email = $1", [ADMIN_EMAIL]);
+        const currentAdmin = currentAdminResult.rows[0];
+
+        if (legacyAdmin && !currentAdmin) {
+            await client.query(
+                "UPDATE users SET email = $1, name = $2, updatedAt = CURRENT_TIMESTAMP WHERE id = $3",
+                [ADMIN_EMAIL, "Administrator", legacyAdmin.id]
+            );
+        }
+
+        if (userCount === 0) {
+            await createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
+        }
+
+        const existingProductsResult = await client.query("SELECT name FROM products");
+        const existingNames = new Set(existingProductsResult.rows.map(p => p.name));
+
+        let insertedProducts = 0;
+        for (const product of DEFAULT_PRODUCTS) {
+            if (!existingNames.has(product.name)) {
+                await createProduct(
+                    product.name,
+                    product.price,
+                    product.category,
+                    product.description,
+                    product.image,
+                    product.stock
+                );
+                insertedProducts += 1;
+            }
+        }
+
+        // Update specific products with images
+        const imageUpdates = [
+            ["Laptop Pro", "uploads/Laptop_Pro.jpg"],
+            ["Pantaloni Jeans", "uploads/Pantaloni_Jeans.jpg"],
+        ];
+
+        for (const [productName, imagePath] of imageUpdates) {
+            await client.query(
+                "UPDATE products SET image = $1, updatedAt = CURRENT_TIMESTAMP WHERE name = $2 AND (image IS NULL OR image = '' OR image LIKE 'https://via.placeholder.com%')",
+                [imagePath, productName]
+            );
+        }
+
+        if (userCount === 0 || insertedProducts > 0) {
+            console.log(`✅ Database PostgreSQL popolato con dati demo (${insertedProducts} prodotti aggiunti)`);
+        }
+    } finally {
+        client.release();
     }
 }
 module.exports = {
-    db: db,
+    pool: pool,
     initializeDatabase: initializeDatabase,
     hashPassword: hashPassword,
     generateSessionToken: generateSessionToken,
