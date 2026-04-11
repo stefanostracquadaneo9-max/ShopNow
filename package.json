@@ -10,7 +10,7 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "better-sqlite3": "^12.8.0",
+    "pg": "^8.11.3",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
