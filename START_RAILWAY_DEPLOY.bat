@@ -26,19 +26,22 @@ echo.
 echo Environment Variables to Add:
 echo ════════════════════════════════════════════
 echo STRIPE_SECRET_KEY
-echo  sk_test_51TGkIERvM5OkkW7hF4AjFpXp8fXarIfPpO9aPN4B9AuJ1hRZXRCoEOKoOpY3Zs4KSsl2K7a88ulao80G27lpUtR100EezxAXae
+echo  ^<your Stripe secret key^>
 echo.
 echo STRIPE_PUBLIC_KEY
-echo  pk_test_51TGkIERvM5OkkW7h1NvqiFG8AqpnLGpt0mN33khefwGpqVYvOH9KZzAPt997HnvxgQ4WFRH0YmqOHvBLcp444Syw00olM66h78
+echo  ^<your Stripe public key^>
 echo.
 echo EMAIL_USER
-echo  stefanostracquadaneo9@gmail.com
+echo  ^<your email address^>
 echo.
 echo EMAIL_PASSWORD
-echo  ovqvuktgrevsbwur
+echo  ^<your app password^>
 echo.
 echo NODE_ENV
 echo  production
+echo.
+echo SHOP_URL
+echo  ^<your frontend URL^>
 echo.
 echo DATABASE_URL
 echo  (Railway will auto-generate this when PostgreSQL is added to your project)

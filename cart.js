@@ -17,70 +17,18 @@ let stripeCardElement = null;
 let bridgedCheckoutPrefill = null;
 redirectFileModeCartPage();
 function redirectFileModeCartPage() {
-    if (window.location.protocol !== "file:") {
-        return false;
-    }
-    const bridgePayload = {};
-    CART_BRIDGE_KEYS.forEach((key) => {
-        const value = window.localStorage.getItem(key);
-        if (value !== null) {
-            bridgePayload[key] = value;
-        }
-    });
-    const targetUrl = new URL("http://localhost:3000/cart.html");
-    let checkoutPrefill = null;
-    try {
-        const users = JSON.parse(
-            window.localStorage.getItem("ecommerce_users") || "{}",
-        );
-        const sessionToken = window.localStorage.getItem(
-            "ecommerce-session-token",
-        );
-        const currentUser = Object.values(users).find(
-            (user) => user && user.sessionToken === sessionToken,
-        );
-        const primaryAddress =
-            Array.isArray(currentUser?.addresses) &&
-            currentUser.addresses.length
-                ? currentUser.addresses[0]
-                : null;
-        const primaryPaymentMethod =
-            Array.isArray(currentUser?.paymentMethods) &&
-            currentUser.paymentMethods.length
-                ? currentUser.paymentMethods[0]
-                : null;
-        if (currentUser || primaryAddress) {
-            checkoutPrefill = {
-                name: currentUser?.name || "",
-                email: currentUser?.email || "",
-                line1: primaryAddress?.line1 || primaryAddress?.street || "",
-                city: primaryAddress?.city || "",
-                postalCode: primaryAddress?.postalCode || "",
-                country: primaryAddress?.country || "IT",
-                paymentMethod: primaryPaymentMethod
-                    ? {
-                          alias: primaryPaymentMethod.alias || "",
-                          brand: primaryPaymentMethod.brand || "",
-                          last4: primaryPaymentMethod.last4 || "",
-                          expiry: primaryPaymentMethod.expiry || "",
-                      }
-                    : null,
-            };
-        }
-    } catch (error) {
-        console.error("Errore prefill checkout:", error);
-    }
-    if (Object.keys(bridgePayload).length) {
-        targetUrl.searchParams.set("bridge", JSON.stringify(bridgePayload));
-    }
-    if (checkoutPrefill) {
-        targetUrl.searchParams.set("prefill", JSON.stringify(checkoutPrefill));
-    }
-    window.location.replace(targetUrl.toString());
-    return true;
+    return false;
+}
+function isServerCheckoutMode() {
+    return typeof prefersServerAuth === "function"
+        ? prefersServerAuth()
+        : window.location.protocol !== "file:";
+}
+function isStaticCheckoutMode() {
+    return !isServerCheckoutMode();
 }
 function isLocalhostMode() {
-    return window.location.protocol !== "file:";
+    return isServerCheckoutMode();
 }
 function isBuyNowMode() {
     return (
@@ -115,9 +63,14 @@ function getCartStorageArea() {
 }
 function getApiUrl(path) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-    return isLocalhostMode()
-        ? normalizedPath
-        : `${SERVER_BASE_URL}${normalizedPath}`;
+    if (isLocalhostMode()) {
+        const baseUrl =
+            typeof getServerBaseUrl === "function"
+                ? getServerBaseUrl()
+                : window.location.origin;
+        return `${baseUrl}${normalizedPath}`;
+    }
+    return `${SERVER_BASE_URL}${normalizedPath}`;
 }
 function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>"']/g, (char) => {
@@ -272,7 +225,13 @@ function setCheckoutLoading(isLoading) {
         return;
     }
     button.disabled = isLoading;
-    button.textContent = isLoading ? "Pagamento in corso..." : "Procedi al pagamento";
+    button.textContent = isLoading
+        ? isStaticCheckoutMode()
+            ? "Conferma ordine in corso..."
+            : "Pagamento in corso..."
+        : isStaticCheckoutMode()
+          ? "Conferma ordine"
+          : "Procedi al pagamento";
 }
 function formatCurrency(value) {
     return currencyFormatter.format(Number(value || 0));
@@ -529,6 +488,36 @@ function removeFromCart(productId) {
     saveCart(cart);
     renderCart();
 }
+function configureStaticCheckoutUi() {
+    const checkoutButton = document.getElementById("checkout-btn");
+    const stripeCardSection = document.getElementById("stripe-card-section");
+    const cardElement = document.getElementById("card-element");
+    const cardErrors = document.getElementById("card-errors");
+    const paymentHint = stripeCardSection?.querySelector(".payment-hint");
+    const paymentLabel = stripeCardSection?.querySelector(".form-label");
+    if (checkoutButton) {
+        checkoutButton.disabled = true;
+        checkoutButton.textContent = "Stripe richiede backend";
+    }
+    if (paymentLabel) {
+        paymentLabel.textContent = "Stripe non disponibile";
+    }
+    if (cardElement) {
+        cardElement.style.display = "none";
+        cardElement.innerHTML = "";
+    }
+    if (paymentHint) {
+        paymentHint.textContent =
+            "Per usare Stripe da GitHub Pages devi configurare un backend sicuro e impostare `SHOPNOW_API_BASE_URL` nel file `config.js`.";
+    }
+    if (cardErrors) {
+        cardErrors.textContent = "";
+    }
+    showCheckoutMessage(
+        "warning",
+        "Stripe reale e disattivato finche non colleghi un backend sicuro.",
+    );
+}
 async function loadStripeScript() {
     if (typeof window.Stripe === "function") {
         return;
@@ -556,15 +545,8 @@ async function loadStripeScript() {
     });
 }
 async function initializeStripeCheckout() {
-    if (!isLocalhostMode()) {
-        showCheckoutMessage(
-            "warning",
-            "Apri il checkout da http://localhost:3000 per usare Stripe.",
-        );
-        const checkoutButton = document.getElementById("checkout-btn");
-        if (checkoutButton) {
-            checkoutButton.disabled = true;
-        }
+    if (isStaticCheckoutMode()) {
+        configureStaticCheckoutUi();
         return;
     }
     await loadStripeScript();
@@ -596,17 +578,6 @@ async function initializeStripeCheckout() {
 async function handleCheckoutSubmit(event) {
     event.preventDefault();
     showCheckoutMessage("", "");
-    if (!isLocalhostMode()) {
-        showCheckoutMessage(
-            "danger",
-            "Per usare Stripe apri il sito da http://localhost:3000.",
-        );
-        return;
-    }
-    if (!stripeInstance || !stripeCardElement) {
-        showCheckoutMessage("danger", "Pagamento non disponibile al momento.");
-        return;
-    }
     const name = document.getElementById("checkout-name")?.value.trim() || "";
     const email = document.getElementById("checkout-email")?.value.trim() || "";
     const street =
@@ -627,8 +598,22 @@ async function handleCheckoutSubmit(event) {
         renderCart();
         return;
     }
+    const shippingAddress = {
+        line1: street,
+        city: city,
+        postalCode: postalCode,
+        country: country,
+    };
     setCheckoutLoading(true);
     try {
+        if (isStaticCheckoutMode()) {
+            throw new Error(
+                "Stripe richiede un backend configurato. Imposta `SHOPNOW_API_BASE_URL` in `config.js`.",
+            );
+        }
+        if (!stripeInstance || !stripeCardElement) {
+            throw new Error("Pagamento non disponibile al momento.");
+        }
         const intentResponse = await fetch(
             getApiUrl("/create-payment-intent"),
             {
@@ -678,12 +663,6 @@ async function handleCheckoutSubmit(event) {
                 paymentResult.error.message || "Pagamento non riuscito.",
             );
         }
-        const shippingAddress = {
-            line1: street,
-            city: city,
-            postalCode: postalCode,
-            country: country,
-        };
         const checkoutResponse = await fetch(getApiUrl("/api/checkout"), {
             method: "POST",
             headers: {

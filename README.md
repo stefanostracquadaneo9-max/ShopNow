@@ -1,71 +1,56 @@
-# 🛒 ShopNow - E-commerce Platform
+# ShopNow - E-commerce Platform
 
-Una piattaforma e-commerce completa con autenticazione, carrello, checkout Stripe e pannello admin.
+ShopNow e un e-commerce con autenticazione, catalogo prodotti, carrello, pannello admin e checkout Stripe.
 
-## 🚀 Deploy su Railway
+## Architettura corretta per Stripe
 
-### Prerequisiti
-- Account GitHub
-- Account Railway (https://railway.app)
+Stripe reale non puo funzionare solo con GitHub Pages, perche la `STRIPE_SECRET_KEY` deve restare su un backend sicuro.
 
-### Passo 1: Prepara il repository locale
+Configurazione consigliata:
+- frontend statico su GitHub Pages
+- backend Node/Express su Railway o Render
+- `config.js` nel frontend con l'URL pubblico del backend
 
-```bash
-cd c:\Users\stefa\Desktop\sito
-git init
-git add .
-git commit -m "Initial commit: ShopNow e-commerce platform"
+## Setup rapido
+
+1. Pubblica il backend `server.js` su Railway o Render.
+2. Imposta le variabili presenti in `.env.example`.
+3. Aggiorna `config.js` con l'URL pubblico del backend:
+
+```js
+window.SHOPNOW_API_BASE_URL = "https://your-backend.example";
 ```
 
-### Passo 2: Crea repository su GitHub
+4. Pubblica il frontend su GitHub Pages oppure servi il frontend dallo stesso backend.
 
-1. Vai su https://github.com/new
-2. Nome repo: `shopnow`
-3. Click "Create repository"
-4. Copia il comando di push (non "Initialize with README")
+## Variabili d'ambiente backend
 
-### Passo 3: Fai push su GitHub
+Usa questi valori come template:
 
-```bash
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/shopnow.git
-git push -u origin main
+```ini
+STRIPE_SECRET_KEY=sk_test_your_secret_key_here
+STRIPE_PUBLIC_KEY=pk_test_your_public_key_here
+EMAIL_USER=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password-here
+PORT=3000
+NODE_ENV=production
+SHOP_URL=https://your-frontend-url.example
 ```
 
-### Passo 4: Deploy su Railway
+## Note sul frontend
 
-1. Vai su https://railway.app
-2. Login/Signup con GitHub
-3. Click "New Project" → "Deploy from GitHub repo"
-4. Seleziona il repo `shopnow`
-5. Railway auto-detecta che è Node.js
-6. Add variables (in Railway Dashboard → Variables):
-   - `STRIPE_SECRET_KEY` (dal tuo Stripe)
-   - `STRIPE_PUBLIC_KEY` (dal tuo Stripe)
-   - `EMAIL_USER` (tua email Gmail)
-   - `EMAIL_PASSWORD` (app password Gmail)
-   - `NODE_ENV` = `production`
-   - `PORT` = `3000`
-7. Deploy automaticamente parte!
+- `config.js` viene caricato dalle pagine principali.
+- Se `SHOPNOW_API_BASE_URL` e vuoto, il checkout Stripe resta disattivato sulle versioni statiche.
+- Se `SHOPNOW_API_BASE_URL` punta a un backend valido, login, recensioni, admin e checkout usano quel server.
 
-### Passo 5: Ottieni il Domain
+## Tech stack
 
-Railway genera automaticamente un domain tipo: `shopnow-production.up.railway.app`
+- Frontend: HTML5, Bootstrap 5, JavaScript
+- Backend: Node.js, Express
+- Database: SQLite
+- Payments: Stripe
+- Email: Nodemailer
 
-Lo trovi in Railway Dashboard → Project → Domains
-
-## 📋 Variabili d'Ambiente Richieste
-
-Vedi `.env.example` per il template completo.
-
-## 🛠️ Tech Stack
-
-- **Frontend**: HTML5, Bootstrap 5, JavaScript
-- **Backend**: Node.js, Express.js
-- **Database**: SQLite
-- **Payment**: Stripe
-- **Email**: Nodemailer (Gmail)
-
-## 📝 Licenza
+## Licenza
 
 Proprietaria - ShopNow 2026

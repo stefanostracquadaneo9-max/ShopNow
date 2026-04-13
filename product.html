@@ -209,6 +209,7 @@
         </div>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="config.js?v=20260413a"></script>
         <script src="auth.js?v=20260409a"></script>
         <script src="updateCart.js?v=20260409a"></script>
         <script>
@@ -390,16 +391,117 @@
                 }
             }
 
+            function isServerBackedProductMode() {
+                return typeof prefersServerAuth === "function"
+                    ? prefersServerAuth()
+                    : window.location.protocol !== "file:";
+            }
+
+            function getLocalProductReviews(productId) {
+                const cachedProducts =
+                    typeof getAllProducts === "function"
+                        ? getAllProducts()
+                        : allProducts;
+                const product = cachedProducts.find(
+                    (item) => String(item.id) === String(productId),
+                );
+                return Array.isArray(product?.reviews) ? product.reviews : [];
+            }
+
+            function buildLocalReviewPayload(reviews) {
+                const safeReviews = Array.isArray(reviews) ? reviews : [];
+                const averageRating = safeReviews.length
+                    ? safeReviews.reduce(
+                          (sum, review) => sum + Number(review.rating || 0),
+                          0,
+                      ) / safeReviews.length
+                    : 0;
+                return {
+                    reviews: safeReviews.sort(
+                        (left, right) =>
+                            new Date(right.updatedAt || right.createdAt || 0) -
+                            new Date(left.updatedAt || left.createdAt || 0),
+                    ),
+                    rating: Number(averageRating.toFixed(1)),
+                    reviewCount: safeReviews.length,
+                };
+            }
+
+            function saveProductReviewLocally({ rating, comment }) {
+                const cachedProducts =
+                    typeof getAllProducts === "function"
+                        ? getAllProducts()
+                        : allProducts;
+                const targetIndex = cachedProducts.findIndex(
+                    (item) => String(item.id) === String(currentProduct.id),
+                );
+                if (targetIndex === -1) {
+                    throw new Error("Prodotto non trovato.");
+                }
+                const nextProducts = cachedProducts.map((item) => ({
+                    ...item,
+                    reviews: Array.isArray(item.reviews)
+                        ? item.reviews.map((review) => ({ ...review }))
+                        : [],
+                }));
+                const targetProduct = nextProducts[targetIndex];
+                const reviews = Array.isArray(targetProduct.reviews)
+                    ? targetProduct.reviews
+                    : [];
+                const existingReviewIndex = reviews.findIndex(
+                    (review) =>
+                        String(review.userId) === String(currentViewer.id),
+                );
+                const timestamp = new Date().toISOString();
+                const nextReview = {
+                    userId: currentViewer.id,
+                    authorName: currentViewer.name || currentViewer.email || "Cliente",
+                    rating: rating,
+                    comment: comment,
+                    createdAt:
+                        existingReviewIndex >= 0
+                            ? reviews[existingReviewIndex].createdAt || timestamp
+                            : timestamp,
+                    updatedAt: timestamp,
+                };
+                if (existingReviewIndex >= 0) {
+                    reviews[existingReviewIndex] = {
+                        ...reviews[existingReviewIndex],
+                        ...nextReview,
+                    };
+                } else {
+                    reviews.push(nextReview);
+                }
+                const reviewSummary = buildLocalReviewPayload(reviews);
+                const updatedProduct = {
+                    ...targetProduct,
+                    reviews: reviewSummary.reviews,
+                    rating: reviewSummary.rating,
+                    reviewCount: reviewSummary.reviewCount,
+                };
+                nextProducts[targetIndex] = updatedProduct;
+                if (typeof saveData === "function") {
+                    saveData("products", nextProducts);
+                }
+                syncCurrentProductCache(updatedProduct);
+                productReviews = updatedProduct.reviews;
+            }
+
             async function loadProductReviews(productId) {
                 productReviews = [];
 
-                if (window.location.protocol === "file:") {
+                if (!isServerBackedProductMode()) {
+                    productReviews = getLocalProductReviews(productId);
                     return productReviews;
                 }
 
                 try {
+                    const productApiBaseUrl =
+                        typeof getServerBaseUrl === "function"
+                            ? getServerBaseUrl()
+                            : window.location.origin;
                     const response = await fetch(
-                        `${window.location.origin}/api/products/${productId}/reviews`,
+                        `${productApiBaseUrl}/api/products/${productId}/reviews`,
                     );
                     const data = await response.json().catch(() => ({}));
                     if (!response.ok) {
@@ -486,10 +588,6 @@
             function renderReviewForm() {
                 const existingReview = getCurrentViewerReview();
 
-                if (window.location.protocol === "file:") {
-                    return '<div class="admin-empty-card">Le recensioni si possono inviare quando il sito e aperto tramite server.</div>';
-                }
-
                 if (!currentViewer) {
                     return `
                     <div class="admin-empty-card">
@@ -552,7 +650,7 @@
 
                 try {
                     if (
-                        window.location.protocol !== "file:" &&
+                        isServerBackedProductMode() &&
                         typeof syncProductsFromServer === "function"
                     ) {
                         await syncProductsFromServer().catch(() => null);
@@ -805,14 +903,6 @@
             async function submitProductReview(event) {
                 event.preventDefault();
 
-                if (window.location.protocol === "file:") {
-                    showProductToast(
-                        "Apri il sito tramite server per inviare recensioni.",
-                        "error",
-                    );
-                    return;
-                }
-
                 if (!currentViewer) {
                     showProductToast(
                         "Accedi al tuo account per lasciare una recensione.",
@@ -851,12 +941,28 @@
                 }
 
                 try {
+                    if (!isServerBackedProductMode()) {
+                        saveProductReviewLocally({
+                            rating: selectedRating,
+                            comment: comment,
+                        });
+                        renderProductDetail(currentProduct);
+                        showProductToast(
+                            "Recensione salvata in locale con successo!",
+                            "success",
+                        );
+                        return;
+                    }
                     const token =
                         typeof getSessionToken === "function"
                             ? getSessionToken()
                             : "";
+                    const productApiBaseUrl =
+                        typeof getServerBaseUrl === "function"
+                            ? getServerBaseUrl()
+                            : window.location.origin;
                     const response = await fetch(
-                        `${window.location.origin}/api/products/${currentProduct.id}/reviews`,
+                        `${productApiBaseUrl}/api/products/${currentProduct.id}/reviews`,
                         {
                             method: "POST",
                             headers: {

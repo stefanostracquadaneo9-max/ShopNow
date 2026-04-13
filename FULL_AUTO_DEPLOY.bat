@@ -129,11 +129,13 @@ echo 5. Select "%REPO_NAME%"
 echo 6. Railway auto-deploys!
 echo.
 echo IMPORTANT: Add these variables in Railway Dashboard:
-echo   - STRIPE_SECRET_KEY: sk_test_51TGkIERvM5OkkW7hF4AjFpXp8fXarIfPpO9aPN4B9AuJ1hRZXRCoEOKoOpY3Zs4KSsl2K7a88ulao80G27lpUtR100EezxAXae
-echo   - STRIPE_PUBLIC_KEY: pk_test_51TGkIERvM5OkkW7h1NvqiFG8AqpnLGpt0mN33khefwGpqVYvOH9KZzAPt997HnvxgQ4WFRH0YmqOHvBLcp444Syw00olM66h78
-echo   - EMAIL_USER: stefanostracquadaneo9@gmail.com
-echo   - EMAIL_PASSWORD: ovqvuktgrevsbwur
+echo   - STRIPE_SECRET_KEY: ^<your Stripe secret key^>
+echo   - STRIPE_PUBLIC_KEY: ^<your Stripe public key^>
+echo   - EMAIL_USER: ^<your email address^>
+echo   - EMAIL_PASSWORD: ^<your app password^>
 echo   - NODE_ENV: production
+echo   - PORT: 3000
+echo   - SHOP_URL: ^<your frontend URL^>
 echo.
 echo Your site will be live at:
 echo https://shopnow-production.up.railway.app
