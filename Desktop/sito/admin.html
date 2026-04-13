@@ -582,12 +582,20 @@
             </div>
         </div>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="config.js?v=20260413a"></script>
         <script src="auth.js?v=20260409a"></script>
         <script>
+            function isServerBackedAdminMode() {
+                return typeof prefersServerAuth === "function"
+                    ? prefersServerAuth()
+                    : "file:" !== window.location.protocol;
+            }
             let SERVER_BASE_URL =
-                    "file:" === window.location.protocol
-                        ? "http://localhost:3000"
-                        : window.location.origin,
+                    typeof getServerBaseUrl === "function"
+                        ? getServerBaseUrl()
+                        : isServerBackedAdminMode()
+                          ? window.location.origin
+                          : "http://localhost:3000",
                 ADMIN_DASHBOARD_CACHE_KEY = "admin-dashboard-cache",
                 currentUser = null,
                 users = [],
@@ -895,7 +903,7 @@
             async function fetchUserDetails(e) {
                 var a,
                     e = resolveUserReference(e)?.id ?? e;
-                if ("file:" !== window.location.protocol) {
+                if (isServerBackedAdminMode()) {
                     let t = null;
                     for (a of [
                         SERVER_BASE_URL + "/api/admin/users/" + e,
@@ -1079,6 +1087,9 @@
             `;
             }
             async function loadDashboardDataFromServer() {
+                if (!isServerBackedAdminMode()) {
+                    return !1;
+                }
                 try {
                     var e,
                         t,
@@ -1116,6 +1127,10 @@
                 }
             }
             async function loadStripeSummaryFromServer() {
+                if (!isServerBackedAdminMode()) {
+                    stripeSummary = null;
+                    return;
+                }
                 try {
                     var e = await fetch(
                             SERVER_BASE_URL + "/api/admin/stripe-summary",
@@ -1567,7 +1582,7 @@
                             e.message || "Dati prodotto non validi.",
                         );
                     }
-                    var t = "file:" !== window.location.protocol,
+                    var t = isServerBackedAdminMode(),
                         n = document.getElementById("product-submit-button");
                     n.disabled = !0;
                     try {
@@ -1696,7 +1711,7 @@
             async function deleteProduct(t) {
                 if (confirm("Sei sicuro di voler eliminare questo prodotto?"))
                     try {
-                        if ("file:" !== window.location.protocol) {
+                        if (isServerBackedAdminMode()) {
                             var e = await fetch(
                                     SERVER_BASE_URL + "/admin/products/" + t,
                                     getAdminFetchOptions({ method: "DELETE" }),
@@ -1729,7 +1744,7 @@
                         e.disabled = !0;
                         console.log("Aggiornando stock per prodotto", a, "a", t);
                         try {
-                            if ("file:" !== window.location.protocol) {
+                            if (isServerBackedAdminMode()) {
                                 var r = await fetch(
                                         SERVER_BASE_URL +
                                             "/admin/products/" +
@@ -1833,7 +1848,7 @@
                         ];
                         let e = !1,
                             t = null;
-                        if ("file:" !== window.location.protocol) {
+                        if (isServerBackedAdminMode()) {
                             for (var i of n) {
                                 var o = await fetch(
                                         i,
@@ -1935,6 +1950,12 @@
                     : alert("Ordine non trovato.");
             }
             async function syncStripeHistory() {
+                if (!isServerBackedAdminMode()) {
+                    alert(
+                        "In modalita GitHub il riepilogo Stripe non e disponibile.",
+                    );
+                    return;
+                }
                 try {
                     var e = await fetch(
                             SERVER_BASE_URL + "/api/admin/sync-stripe-history",

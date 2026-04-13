@@ -18,6 +18,89 @@ function resolveProductImage(product) {
     }
     return product?.image || "";
 }
+function getRuntimeOverride() {
+    if (typeof window === "undefined" || !window.location) {
+        return "";
+    }
+    return String(
+        new URLSearchParams(window.location.search).get("runtime") || "",
+    )
+        .trim()
+        .toLowerCase();
+}
+function normalizeBaseUrl(value) {
+    const normalized = String(value || "").trim();
+    if (!normalized) {
+        return "";
+    }
+    return normalized.replace(/\/+$/, "");
+}
+function getConfiguredApiBaseUrl() {
+    if (typeof window === "undefined") {
+        return "";
+    }
+    const runtimeValue = normalizeBaseUrl(window.SHOPNOW_API_BASE_URL);
+    if (runtimeValue) {
+        return runtimeValue;
+    }
+    if (typeof document !== "undefined") {
+        const metaValue = normalizeBaseUrl(
+            document
+                .querySelector('meta[name="shopnow-api-base-url"]')
+                ?.getAttribute("content"),
+        );
+        if (metaValue) {
+            return metaValue;
+        }
+    }
+    const queryValue =
+        typeof window.location !== "undefined"
+            ? normalizeBaseUrl(
+                  new URLSearchParams(window.location.search).get("api_base"),
+              )
+            : "";
+    return queryValue;
+}
+function getServerBaseUrl() {
+    const configuredBaseUrl = getConfiguredApiBaseUrl();
+    if (configuredBaseUrl) {
+        return configuredBaseUrl;
+    }
+    if (typeof window !== "undefined" && window.location) {
+        return normalizeBaseUrl(window.location.origin);
+    }
+    return normalizeBaseUrl(AUTH_SERVER_BASE_URL);
+}
+function prefersServerAuth() {
+    if (typeof window === "undefined" || !window.location) {
+        return false;
+    }
+    const runtimeOverride = getRuntimeOverride();
+    if (runtimeOverride === "server") {
+        return true;
+    }
+    if (runtimeOverride === "static" || runtimeOverride === "github") {
+        return false;
+    }
+    if (getConfiguredApiBaseUrl()) {
+        return true;
+    }
+    if (window.location.protocol === "file:") {
+        return false;
+    }
+    const hostname = String(window.location.hostname || "").toLowerCase();
+    if (hostname.endsWith(".github.io")) {
+        return false;
+    }
+    return (
+        hostname === "localhost" ||
+        hostname === "127.0.0.1" ||
+        hostname === "[::1]"
+    );
+}
+function isStaticHostedMode() {
+    return !prefersServerAuth();
+}
 async function initializeLocalDB() {
     console.log("Inizializzazione DB chiamata");
     const currentStorageVersion = localStorage.getItem(
@@ -470,18 +553,14 @@ function migrateAuthStorage() {
 function getAuthApiUrl(path) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     if (prefersServerAuth()) {
-        return new URL(normalizedPath, window.location.origin).toString();
+        return `${getServerBaseUrl()}${normalizedPath}`;
     }
     return `${AUTH_SERVER_BASE_URL}${normalizedPath}`;
 }
-function prefersServerAuth() {
-    return (
-        typeof window !== "undefined" &&
-        window.location &&
-        window.location.protocol !== "file:"
-    );
-}
 async function tryServerRegister({ name, email, password }) {
+    if (!prefersServerAuth()) {
+        return { ok: false, error: "Modalita statica attiva" };
+    }
     try {
         const response = await fetch(getAuthApiUrl("/register"), {
             method: "POST",
@@ -505,6 +584,9 @@ async function tryServerRegister({ name, email, password }) {
     }
 }
 async function tryServerLogin(email, password) {
+    if (!prefersServerAuth()) {
+        return { ok: false, error: "Modalita statica attiva" };
+    }
     try {
         const response = await fetch(getAuthApiUrl("/login"), {
             method: "POST",
@@ -524,6 +606,9 @@ async function tryServerLogin(email, password) {
     }
 }
 async function syncUsersFromServer() {
+    if (!prefersServerAuth()) {
+        return;
+    }
     try {
         const response = await fetch(getAuthApiUrl("/api/auth/users"));
         const data = await response.json().catch(() => null);
@@ -1151,3 +1236,6 @@ if (typeof document !== "undefined") {
 }
 window.logout = logout;
 window.searchProducts = searchProducts;
+window.prefersServerAuth = prefersServerAuth;
+window.isStaticHostedMode = isStaticHostedMode;
+window.getServerBaseUrl = getServerBaseUrl;
