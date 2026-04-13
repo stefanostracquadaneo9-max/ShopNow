@@ -1,0 +1,41 @@
+# Environment variables - NEVER commit!
+.env
+.env.local
+.env.*.local
+.env.production
+.env.*.production
+
+# Node modules
+node_modules/
+package-lock.json
+npm-debug.log
+
+# User data
+users.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+
+# Database
+app.db
+*.db
+*.sqlite
+
+# Railway
+.railway/
+
+# System
+.DS_Store
+Thumbs.db/
+desktop.ini
