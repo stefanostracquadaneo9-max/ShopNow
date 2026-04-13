@@ -1,0 +1,27 @@
+{
+  "name": "ecommerce-server",
+  "version": "1.0.0",
+  "description": "Ecommerce payment server with Stripe",
+  "main": "server.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.0.0",
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "nodemailer": "^6.9.7",
+    "stripe": "^12.0.0"
+  },
+  "devDependencies": {
+    "html-minifier": "^4.0.0",
+    "js-beautify": "^1.15.4",
+    "prettier": "^3.8.1",
+    "uglify-js": "^3.19.3"
+  }
+}

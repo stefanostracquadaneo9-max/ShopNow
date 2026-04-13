@@ -1,0 +1,1054 @@
+<!doctype html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ShopNow - Prodotto</title>
+        <link rel="icon" type="image/png" href="favicon.png" />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            rel="stylesheet"
+        />
+        <link href="style.css" rel="stylesheet" />
+    </head>
+    <body>
+        <header class="amazon-header">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <a class="navbar-brand" href="products.html">
+                            <i class="fas fa-shopping-bag me-2"></i>ShopNow
+                        </a>
+                    </div>
+                    <div class="col">
+                        <div class="search-bar d-flex">
+                            <input
+                                type="text"
+                                id="search-input"
+                                class="form-control"
+                                placeholder="Cerca prodotti nel catalogo ShopNow..."
+                            />
+                            <button class="btn" onclick="searchProducts()">
+                                <i class="fas fa-search"></i> Cerca
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="nav-icons">
+                            <a href="account.html" class="nav-icon">
+                                <i class="fas fa-user"></i>
+                            </a>
+                            <a href="orders.html" class="nav-icon">
+                                <i class="fas fa-box"></i>
+                            </a>
+                            <a href="cart.html" class="nav-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                                <span id="cart-count" class="cart-count"
+                                    >0</span
+                                >
+                            </a>
+                            <a
+                                href="#"
+                                class="nav-icon"
+                                onclick="
+                                    logout();
+                                    return false;
+                                "
+                            >
+                                <i class="fas fa-sign-out-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="container my-4">
+            <nav aria-label="breadcrumb" class="mb-3">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item">
+                        <a href="products.html">Home</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a href="products.html" id="product-category-link"
+                            >Prodotti</a
+                        >
+                    </li>
+                    <li
+                        class="breadcrumb-item active"
+                        id="product-breadcrumb-name"
+                    >
+                        Dettaglio prodotto
+                    </li>
+                </ol>
+            </nav>
+
+            <div id="product-detail-container" class="loading">
+                <div class="spinner-border" role="status">
+                    <span class="sr-only">Caricamento...</span>
+                </div>
+                <p class="mt-2">Caricamento prodotto...</p>
+            </div>
+        </div>
+
+        <footer class="amazon-footer">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h5>ShopNow</h5>
+                        <p class="small">
+                            Il tuo marketplace di fiducia dal 2026
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Supporto</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Centro Assistenza</a
+                                >
+                            </li>
+                            <li><a href="#" class="text-muted">Contatti</a></li>
+                            <li><a href="#" class="text-muted">FAQ</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Account</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="account.html" class="text-muted"
+                                    >Il Mio Account</a
+                                >
+                            </li>
+                            <li>
+                                <a href="orders.html" class="text-muted"
+                                    >Ordini</a
+                                >
+                            </li>
+                            <li>
+                                <a href="cart.html" class="text-muted"
+                                    >Carrello</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Informazioni</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted">Chi Siamo</a>
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Condizioni d'Uso</a
+                                >
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Privacy Policy</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="newsletter-signup">
+                            <h6>Rimani aggiornato</h6>
+                            <p class="small mb-2">Iscriviti alla nostra newsletter per ricevere offerte esclusive e novità sui prodotti.</p>
+                            <div class="input-group">
+                                <input type="email" class="form-control" placeholder="La tua email" aria-label="Email per newsletter">
+                                <button class="btn btn-amazon" type="button">Iscriviti</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr />
+                <div class="text-center">
+                    <p class="small text-muted mb-0">
+                        &copy; 2026 ShopNow. Tutti i diritti riservati.
+                    </p>
+                </div>
+            </div>
+        </footer>
+
+        <div
+            class="modal fade"
+            id="productZoomModal"
+            tabindex="-1"
+            aria-hidden="true"
+        >
+            <div class="modal-dialog modal-dialog-centered modal-xl">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="product-zoom-title">
+                            Anteprima prodotto
+                        </h5>
+                        <button
+                            type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Chiudi"
+                        ></button>
+                    </div>
+                    <div class="modal-body text-center">
+                        <img
+                            id="product-zoom-image"
+                            src=""
+                            alt=""
+                            class="img-fluid rounded"
+                            style="max-height: 80vh; object-fit: contain"
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="config.js?v=20260413a"></script>
+        <script src="auth.js?v=20260409a"></script>
+        <script src="updateCart.js?v=20260409a"></script>
+        <script>
+            let currentProduct = null;
+            let allProducts = [];
+            let productZoomModal = null;
+            let currentViewer = null;
+            let productReviews = [];
+            const PRODUCT_FREE_SHIPPING_THRESHOLD = 30;
+            const PRODUCT_SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
+
+            document.addEventListener("DOMContentLoaded", async function () {
+                await initializeLocalDB();
+                updateCartCount();
+                await loadProductDetail();
+            });
+
+            function getProductIdFromQuery() {
+                return new URLSearchParams(window.location.search).get("id");
+            }
+
+            function getProductZoomModalInstance() {
+                if (!productZoomModal) {
+                    productZoomModal = new bootstrap.Modal(
+                        document.getElementById("productZoomModal"),
+                    );
+                }
+
+                return productZoomModal;
+            }
+
+            function escapeHtml(value) {
+                return String(value ?? "").replace(
+                    /[&<>"']/g,
+                    (character) =>
+                        ({
+                            "&": "&amp;",
+                            "<": "&lt;",
+                            ">": "&gt;",
+                            '"': "&quot;",
+                            "'": "&#39;",
+                        })[character],
+                );
+            }
+
+            function formatCurrency(value) {
+                return new Intl.NumberFormat("it-IT", {
+                    style: "currency",
+                    currency: "EUR",
+                }).format(Number(value || 0));
+            }
+
+            function openProductZoom() {
+                if (!currentProduct?.image) {
+                    return;
+                }
+
+                document.getElementById("product-zoom-title").textContent =
+                    currentProduct.name || "Anteprima prodotto";
+                const image = document.getElementById("product-zoom-image");
+                image.src = currentProduct.image;
+                image.alt = currentProduct.name || "Anteprima prodotto";
+                getProductZoomModalInstance().show();
+            }
+
+            function getSelectedQuantity() {
+                const quantityElement =
+                    document.getElementById("product-quantity");
+                return Math.max(
+                    1,
+                    Math.floor(Number(quantityElement?.value || 1)),
+                );
+            }
+
+            function addCurrentProductToCart(redirectToCart) {
+                if (!currentProduct) {
+                    return;
+                }
+
+                const quantity = getSelectedQuantity();
+                if (typeof window.addProductQuantityToCart === "function") {
+                    const added = window.addProductQuantityToCart(
+                        currentProduct.id,
+                        quantity,
+                    );
+                    if (added && redirectToCart) {
+                        window.location.href = "cart.html";
+                    }
+                    return;
+                }
+
+                if (typeof window.addToCart === "function") {
+                    let addedItems = 0;
+                    for (let index = 0; index < quantity; index += 1) {
+                        if (window.addToCart(currentProduct.id) === false) {
+                            break;
+                        }
+                        addedItems += 1;
+                    }
+
+                    if (addedItems > 0 && redirectToCart) {
+                        window.location.href = "cart.html";
+                    }
+                }
+            }
+
+            function renderStars(rating) {
+                const normalizedRating = Math.max(
+                    0,
+                    Math.min(5, Number(rating || 0)),
+                );
+                const fullStars = Math.floor(normalizedRating);
+                const decimalPart = normalizedRating - fullStars;
+                const hasHalfStar = decimalPart >= 0.25 && decimalPart < 0.75;
+                const extraFullStar = decimalPart >= 0.75 ? 1 : 0;
+                const emptyStars = Math.max(
+                    0,
+                    5 - fullStars - extraFullStar - (hasHalfStar ? 1 : 0),
+                );
+
+                return [
+                    '<i class="fas fa-star"></i>'.repeat(
+                        fullStars + extraFullStar,
+                    ),
+                    hasHalfStar ? '<i class="fas fa-star-half-alt"></i>' : "",
+                    '<i class="far fa-star"></i>'.repeat(emptyStars),
+                ].join("");
+            }
+
+            function getStockLabel(stock) {
+                if (stock <= 0) return "Temporaneamente non disponibile";
+                if (stock <= 10) return `Ultimi ${stock} rimasti`;
+                return "Disponibile";
+            }
+
+            function getShippingDescription(price) {
+                if (Number(price || 0) >= PRODUCT_FREE_SHIPPING_THRESHOLD) {
+                    return `Spedizione gratuita oltre EUR ${PRODUCT_FREE_SHIPPING_THRESHOLD.toFixed(2)}`;
+                }
+
+                return `Spedizione ${Math.round(PRODUCT_SHIPPING_RATE_UNDER_THRESHOLD * 100)}% del totale per ordini inferiori a EUR ${PRODUCT_FREE_SHIPPING_THRESHOLD.toFixed(2)}`;
+            }
+
+            function showProductToast(message, type = "success") {
+                if (typeof showToast === "function") {
+                    showToast(message, type);
+                    return;
+                }
+
+                window.alert(message);
+            }
+
+            function syncCurrentProductCache(updatedProduct) {
+                if (!updatedProduct) {
+                    return;
+                }
+
+                const cachedProducts =
+                    typeof getAllProducts === "function"
+                        ? getAllProducts()
+                        : allProducts;
+                const productExists = cachedProducts.some(
+                    (item) => String(item.id) === String(updatedProduct.id),
+                );
+                allProducts = productExists
+                    ? cachedProducts.map((item) =>
+                          String(item.id) === String(updatedProduct.id)
+                              ? { ...item, ...updatedProduct }
+                              : item,
+                      )
+                    : [updatedProduct, ...cachedProducts];
+
+                currentProduct = allProducts.find(
+                    (item) => String(item.id) === String(updatedProduct.id),
+                ) || { ...updatedProduct };
+
+                if (typeof saveData === "function") {
+                    saveData("products", allProducts);
+                }
+            }
+
+            function isServerBackedProductMode() {
+                return typeof prefersServerAuth === "function"
+                    ? prefersServerAuth()
+                    : window.location.protocol !== "file:";
+            }
+
+            function getLocalProductReviews(productId) {
+                const cachedProducts =
+                    typeof getAllProducts === "function"
+                        ? getAllProducts()
+                        : allProducts;
+                const product = cachedProducts.find(
+                    (item) => String(item.id) === String(productId),
+                );
+                return Array.isArray(product?.reviews) ? product.reviews : [];
+            }
+
+            function buildLocalReviewPayload(reviews) {
+                const safeReviews = Array.isArray(reviews) ? reviews : [];
+                const averageRating = safeReviews.length
+                    ? safeReviews.reduce(
+                          (sum, review) => sum + Number(review.rating || 0),
+                          0,
+                      ) / safeReviews.length
+                    : 0;
+                return {
+                    reviews: safeReviews.sort(
+                        (left, right) =>
+                            new Date(right.updatedAt || right.createdAt || 0) -
+                            new Date(left.updatedAt || left.createdAt || 0),
+                    ),
+                    rating: Number(averageRating.toFixed(1)),
+                    reviewCount: safeReviews.length,
+                };
+            }
+
+            function saveProductReviewLocally({ rating, comment }) {
+                const cachedProducts =
+                    typeof getAllProducts === "function"
+                        ? getAllProducts()
+                        : allProducts;
+                const targetIndex = cachedProducts.findIndex(
+                    (item) => String(item.id) === String(currentProduct.id),
+                );
+                if (targetIndex === -1) {
+                    throw new Error("Prodotto non trovato.");
+                }
+                const nextProducts = cachedProducts.map((item) => ({
+                    ...item,
+                    reviews: Array.isArray(item.reviews)
+                        ? item.reviews.map((review) => ({ ...review }))
+                        : [],
+                }));
+                const targetProduct = nextProducts[targetIndex];
+                const reviews = Array.isArray(targetProduct.reviews)
+                    ? targetProduct.reviews
+                    : [];
+                const existingReviewIndex = reviews.findIndex(
+                    (review) =>
+                        String(review.userId) === String(currentViewer.id),
+                );
+                const timestamp = new Date().toISOString();
+                const nextReview = {
+                    userId: currentViewer.id,
+                    authorName: currentViewer.name || currentViewer.email || "Cliente",
+                    rating: rating,
+                    comment: comment,
+                    createdAt:
+                        existingReviewIndex >= 0
+                            ? reviews[existingReviewIndex].createdAt || timestamp
+                            : timestamp,
+                    updatedAt: timestamp,
+                };
+                if (existingReviewIndex >= 0) {
+                    reviews[existingReviewIndex] = {
+                        ...reviews[existingReviewIndex],
+                        ...nextReview,
+                    };
+                } else {
+                    reviews.push(nextReview);
+                }
+                const reviewSummary = buildLocalReviewPayload(reviews);
+                const updatedProduct = {
+                    ...targetProduct,
+                    reviews: reviewSummary.reviews,
+                    rating: reviewSummary.rating,
+                    reviewCount: reviewSummary.reviewCount,
+                };
+                nextProducts[targetIndex] = updatedProduct;
+                if (typeof saveData === "function") {
+                    saveData("products", nextProducts);
+                }
+                syncCurrentProductCache(updatedProduct);
+                productReviews = updatedProduct.reviews;
+            }
+
+            async function loadProductReviews(productId) {
+                productReviews = [];
+
+                if (!isServerBackedProductMode()) {
+                    productReviews = getLocalProductReviews(productId);
+                    return productReviews;
+                }
+
+                try {
+                    const productApiBaseUrl =
+                        typeof getServerBaseUrl === "function"
+                            ? getServerBaseUrl()
+                            : window.location.origin;
+                    const response = await fetch(
+                        `${productApiBaseUrl}/api/products/${productId}/reviews`,
+                    );
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(
+                            data.error || "Recensioni non disponibili",
+                        );
+                    }
+
+                    productReviews = Array.isArray(data.reviews)
+                        ? data.reviews
+                        : [];
+                    if (data.product) {
+                        syncCurrentProductCache(data.product);
+                    }
+                } catch (error) {
+                    console.error("Errore caricamento recensioni:", error);
+                }
+
+                return productReviews;
+            }
+
+            function getCurrentViewerReview() {
+                if (!currentViewer) {
+                    return null;
+                }
+
+                return (
+                    productReviews.find(
+                        (review) =>
+                            String(review.userId) === String(currentViewer.id),
+                    ) || null
+                );
+            }
+
+            function buildReviewStarsInput(selectedRating = 5) {
+                const normalizedRating = Math.max(
+                    1,
+                    Math.min(5, Number(selectedRating || 5)),
+                );
+                return `
+                <input type="hidden" id="review-rating-value" value="${normalizedRating}">
+                ${[1, 2, 3, 4, 5]
+                    .map(
+                        (value) => `
+                    <button type="button" class="review-star-button ${value <= normalizedRating ? "filled" : ""}" onclick="setProductReviewRating(${value})" aria-label="${value} stelle">
+                        <i class="fas fa-star"></i>
+                    </button>
+                `,
+                    )
+                    .join("")}
+                <span class="review-rating-caption" id="review-rating-caption">${normalizedRating} stelle selezionate</span>
+            `;
+            }
+
+            function setProductReviewRating(rating) {
+                const normalizedRating = Math.max(
+                    1,
+                    Math.min(5, Number(rating || 0)),
+                );
+                const hiddenInput = document.getElementById(
+                    "review-rating-value",
+                );
+                if (hiddenInput) {
+                    hiddenInput.value = String(normalizedRating);
+                }
+
+                document
+                    .querySelectorAll(".review-star-button")
+                    .forEach((button, index) => {
+                        button.classList.toggle(
+                            "filled",
+                            index < normalizedRating,
+                        );
+                    });
+
+                const caption = document.getElementById(
+                    "review-rating-caption",
+                );
+                if (caption) {
+                    caption.textContent = `${normalizedRating} ${normalizedRating === 1 ? "stella selezionata" : "stelle selezionate"}`;
+                }
+            }
+
+            function renderReviewForm() {
+                const existingReview = getCurrentViewerReview();
+
+                if (!currentViewer) {
+                    return `
+                    <div class="admin-empty-card">
+                        Accedi al tuo account per lasciare una recensione e aggiornare il punteggio del prodotto.
+                    </div>
+                `;
+                }
+
+                return `
+                <form class="product-review-form" onsubmit="submitProductReview(event)">
+                    <div class="mb-3">
+                        <label class="form-label">La tua valutazione</label>
+                        <div class="review-stars-input-row">
+                            ${buildReviewStarsInput(existingReview?.rating || 5)}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="review-comment" class="form-label">La tua recensione</label>
+                        <textarea id="review-comment" class="form-control" rows="5" minlength="5" required>${escapeHtml(existingReview?.comment || "")}</textarea>
+                    </div>
+                    <button type="submit" id="submit-review-button" class="btn-amazon">
+                        <i class="fas fa-pen me-2"></i>${existingReview ? "Aggiorna recensione" : "Invia recensione"}
+                    </button>
+                </form>
+            `;
+            }
+
+            function renderReviewsList() {
+                if (!productReviews.length) {
+                    return '<div class="admin-empty-card">Ancora nessuna recensione. Sii il primo a condividere la tua opinione sul prodotto.</div>';
+                }
+
+                return `
+                <div class="product-reviews-list">
+                    ${productReviews
+                        .map(
+                            (review) => `
+                        <article class="product-review-card">
+                            <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                                <div>
+                                    <div class="product-review-author">${escapeHtml(review.authorName || "Cliente")}</div>
+                                    <div class="product-review-rating">${renderStars(review.rating)} <span>${Number(review.rating || 0).toFixed(1)} / 5</span></div>
+                                </div>
+                                <div class="product-review-date">${new Date(review.updatedAt || review.createdAt || Date.now()).toLocaleDateString("it-IT")}</div>
+                            </div>
+                            <p class="product-review-comment mb-0">${escapeHtml(review.comment || "")}</p>
+                        </article>
+                    `,
+                        )
+                        .join("")}
+                </div>
+            `;
+            }
+
+            async function loadProductDetail() {
+                const productId = getProductIdFromQuery();
+                const container = document.getElementById(
+                    "product-detail-container",
+                );
+
+                try {
+                    if (
+                        isServerBackedProductMode() &&
+                        typeof syncProductsFromServer === "function"
+                    ) {
+                        await syncProductsFromServer().catch(() => null);
+                    }
+
+                    allProducts =
+                        typeof getAllProducts === "function"
+                            ? getAllProducts()
+                            : [];
+                    currentProduct =
+                        allProducts.find(
+                            (product) =>
+                                String(product.id) === String(productId),
+                        ) || null;
+                    currentViewer =
+                        typeof getCurrentUser === "function"
+                            ? await getCurrentUser().catch(() => null)
+                            : null;
+
+                    if (!currentProduct) {
+                        container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-box-open"></i>
+                            <h4>Prodotto non trovato</h4>
+                            <p>Il prodotto richiesto non esiste o non e piu disponibile.</p>
+                            <a href="products.html" class="btn btn-amazon">Torna ai prodotti</a>
+                        </div>
+                    `;
+                        return;
+                    }
+
+                    await loadProductReviews(currentProduct.id);
+                    currentProduct =
+                        (typeof getProductById === "function"
+                            ? getProductById(currentProduct.id)
+                            : null) || currentProduct;
+                    allProducts =
+                        typeof getAllProducts === "function"
+                            ? getAllProducts()
+                            : allProducts;
+
+                    renderProductDetail(currentProduct);
+                } catch (error) {
+                    console.error("Errore caricamento prodotto:", error);
+                    container.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-triangle-exclamation"></i>
+                        <h4>Errore caricamento prodotto</h4>
+                        <p>Non siamo riusciti a caricare i dettagli del prodotto.</p>
+                    </div>
+                `;
+                }
+            }
+
+            function renderProductDetail(product) {
+                const container = document.getElementById(
+                    "product-detail-container",
+                );
+                const stock = Math.max(
+                    0,
+                    Math.floor(Number(product.stock || 0)),
+                );
+                const reviewsCount = Number(
+                    product.reviewCount || productReviews.length || 0,
+                );
+                const relatedProducts = allProducts
+                    .filter(
+                        (item) =>
+                            item.id !== product.id &&
+                            item.category === product.category,
+                    )
+                    .slice(0, 4);
+                const quantityOptions = Array.from(
+                    { length: Math.max(1, Math.min(stock, 10)) },
+                    (_, index) => index + 1,
+                )
+                    .map(
+                        (quantity) =>
+                            `<option value="${quantity}">${quantity}</option>`,
+                    )
+                    .join("");
+                const shippingDescription = getShippingDescription(
+                    product.price,
+                );
+                const reviewsLabel =
+                    reviewsCount === 1
+                        ? "1 recensione"
+                        : `${reviewsCount} recensioni`;
+
+                document.title = `ShopNow - ${product.name}`;
+                document.getElementById("product-breadcrumb-name").textContent =
+                    product.name;
+                document.getElementById("product-category-link").textContent =
+                    product.category || "Prodotti";
+                document.getElementById("product-category-link").href =
+                    product.category
+                        ? `products.html?category=${encodeURIComponent(product.category)}`
+                        : "products.html";
+
+                container.className = "";
+                container.innerHTML = `
+                <div class="product-detail-shell amazon-product-shell">
+                    <div class="row g-4 align-items-start">
+                        <div class="col-xl-5 col-lg-5">
+                            <div class="product-gallery-panel amazon-product-gallery">
+                                <div class="product-gallery-main" onclick="openProductZoom()">
+                                    <img src="${escapeHtml(product.image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iNjAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI2IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzU3NTc1IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg==")}" alt="${escapeHtml(product.name)}" class="product-detail-image">
+                                    <div class="product-zoom-hint"><i class="fas fa-magnifying-glass-plus me-2"></i>Visualizza immagine in alta risoluzione</div>
+                                </div>
+                                <div class="product-gallery-caption">
+                                    <div><i class="fas fa-camera-retro me-2"></i>Guarda l'immagine in dettaglio</div>
+                                    <div><i class="fas fa-truck-fast me-2"></i>${escapeHtml(shippingDescription)}</div>
+                                    <div><i class="fas fa-rotate-left me-2"></i>Reso semplice entro 30 giorni</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-4 col-lg-4">
+                            <div class="product-main-panel amazon-product-main">
+                                <div class="product-detail-meta-row">
+                                    <span class="product-category-pill">${escapeHtml(product.category || "Prodotto")}</span>
+                                    <span class="product-stock-pill ${stock <= 0 ? "out-of-stock" : stock <= 10 ? "low-stock" : ""}">${escapeHtml(getStockLabel(stock))}</span>
+                                </div>
+                                <h1 class="product-detail-title">${escapeHtml(product.name)}</h1>
+                                <div class="product-detail-rating-row">
+                                    <div class="product-detail-rating">${renderStars(product.rating || 0)}</div>
+                                    <a href="#reviews-section" class="product-review-anchor">${Number(product.rating || 0).toFixed(1)} · ${reviewsLabel}</a>
+                                </div>
+                                <div class="product-detail-price">${formatCurrency(product.price)}</div>
+                                <div class="product-price-caption">Prezzo finale IVA inclusa</div>
+                                <p class="product-detail-description">${escapeHtml(product.description || "Descrizione non disponibile per questo prodotto.")}</p>
+                                <div class="product-feature-list">
+                                    <div><span>Disponibilita</span><strong class="${stock > 0 ? "text-success" : "text-danger"}">${escapeHtml(getStockLabel(stock))}</strong></div>
+                                    <div><span>Spedizione</span><strong>${escapeHtml(shippingDescription)}</strong></div>
+                                    <div><span>Venduto da</span><strong>ShopNow Official</strong></div>
+                                    <div><span>Consegna stimata</span><strong>24-48 ore lavorative</strong></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-lg-3">
+                            <div class="product-buy-box amazon-buy-box">
+                                <div class="product-buy-price">${formatCurrency(product.price)}</div>
+                                <div class="product-buy-stock ${stock <= 0 ? "out-of-stock" : stock <= 10 ? "low-stock" : ""}">${escapeHtml(getStockLabel(stock))}</div>
+                                <p class="product-buy-summary">${escapeHtml(shippingDescription)}. Il checkout rapido usa solo questo prodotto, come il flusso "Acquista ora".</p>
+                                <div class="mb-3">
+                                    <label for="product-quantity" class="form-label">Quantita</label>
+                                    <select id="product-quantity" class="form-select" ${stock <= 0 ? "disabled" : ""}>
+                                        ${quantityOptions}
+                                    </select>
+                                </div>
+                                <button class="btn-amazon w-100" onclick="addCurrentProductToCart(false)" ${stock <= 0 ? "disabled" : ""}>
+                                    <i class="fas fa-cart-plus me-2"></i>${stock <= 0 ? "Esaurito" : "Aggiungi al carrello"}
+                                </button>
+                                <button class="product-buy-now-btn w-100 mt-2" onclick="addCurrentProductToCart(true)" ${stock <= 0 ? "disabled" : ""}>
+                                    <i class="fas fa-bolt me-2"></i>Acquista ora
+                                </button>
+                                <div class="product-buy-note mt-3">
+                                    <i class="fas fa-lock me-2"></i>Pagamento sicuro, ordine tracciato e checkout diretto.
+                                </div>
+                                <div class="product-buy-perks mt-3">
+                                    <div><i class="fas fa-circle-check me-2"></i>Stock aggiornato in tempo reale</div>
+                                    <div><i class="fas fa-circle-check me-2"></i>Recensioni verificate dagli utenti</div>
+                                    <div><i class="fas fa-circle-check me-2"></i>Supporto ShopNow dedicato</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="product-detail-sections mt-4">
+                    <div class="row g-4">
+                        <div class="col-lg-7">
+                            <div class="product-section-card">
+                                <h4>Descrizione del prodotto</h4>
+                                <p>${escapeHtml(product.description || "Nessuna descrizione disponibile.")}</p>
+                                <p class="mb-0">Scheda prodotto ottimizzata per mostrarti subito prezzo, disponibilita reale, spedizione e recensioni, senza nascondere le informazioni importanti.</p>
+                            </div>
+                        </div>
+                        <div class="col-lg-5">
+                            <div class="product-section-card">
+                                <h4>Perche sceglierlo</h4>
+                                <ul class="product-bullet-list">
+                                    <li>Disponibilita sincronizzata con il magazzino in tempo reale</li>
+                                    <li>Buy-now separato dal carrello standard per un checkout piu rapido</li>
+                                    <li>Valutazioni e numero recensioni aggiornati su tutto il catalogo</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="reviews-section" class="product-section-card mt-4 product-reviews-shell">
+                    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+                        <div>
+                            <h3 class="mb-2">Recensioni clienti</h3>
+                            <div class="product-reviews-summary">
+                                <div class="product-detail-rating">${renderStars(product.rating || 0)}</div>
+                                <div class="product-reviews-summary-text">
+                                    <strong>${Number(product.rating || 0).toFixed(1)} / 5</strong>
+                                    <span>${reviewsLabel}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="product-review-highlight">
+                            ${reviewsCount > 0 ? "Le stelle e il numero recensioni si aggiornano automaticamente dopo ogni invio." : "Il prodotto non ha ancora recensioni: puoi essere il primo a lasciare il tuo feedback."}
+                        </div>
+                    </div>
+                    <div class="row g-4 mt-1">
+                        <div class="col-lg-5">
+                            ${renderReviewForm()}
+                        </div>
+                        <div class="col-lg-7">
+                            ${renderReviewsList()}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="related-products-shell mt-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                        <h3 class="mb-0">Prodotti simili</h3>
+                        <a href="products.html" class="btn btn-sm btn-outline-secondary">Torna al catalogo</a>
+                    </div>
+                    ${
+                        relatedProducts.length
+                            ? `
+                        <div class="related-products-grid">
+                            ${relatedProducts
+                                .map(
+                                    (item) => `
+                                <a class="related-product-card" href="product.html?id=${encodeURIComponent(item.id)}">
+                                    <img src="${escapeHtml(item.image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2Y1ZjVmNSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNzU3NTc1IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg==")}" alt="${escapeHtml(item.name)}">
+                                    <div class="p-3">
+                                        <div class="related-product-title">${escapeHtml(item.name)}</div>
+                                        <div class="product-rating mb-2">
+                                            <span class="product-stars">${renderStars(item.rating || 0)}</span>
+                                        </div>
+                                        <div class="related-product-price">${formatCurrency(item.price)}</div>
+                                    </div>
+                                </a>
+                            `,
+                                )
+                                .join("")}
+                        </div>
+                    `
+                            : '<div class="admin-empty-card">Non ci sono prodotti correlati disponibili al momento.</div>'
+                    }
+                </div>
+            `;
+            }
+
+            async function submitProductReview(event) {
+                event.preventDefault();
+
+                if (!currentViewer) {
+                    showProductToast(
+                        "Accedi al tuo account per lasciare una recensione.",
+                        "error",
+                    );
+                    return;
+                }
+
+                const selectedRating = Number(
+                    document.getElementById("review-rating-value")?.value || 0,
+                );
+                const comment =
+                    document.getElementById("review-comment")?.value.trim() ||
+                    "";
+                if (selectedRating < 1 || selectedRating > 5) {
+                    showProductToast(
+                        "Seleziona una valutazione da 1 a 5 stelle.",
+                        "error",
+                    );
+                    return;
+                }
+
+                if (comment.length < 5) {
+                    showProductToast(
+                        "Scrivi almeno 5 caratteri nella recensione.",
+                        "error",
+                    );
+                    return;
+                }
+
+                const submitButton = document.getElementById(
+                    "submit-review-button",
+                );
+                if (submitButton) {
+                    submitButton.disabled = true;
+                }
+
+                try {
+                    if (!isServerBackedProductMode()) {
+                        saveProductReviewLocally({
+                            rating: selectedRating,
+                            comment: comment,
+                        });
+                        renderProductDetail(currentProduct);
+                        showProductToast(
+                            "Recensione salvata in locale con successo!",
+                            "success",
+                        );
+                        return;
+                    }
+                    const token =
+                        typeof getSessionToken === "function"
+                            ? getSessionToken()
+                            : "";
+                    const productApiBaseUrl =
+                        typeof getServerBaseUrl === "function"
+                            ? getServerBaseUrl()
+                            : window.location.origin;
+                    const response = await fetch(
+                        `${productApiBaseUrl}/api/products/${currentProduct.id}/reviews`,
+                        {
+                            method: "POST",
+                            headers: {
+                                "Content-Type": "application/json",
+                                ...(token
+                                    ? { Authorization: `Bearer ${token}` }
+                                    : {}),
+                            },
+                            body: JSON.stringify({
+                                rating: selectedRating,
+                                comment,
+                            }),
+                        },
+                    );
+                    const data = await response.json().catch(() => ({}));
+                    if (!response.ok) {
+                        throw new Error(
+                            data.error || "Impossibile salvare la recensione.",
+                        );
+                    }
+
+                    if (data.product) {
+                        syncCurrentProductCache(data.product);
+                    }
+                    productReviews = Array.isArray(data.reviews)
+                        ? data.reviews
+                        : [];
+                    renderProductDetail(currentProduct);
+                    showProductToast(
+                        "Recensione salvata con successo!",
+                        "success",
+                    );
+                    requestAnimationFrame(() => {
+                        document
+                            .getElementById("reviews-section")
+                            ?.scrollIntoView({
+                                behavior: "smooth",
+                                block: "start",
+                            });
+                    });
+                } catch (error) {
+                    console.error("Errore salvataggio recensione:", error);
+                    showProductToast(
+                        error.message || "Impossibile salvare la recensione.",
+                        "error",
+                    );
+                } finally {
+                    if (submitButton) {
+                        submitButton.disabled = false;
+                    }
+                }
+            }
+
+            function addCurrentProductToCart(redirectToCart) {
+                if (!currentProduct) {
+                    return;
+                }
+
+                const quantity = getSelectedQuantity();
+                if (redirectToCart) {
+                    window.sessionStorage.setItem(
+                        "shopnow-buy-now-cart",
+                        JSON.stringify({
+                            [currentProduct.id]: quantity,
+                        }),
+                    );
+                    window.location.href = "cart.html?mode=buy-now&checkout=1";
+                    return;
+                }
+
+                if (typeof window.addProductQuantityToCart === "function") {
+                    window.addProductQuantityToCart(
+                        currentProduct.id,
+                        quantity,
+                    );
+                    return;
+                }
+
+                if (typeof window.addToCart === "function") {
+                    for (let index = 0; index < quantity; index += 1) {
+                        if (window.addToCart(currentProduct.id) === false) {
+                            break;
+                        }
+                    }
+                }
+            }
+        </script>
+    </body>
+</html>

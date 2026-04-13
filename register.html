@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>🛒 ShopNow - Registrati</title>
+        <link rel="icon" type="image/png" href="favicon.png" />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            rel="stylesheet"
+        />
+        <link href="style.css" rel="stylesheet" />
+    </head>
+    <body>
+        <!-- Amazon-style Header (hidden for auth page) -->
+        <header class="amazon-header" id="site-header" style="display: none">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <a class="navbar-brand" href="products.html">
+                            <i class="fas fa-shopping-bag me-2"></i>ShopNow
+                        </a>
+                    </div>
+                    <div class="col">
+                        <div class="search-bar d-flex">
+                            <input
+                                type="text"
+                                id="search-input"
+                                class="form-control"
+                                placeholder="Cerca prodotti nel catalogo ShopNow..."
+                                onkeypress="
+                                    if (event.key === 'Enter') searchProducts();
+                                "
+                            />
+                            <button class="btn" onclick="searchProducts()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="nav-icons">
+                            <a href="products.html" class="nav-icon">
+                                <i class="fas fa-store"></i>
+                            </a>
+                            <a href="orders.html" class="nav-icon">
+                                <i class="fas fa-list"></i>
+                            </a>
+                            <a href="cart.html" class="nav-icon">
+                                <i class="fas fa-shopping-cart"></i>
+                                <span id="cart-count" class="cart-count"
+                                    >0</span
+                                >
+                            </a>
+                            <a href="account.html" class="nav-icon">
+                                <i class="fas fa-user"></i>
+                            </a>
+                            <a
+                                href="#"
+                                class="nav-icon"
+                                onclick="
+                                    logout();
+                                    return false;
+                                "
+                            >
+                                <i class="fas fa-sign-out-alt"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <main class="auth-main">
+            <!-- Sezione Registrazione per utenti non autenticati -->
+            <div id="auth-section" class="container">
+                <div class="row justify-content-center">
+                    <div class="col-md-8 col-lg-6">
+                        <div class="auth-card">
+                            <div class="auth-header">
+                                <h3>
+                                    <i class="fas fa-user-plus me-2"></i
+                                    >Registrati
+                                </h3>
+                                <p>Crea il tuo account ShopNow in pochi secondi, acquista in sicurezza e gestisci i tuoi ordini con facilità.</p>
+                            </div>
+                            <div class="auth-body">
+                                <div
+                                    id="auth-message"
+                                    class="mb-3"
+                                    style="display: none"
+                                ></div>
+                                <form id="register-form">
+                                    <div class="mb-4">
+                                        <label
+                                            for="register-name"
+                                            class="form-label"
+                                            ><i class="fas fa-user me-2"></i
+                                            >Nome completo</label
+                                        >
+                                        <input
+                                            type="text"
+                                            id="register-name"
+                                            class="form-control"
+                                            placeholder="John Doe"
+                                            required
+                                        />
+                                    </div>
+                                    <div class="mb-4">
+                                        <label
+                                            for="register-email"
+                                            class="form-label"
+                                            ><i class="fas fa-envelope me-2"></i
+                                            >Email</label
+                                        >
+                                        <input
+                                            type="email"
+                                            id="register-email"
+                                            class="form-control"
+                                            placeholder="esempio@mail.com"
+                                            required
+                                        />
+                                    </div>
+                                    <div class="mb-4">
+                                        <label
+                                            for="register-password"
+                                            class="form-label"
+                                            ><i class="fas fa-lock me-2"></i
+                                            >Password</label
+                                        >
+                                        <div class="input-group">
+                                            <input
+                                                type="password"
+                                                id="register-password"
+                                                class="form-control"
+                                                placeholder="Inserisci password sicura (min. 8 caratteri)"
+                                                required
+                                            />
+                                            <button
+                                                class="btn btn-outline-secondary"
+                                                type="button"
+                                                id="toggle-register-password"
+                                                title="Mostra password"
+                                            >
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mb-4">
+                                        <label
+                                            for="register-confirm-password"
+                                            class="form-label"
+                                            >✓ Conferma Password</label
+                                        >
+                                        <div class="input-group">
+                                            <input
+                                                type="password"
+                                                id="register-confirm-password"
+                                                class="form-control"
+                                                placeholder="••••••••"
+                                                required
+                                            />
+                                            <button
+                                                class="btn btn-outline-secondary"
+                                                type="button"
+                                                id="toggle-register-confirm-password"
+                                                title="Mostra password"
+                                            >
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <button
+                                        class="btn btn-amazon"
+                                        type="submit"
+                                    >
+                                        Crea account ShopNow
+                                    </button>
+                                </form>
+                                <div class="auth-links">
+                                    <p class="mb-0">
+                                        Hai già un account?
+                                        <a href="index.html">Accedi</a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sezione contenuto sito per utenti autenticati -->
+                <div id="site-content" style="display: none">
+                    <div class="container">
+                        <div class="row justify-content-center">
+                            <div class="col-md-8 col-lg-6">
+                                <div class="auth-card">
+                                    <div class="auth-body text-center">
+                                        <h2>
+                                            <i
+                                                class="fas fa-check-circle text-success me-2"
+                                            ></i
+                                            >Benvenuto in ShopNow!
+                                        </h2>
+                                        <p>
+                                            Scopri i migliori prodotti, trova le migliori offerte e fai acquisti con consegne veloci.
+                                        </p>
+                                        <a
+                                            href="products.html"
+                                            class="btn btn-amazon"
+                                            >Vai ai Prodotti</a
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="amazon-footer" id="site-footer" style="display: none">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h5>ShopNow</h5>
+                        <p class="small">
+                            Il tuo marketplace di fiducia dal 2026
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Supporto</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Centro Assistenza</a
+                                >
+                            </li>
+                            <li><a href="#" class="text-muted">Contatti</a></li>
+                            <li><a href="#" class="text-muted">FAQ</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Account</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="account.html" class="text-muted"
+                                    >Il Mio Account</a
+                                >
+                            </li>
+                            <li>
+                                <a href="orders.html" class="text-muted"
+                                    >Ordini</a
+                                >
+                            </li>
+                            <li>
+                                <a href="cart.html" class="text-muted"
+                                    >Carrello</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Informazioni</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted">Chi Siamo</a>
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Condizioni d'Uso</a
+                                >
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Privacy Policy</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="newsletter-signup">
+                            <h6>Rimani aggiornato</h6>
+                            <p class="small mb-2">Iscriviti alla nostra newsletter per ricevere offerte esclusive e novità sui prodotti.</p>
+                            <div class="input-group">
+                                <input type="email" class="form-control" placeholder="La tua email" aria-label="Email per newsletter">
+                                <button class="btn btn-amazon" type="button">Iscriviti</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr />
+                <div class="text-center">
+                    <p class="small text-muted mb-0">
+                        &copy; 2026 ShopNow. Tutti i diritti riservati.
+                    </p>
+                </div>
+            </div>
+        </footer>
+
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="config.js?v=20260413a"></script>
+        <script src="auth.js?v=20260405g"></script>
+        <script src="updateCart.js?v=20260405g"></script>
+        <script src="register.js?v=20260405g"></script>
+        <script>
+            // Funzione per mostrare/nascondere password
+            function togglePasswordVisibility(inputId, buttonId) {
+                const input = document.getElementById(inputId);
+                const button = document.getElementById(buttonId);
+                const icon = button.querySelector("i");
+
+                if (input.type === "password") {
+                    input.type = "text";
+                    icon.classList.remove("fa-eye");
+                    icon.classList.add("fa-eye-slash");
+                    button.title = "Nascondi password";
+                } else {
+                    input.type = "password";
+                    icon.classList.remove("fa-eye-slash");
+                    icon.classList.add("fa-eye");
+                    button.title = "Mostra password";
+                }
+            }
+
+            // Inizializza i toggle delle password
+            document.addEventListener("DOMContentLoaded", function () {
+                // Toggle per i campi registrazione
+                const togglePasswordBtn = document.getElementById(
+                    "toggle-register-password",
+                );
+                const toggleConfirmPasswordBtn = document.getElementById(
+                    "toggle-register-confirm-password",
+                );
+
+                if (togglePasswordBtn) {
+                    togglePasswordBtn.addEventListener("click", function () {
+                        togglePasswordVisibility(
+                            "register-password",
+                            "toggle-register-password",
+                        );
+                    });
+                }
+
+                if (toggleConfirmPasswordBtn) {
+                    toggleConfirmPasswordBtn.addEventListener(
+                        "click",
+                        function () {
+                            togglePasswordVisibility(
+                                "register-confirm-password",
+                                "toggle-register-confirm-password",
+                            );
+                        },
+                    );
+                }
+            });
+        </script>
+    </body>
+</html>

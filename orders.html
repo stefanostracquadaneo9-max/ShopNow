@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="it">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width,initial-scale=1" />
+        <title>🛒 ShopNow - I Tuoi Ordini</title>
+        <link rel="icon" type="image/png" href="favicon.png" />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+            rel="stylesheet"
+        />
+        <link href="style.css" rel="stylesheet" />
+    </head>
+    <body>
+        <header class="amazon-header">
+            <div class="container-fluid">
+                <div class="row align-items-center">
+                    <div class="col-auto">
+                        <a class="navbar-brand" href="products.html"
+                            ><i class="fas fa-shopping-bag me-2"></i>ShopNow</a
+                        >
+                    </div>
+                    <div class="col">
+                        <div class="search-bar d-flex">
+                            <input
+                                type="text"
+                                id="search-input"
+                                class="form-control"
+                                placeholder="Cerca prodotti nel catalogo ShopNow..."
+                                onkeypress="
+                                    'Enter' === event.key && searchProducts()
+                                "
+                            />
+                            <button class="btn" onclick="searchProducts()">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="col-auto">
+                        <div class="nav-icons">
+                            <a href="products.html" class="nav-icon"
+                                ><i class="fas fa-store"></i> </a
+                            ><a href="orders.html" class="nav-icon"
+                                ><i class="fas fa-list"></i> </a
+                            ><a href="cart.html" class="nav-icon"
+                                ><i class="fas fa-shopping-cart"></i>
+                                <span id="cart-count" class="cart-count"
+                                    >0</span
+                                > </a
+                            ><a href="account.html" class="nav-icon"
+                                ><i class="fas fa-user"></i> </a
+                            ><a
+                                href="#"
+                                class="nav-icon"
+                                onclick="return (logout(), !1);"
+                                ><i class="fas fa-sign-out-alt"></i
+                            ></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <div class="container content">
+            <div class="row">
+                <div class="col-12">
+                    <h2 class="mb-4">
+                        <i class="fas fa-list me-2"></i>I Tuoi Ordini
+                    </h2>
+                    <div id="orders-container"></div>
+                </div>
+            </div>
+        </div>
+        <footer class="amazon-footer">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-3">
+                        <h5>ShopNow</h5>
+                        <p class="small">
+                            Il tuo marketplace di fiducia dal 2026
+                        </p>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Supporto</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Centro Assistenza</a
+                                >
+                            </li>
+                            <li><a href="#" class="text-muted">Contatti</a></li>
+                            <li><a href="#" class="text-muted">FAQ</a></li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Account</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="account.html" class="text-muted"
+                                    >Il Mio Account</a
+                                >
+                            </li>
+                            <li>
+                                <a href="orders.html" class="text-muted"
+                                    >Ordini</a
+                                >
+                            </li>
+                            <li>
+                                <a href="cart.html" class="text-muted"
+                                    >Carrello</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="col-md-3">
+                        <h6>Informazioni</h6>
+                        <ul class="list-unstyled">
+                            <li>
+                                <a href="#" class="text-muted">Chi Siamo</a>
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Condizioni d'Uso</a
+                                >
+                            </li>
+                            <li>
+                                <a href="#" class="text-muted"
+                                    >Privacy Policy</a
+                                >
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="newsletter-signup">
+                            <h6>Rimani aggiornato</h6>
+                            <p class="small mb-2">Iscriviti alla nostra newsletter per ricevere offerte esclusive e novità sui prodotti.</p>
+                            <div class="input-group">
+                                <input type="email" class="form-control" placeholder="La tua email" aria-label="Email per newsletter">
+                                <button class="btn btn-amazon" type="button">Iscriviti</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <hr />
+                <div class="text-center">
+                    <p class="small text-muted mb-0">
+                        &copy; 2026 ShopNow. Tutti i diritti riservati.
+                    </p>
+                </div>
+            </div>
+        </footer>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="config.js?v=20260413a"></script>
+        <script src="auth.js?v=20260409a"></script>
+        <script src="updateCart.js?v=20260409a"></script>
+        <script src="orders.js?v=20260409a"></script>
+    </body>
+</html>
