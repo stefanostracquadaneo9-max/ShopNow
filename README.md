@@ -6,7 +6,12 @@ ShopNow e un e-commerce con autenticazione, catalogo prodotti, carrello, pannell
 
 Stripe reale non puo funzionare solo con GitHub Pages, perche la `STRIPE_SECRET_KEY` deve restare su un backend sicuro.
 
-Configurazione consigliata:
+Configurazione più semplice:
+- backend Node/Express su Railway
+- frontend servito dallo stesso backend
+- `config.js` lasciato vuoto per usare lo stesso dominio
+
+Configurazione alternativa:
 - frontend statico su GitHub Pages
 - backend Node/Express su Railway o Render
 - `config.js` nel frontend con l'URL pubblico del backend

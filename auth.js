@@ -104,11 +104,7 @@ function prefersServerAuth() {
     if (hostname.endsWith(".github.io")) {
         return false;
     }
-    return (
-        hostname === "localhost" ||
-        hostname === "127.0.0.1" ||
-        hostname === "[::1]"
-    );
+    return true;
 }
 function isStaticHostedMode() {
     return !prefersServerAuth();

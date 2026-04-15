@@ -1,6 +1,6 @@
-window.SHOPNOW_API_BASE_URL = "https://initiatory-unfrequently-junita.ngrok-free.dev";
+// Se il backend e il frontend sono serviti dallo stesso dominio, lascia vuoto.
+// Se invece il frontend è separato, imposta qui l'URL pubblico del backend.
+window.SHOPNOW_API_BASE_URL = "";
 
-// Per usare Stripe reale da GitHub Pages:
-// 1. pubblica il backend Node/Express su un host con HTTPS
-// 2. imposta qui l'URL pubblico, per esempio:
+// Esempio per un backend pubblico:
 // window.SHOPNOW_API_BASE_URL = "https://shopnow-backend.onrender.com";
