@@ -47,6 +47,9 @@ test-*.js
 calculate-*.js
 check-*.js
 
+# Development docs
+CHECKOUT_OPTIMIZATIONS.md
+
 # Railway
 .railway/
 
