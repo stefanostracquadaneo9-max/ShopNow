@@ -622,20 +622,18 @@ async function sendOrderConfirmationEmail({
             <div class="shipping-info">
                 <h3>🚚 Informazioni Spedizione</h3>
                 <p><strong>Indirizzo di Spedizione:</strong><br/>${shippingText}</p>
-                <p style="margin-top: 10px; font-size: 13px;">Riceverai un email di notifica non appena l'ordine verrà spedito con i dettagli di tracciamento.</p>
+                <p style="margin-top: 10px; font-size: 13px;">Questo è un ambiente di test. In produzione, riceverai aggiornamenti sullo stato della spedizione.</p>
             </div>
 
             <!-- Next Steps -->
             <div class="next-steps">
                 <h3>Cosa Fare Adesso</h3>
                 <ul>
-                    <li>Controlla la tua spedizione: aggiorneremo il tuo ordine entro 24 ore</li>
-                    <li>Visita il tuo account per tracciare l'ordine in tempo reale</li>
-                    <li>Contatta il nostro supporto se hai domande sulla tua spedizione</li>
+                    <li>Controlla il tuo account per vedere lo stato dell'ordine</li>
+                    <li>Visita il tuo account per eventuali aggiornamenti</li>
+                    <li>Contatta il nostro supporto se hai domande sul tuo ordine</li>
                 </ul>
             </div>
-
-            <a href="${process.env.SHOP_URL || 'http://localhost:3000'}/orders" class="cta-button">Traccia il Tuo Ordine</a>
 
             <p style="color: #424242; margin-top: 20px; line-height: 1.6; font-size: 14px;">
                 Se hai domande riguardanti il tuo ordine, non esitare a visitare il nostro centro assistenza o contattarci direttamente. Siamo qui per aiutarti!
