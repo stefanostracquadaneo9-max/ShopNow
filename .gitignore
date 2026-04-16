@@ -32,6 +32,21 @@ app.db
 *.db
 *.sqlite
 
+# Logs
+*.log
+server-*.log
+ngrok-*.log
+
+# Backup files
+*.backup
+*_backup.js
+*_new.js
+
+# Test files
+test-*.js
+calculate-*.js
+check-*.js
+
 # Railway
 .railway/
 

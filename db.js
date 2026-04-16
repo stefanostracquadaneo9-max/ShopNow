@@ -112,10 +112,10 @@ function authenticateUser(email, password) {
     email = String(email).trim().toLowerCase();
     const user = getUserByEmail(email);
     if (!user) throw new Error("Utente non trovato");
-    
+
     const passwordHash = hashPassword(password);
     if (user.passwordHash !== passwordHash) throw new Error("Password errata");
-    
+
     const sessionToken = generateSessionToken();
     db.prepare("UPDATE users SET sessionToken = ? WHERE id = ?").run(sessionToken, user.id);
     return { id: user.id, email: user.email, name: user.name, role: user.role, sessionToken };
@@ -159,6 +159,43 @@ function updateProduct(productId, updates) {
 
 function deleteProduct(productId) {
     db.prepare("DELETE FROM products WHERE id = ?").run(productId);
+}
+
+function consumeProductStock(orderItems) {
+    if (!Array.isArray(orderItems)) {
+        throw new Error("orderItems deve essere un array");
+    }
+
+    const updateStmt = db.prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
+
+    for (const item of orderItems) {
+        if (!item.id || !item.quantity) {
+            throw new Error("Ogni item deve avere id e quantity");
+        }
+
+        const quantity = Math.floor(Number(item.quantity));
+        if (quantity <= 0) {
+            throw new Error("La quantità deve essere positiva");
+        }
+
+        // Verifica che ci sia abbastanza stock
+        const product = getProductById(item.id);
+        if (!product) {
+            throw new Error(`Prodotto con ID ${item.id} non trovato`);
+        }
+
+        if (product.stock < quantity) {
+            throw new Error(`Stock insufficiente per ${product.name}: disponibile ${product.stock}, richiesto ${quantity}`);
+        }
+
+        // Riduci lo stock
+        const result = updateStmt.run(quantity, item.id, quantity);
+        if (result.changes === 0) {
+            throw new Error(`Impossibile aggiornare lo stock per il prodotto ${item.id}`);
+        }
+    }
+
+    return true;
 }
 
 function createOrder(userId, total, items, shippingAddress, stripePaymentIntentId = null) {
@@ -229,7 +266,7 @@ function seedDatabase() {
 
     const existingProducts = getAllProducts();
     const existingNames = new Set(existingProducts.map((p) => p.name));
-    
+
     let insertedProducts = 0;
     DEFAULT_PRODUCTS.forEach((product) => {
         if (!existingNames.has(product.name)) {
@@ -259,6 +296,7 @@ module.exports = {
     getAllProducts,
     updateProduct,
     deleteProduct,
+    consumeProductStock,
     createOrder,
     getOrderById,
     getOrdersByUserId,

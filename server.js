@@ -3,11 +3,15 @@ const express = require("express");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const nodemailer = require("nodemailer");
-const stripe = require("stripe")(
-    process.env.STRIPE_SECRET_KEY || "sk_test_placeholder",
-);
 const fs = require("fs");
 const path = require("path");
+const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
+const stripe = stripeSecretKey ? require("stripe")(stripeSecretKey) : null;
+if (!stripe) {
+    console.error(
+        "⚠️ Stripe non configurato: STRIPE_SECRET_KEY non trovato in .env o nelle variabili d'ambiente.",
+    );
+}
 const db_module = require("./db");
 db_module.initializeDatabase();
 db_module.seedDatabase();
@@ -253,6 +257,16 @@ function getStripeCustomerName(paymentIntent, customerEmail) {
         "Cliente"
     );
 }
+function getStripeClient() {
+    if (!stripe) {
+        const error = new Error(
+            "Stripe non configurato. Imposta STRIPE_SECRET_KEY nel file .env o nelle variabili ambiente.",
+        );
+        error.code = "STRIPE_CONFIG_ERROR";
+        throw error;
+    }
+    return stripe;
+}
 function buildImportedItems(paymentIntent) {
     const metadataItems = paymentIntent.metadata?.items;
     if (metadataItems) {
@@ -380,7 +394,8 @@ function buildCheckoutStockSnapshot(items) {
     };
 }
 async function syncStripeHistory(limit = 100) {
-    const paymentIntents = await stripe.paymentIntents.list({
+    const stripeClient = getStripeClient();
+    const paymentIntents = await stripeClient.paymentIntents.list({
         limit: limit,
         expand: ["data.latest_charge"],
     });
@@ -427,7 +442,8 @@ async function syncStripeHistory(limit = 100) {
     };
 }
 async function getStripeDashboardSummary(limit = 100) {
-    const paymentIntents = await stripe.paymentIntents.list({
+    const stripeClient = getStripeClient();
+    const paymentIntents = await stripeClient.paymentIntents.list({
         limit: limit,
         expand: ["data.latest_charge"],
     });
@@ -805,7 +821,7 @@ app.post("/api/checkout", async (req, res) => {
         const authUser = getOptionalAuthUser(req);
         const checkoutUser =
             authUser || ensureCheckoutUser(customerEmail, customerName);
-        const purchasedItems = consumeProductStock(checkoutSnapshot.items).map(
+        const purchasedItems = checkoutSnapshot.items.map(
             (item) => ({
                 id: item.id,
                 name: item.name,
@@ -814,6 +830,8 @@ app.post("/api/checkout", async (req, res) => {
                 image: item.image,
             }),
         );
+        // Consuma lo stock dei prodotti acquistati
+        consumeProductStock(checkoutSnapshot.items);
         const order = createOrder(
             checkoutUser.id,
             checkoutSnapshot.total,
