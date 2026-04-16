@@ -371,7 +371,7 @@ function getCartDetails() {
     });
     const shipping = items.length ? calculateShippingCost(subtotal) : 0;
     const vat = subtotal * 0.22;
-    const total = subtotal + vat + shipping;
+    const total = Number((subtotal + vat + shipping).toFixed(2));
     return {
         items: items,
         subtotal: subtotal,
