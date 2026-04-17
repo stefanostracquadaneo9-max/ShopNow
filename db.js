@@ -323,6 +323,26 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
     };
 }
 
+function deleteUser(userId) {
+    // Prima elimina tutti gli ordini dell'utente per mantenere l'integrità referenziale
+    db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);
+    
+    // Elimina il carrello dell'utente
+    db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
+    
+    // Elimina le recensioni dell'utente
+    db.prepare("DELETE FROM reviews WHERE userId = ?").run(userId);
+    
+    // Infine elimina l'utente
+    const result = db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    
+    if (result.changes === 0) {
+        throw new Error("Utente non trovato");
+    }
+    
+    return true;
+}
+
 function seedDatabase() {
     const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
     if (userCount === 0) {
@@ -356,6 +376,8 @@ module.exports = {
     getUserById,
     authenticateUser,
     getAllUsers,
+    updateUser,
+    deleteUser,
     createProduct,
     getProductById,
     getAllProducts,

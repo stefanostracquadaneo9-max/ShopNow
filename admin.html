@@ -1875,6 +1875,7 @@
                             }
                             if (!e && t) throw t;
                         } else {
+                            // Eliminazione definitiva dell'utente
                             var d = loadData("users", {}),
                                 l = Object.entries(d).find(
                                     ([, e]) =>
@@ -1887,15 +1888,9 @@
                                 throw new Error(
                                     "Non puoi eliminare un amministratore.",
                                 );
-                            ((d[l[0]] = {
-                                ...c,
-                                email: `deleted+${c.id || a}+${Date.now()}@shopnow.local`,
-                                name: "Utente eliminato",
-                                role: "deleted",
-                                deletedAt: new Date().toISOString(),
-                                sessionToken: null,
-                            }),
-                                saveData("users", d));
+                            // Rimuovi completamente l'utente dai dati locali
+                            delete d[l[0]];
+                            saveData("users", d);
                         }
                         (getDeleteUserModalInstance().hide(),
                             (pendingUserDeletion = null),
@@ -2226,9 +2221,15 @@
                     })));
             }
             document.addEventListener("DOMContentLoaded", async function () {
-                // Sincronizza prodotti dal server
-                if (typeof syncProductsFromServer === "function") {
-                    await syncProductsFromServer();
+                // Sincronizza prodotti dal server sempre (anche se non in modalità server)
+                try {
+                    if (typeof syncProductsFromServer === "function") {
+                        console.log("Sincronizzazione prodotti dal server...");
+                        await syncProductsFromServer();
+                        console.log("Sincronizzazione completata");
+                    }
+                } catch (error) {
+                    console.warn("Sincronizzazione prodotti fallita:", error);
                 }
                 (document
                     .getElementById("product-image")
