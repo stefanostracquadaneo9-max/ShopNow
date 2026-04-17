@@ -323,6 +323,38 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
     };
 }
 
+function updateUser(userId, updates) {
+    const fields = [];
+    const values = [];
+    
+    // Costruisci la query dinamicamente
+    if (updates.name !== undefined) {
+        fields.push("name = ?");
+        values.push(updates.name);
+    }
+    if (updates.email !== undefined) {
+        fields.push("email = ?");
+        values.push(updates.email);
+    }
+    if (updates.role !== undefined) {
+        fields.push("role = ?");
+        values.push(updates.role);
+    }
+    
+    if (fields.length === 0) {
+        throw new Error("Nessun campo da aggiornare");
+    }
+    
+    values.push(userId);
+    const result = db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    
+    if (result.changes === 0) {
+        throw new Error("Utente non trovato");
+    }
+    
+    return getUserById(userId);
+}
+
 function deleteUser(userId) {
     // Prima elimina tutti gli ordini dell'utente per mantenere l'integrità referenziale
     db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);

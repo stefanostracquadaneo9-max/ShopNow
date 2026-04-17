@@ -35,13 +35,14 @@ Write-Host "[3/4] Impostando variabili su Railway..." -ForegroundColor Yellow
 $setCommands = @()
 foreach ($key in $envVars.Keys) {
     $value = $envVars[$key]
-    $setCommands += "railway variables set $key=$value --project $PROJECT_ID --environment $ENVIRONMENT_NAME"
+    $setCommands += "railway variables set $key=$value"
 }
 
 # Esegui i comandi via npx railway
 foreach ($cmd in $setCommands) {
     Write-Host "  → Impostando: $(($cmd -split ' set ')[1].Split('=')[0])" -ForegroundColor Cyan
-    Invoke-Expression "npx @railway/cli $cmd" 2>&1 | Out-Null
+    $railwayCmd = $cmd -replace '^railway', 'npx @railway/cli'
+    Invoke-Expression "$railwayCmd" 2>&1 | Out-Null
 }
 
 # Deploy
@@ -49,5 +50,5 @@ Write-Host "[4/4] Facendo deploy su Railway..." -ForegroundColor Yellow
 Invoke-Expression "npx @railway/cli deploy --project $PROJECT_ID" 2>&1 | Out-Null
 
 Write-Host ""
-Write-Host "✓ Deployment completato!" -ForegroundColor Green
-Write-Host "App disponibile a: https://shopnow-production.up.railway.app" -ForegroundColor Green
+Write-Host "OK Deployment completato!" -ForegroundColor Green
+Write-Host 'App disponibile a: https://shopnow-production.up.railway.app' -ForegroundColor Green

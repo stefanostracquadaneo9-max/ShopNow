@@ -109,9 +109,6 @@
                             Panoramica generale del marketplace
                         </p>
                     </div>
-                    <button class="btn btn-admin" onclick="syncStripeHistory()">
-                        <i class="fas fa-rotate me-2"></i>Importa storico Stripe
-                    </button>
                 </div>
                 <div class="row mb-4">
                     <div class="col-md-3 mb-3">
@@ -1091,6 +1088,7 @@
                     return !1;
                 }
                 try {
+                    await syncStripeHistoryIfMissing();
                     var e,
                         t,
                         a,
@@ -1153,6 +1151,41 @@
                         (stripeSummary = null));
                 }
             }
+            async function syncStripeHistoryIfMissing() {
+                if (!isServerBackedAdminMode()) {
+                    return;
+                }
+                const hasStripeOrders = orders.some(
+                    (order) => order && order.stripePaymentIntentId,
+                );
+                if (hasStripeOrders) {
+                    return;
+                }
+                try {
+                    const response = await fetch(
+                        SERVER_BASE_URL + "/api/admin/sync-stripe-history",
+                        getAdminFetchOptions({ method: "POST" }),
+                    );
+                    const result = await parseJsonResponse(
+                        response,
+                        "Sincronizzazione Stripe non riuscita.",
+                    );
+                    if (!response.ok)
+                        throw new Error(
+                            result.error || "Sincronizzazione Stripe non riuscita",
+                        );
+                    if (result.imported > 0) {
+                        console.info(
+                            `Storico Stripe importato automaticamente: ${result.imported} elementi.`,
+                        );
+                    }
+                } catch (error) {
+                    console.warn(
+                        "Sync Stripe automatico non riuscito:",
+                        error.message || error,
+                    );
+                }
+            }
             function loadDashboardDataFromCache() {
                 try {
                     var e,
@@ -1177,11 +1210,12 @@
                 }
             }
             function loadDashboardDataFromLocal() {
-                ((users = getLocalUsers()),
+                (users = getLocalUsers()),
                     (products = getLocalProducts()),
                     (orders = getLocalOrders()),
                     (stripeSummary = null),
-                    saveDashboardCache());
+                    saveDashboardCache();
+                return true;
             }
             function saveDashboardCache() {
                 localStorage.setItem(
@@ -1875,7 +1909,7 @@
                             }
                             if (!e && t) throw t;
                         } else {
-                            // Eliminazione definitiva dell'utente
+                            // Eliminazione definitiva dell'utente in modalità locale
                             var d = loadData("users", {}),
                                 l = Object.entries(d).find(
                                     ([, e]) =>
@@ -1888,7 +1922,6 @@
                                 throw new Error(
                                     "Non puoi eliminare un amministratore.",
                                 );
-                            // Rimuovi completamente l'utente dai dati locali
                             delete d[l[0]];
                             saveData("users", d);
                         }
@@ -1943,35 +1976,6 @@
                               e,
                       ))
                     : alert("Ordine non trovato.");
-            }
-            async function syncStripeHistory() {
-                if (!isServerBackedAdminMode()) {
-                    alert(
-                        "In modalita GitHub il riepilogo Stripe non e disponibile.",
-                    );
-                    return;
-                }
-                try {
-                    var e = await fetch(
-                            SERVER_BASE_URL + "/api/admin/sync-stripe-history",
-                            getAdminFetchOptions({ method: "POST" }),
-                        ),
-                        t = await parseJsonResponse(
-                            e,
-                            "Il server non ha restituito una risposta valida per la sincronizzazione Stripe.",
-                        );
-                    if (!e.ok)
-                        throw new Error(
-                            t.error || "Sincronizzazione Stripe non riuscita",
-                        );
-                    (await loadDashboardData(),
-                        saveDashboardCache(),
-                        alert(
-                            `Storico Stripe aggiornato. Importati: ${t.imported}, già presenti o saltati: ${t.skipped}.`,
-                        ));
-                } catch (e) {
-                    alert(e.message || "Errore sincronizzazione Stripe.");
-                }
             }
             function editProduct(t) {
                 var e = products.find((e) => String(e.id) === String(t));
@@ -2254,12 +2258,12 @@
                             );
                             e?.fileDataBase64
                                 ? updateProductImagePreview(
-                                      "data:image/*;base64," + e.fileDataBase64,
-                                  )
+                                    "data:image/*;base64," + e.fileDataBase64,
+                                )
                                 : updateProductImagePreview(
-                                      document
-                                          .getElementById("product-image")
-                                          .value.trim(),
+                                    document
+                                        .getElementById("product-image")
+                                        .value.trim(),
                                   );
                         }),
                     await initializeLocalDB(),
