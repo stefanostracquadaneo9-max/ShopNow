@@ -1302,7 +1302,6 @@ app.post("/api/products/:id/reviews", requireAuth, (req, res) => {
         const reviewResult = addOrUpdateProductReview(
             productId,
             req.user.id,
-            req.user.name || req.user.email || "Cliente",
             rating,
             comment,
         );

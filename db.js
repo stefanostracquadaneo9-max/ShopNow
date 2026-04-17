@@ -68,6 +68,21 @@ function initializeDatabase() {
         )
     `);
 
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            productId INTEGER NOT NULL,
+            userId INTEGER NOT NULL,
+            rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+            comment TEXT NOT NULL,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (productId) REFERENCES products(id),
+            FOREIGN KEY (userId) REFERENCES users(id),
+            UNIQUE(productId, userId)
+        )
+    `);
+
     console.log("✅ SQLite Database Inizializzato");
 }
 
@@ -258,6 +273,56 @@ function clearCart(userId) {
     db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
 }
 
+function getReviewsByProductId(productId) {
+    const stmt = db.prepare(`
+        SELECT r.*, u.name as authorName
+        FROM reviews r
+        JOIN users u ON r.userId = u.id
+        WHERE r.productId = ?
+        ORDER BY r.updatedAt DESC
+    `);
+    return stmt.all(productId);
+}
+
+function addOrUpdateProductReview(productId, userId, rating, comment) {
+    const ratingNum = Math.max(1, Math.min(5, Math.floor(Number(rating))));
+    const commentStr = String(comment || "").trim();
+
+    if (commentStr.length < 5) {
+        throw new Error("La recensione deve contenere almeno 5 caratteri");
+    }
+
+    // Inserisci o aggiorna la recensione
+    const stmt = db.prepare(`
+        INSERT INTO reviews (productId, userId, rating, comment, updatedAt)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(productId, userId) DO UPDATE SET
+            rating = excluded.rating,
+            comment = excluded.comment,
+            updatedAt = CURRENT_TIMESTAMP
+    `);
+
+    const result = stmt.run(productId, userId, ratingNum, commentStr);
+
+    // Ricalcola la valutazione media del prodotto
+    const avgStmt = db.prepare(`
+        SELECT AVG(rating) as avgRating, COUNT(*) as reviewCount
+        FROM reviews
+        WHERE productId = ?
+    `);
+
+    const stats = avgStmt.get(productId);
+    const newRating = Number(stats.avgRating || 0).toFixed(1);
+
+    // Aggiorna il prodotto con la nuova valutazione
+    db.prepare("UPDATE products SET rating = ? WHERE id = ?").run(newRating, productId);
+
+    return {
+        product: getProductById(productId),
+        reviews: getReviewsByProductId(productId)
+    };
+}
+
 function seedDatabase() {
     const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
     if (userCount === 0) {
@@ -303,6 +368,8 @@ module.exports = {
     getAllOrders,
     updateOrderStatus,
     getOrderByStripePaymentIntentId,
+    getReviewsByProductId,
+    addOrUpdateProductReview,
     getCart,
     updateCart,
     clearCart,
