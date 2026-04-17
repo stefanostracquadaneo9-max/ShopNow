@@ -1908,7 +1908,8 @@
                                     throw t;
                             }
                             if (!e && t) throw t;
-                        } else {
+                        }
+                        localStorage.removeItem(ADMIN_DASHBOARD_CACHE_KEY); else {
                             // Eliminazione definitiva dell'utente in modalità locale
                             var d = loadData("users", {}),
                                 l = Object.entries(d).find(
@@ -1924,6 +1925,7 @@
                                 );
                             delete d[l[0]];
                             saveData("users", d);
+                            localStorage.removeItem(ADMIN_DASHBOARD_CACHE_KEY);
                         }
                         (getDeleteUserModalInstance().hide(),
                             (pendingUserDeletion = null),
