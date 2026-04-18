@@ -155,7 +155,19 @@ function getProductById(id) {
 
 function getAllProducts() {
     const stmt = db.prepare("SELECT * FROM products ORDER BY createdAt DESC");
-    return stmt.all();
+    const products = stmt.all();
+    
+    // Se non ci sono prodotti nel database, restituisci quelli di default
+    if (!products || products.length === 0) {
+        console.log("Database vuoto, restituisco prodotti di default");
+        return DEFAULT_PRODUCTS.map((product, index) => ({
+            id: index + 1,
+            ...product,
+            createdAt: new Date().toISOString()
+        }));
+    }
+    
+    return products;
 }
 
 function updateProduct(productId, updates) {
