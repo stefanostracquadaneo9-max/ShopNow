@@ -405,8 +405,6 @@
                         console.log("No products in DB, using defaults");
                         allProducts = getDefaultProducts();
                     }
-                    // Forza l'uso dei default per test
-                    allProducts = getDefaultProducts();
                     filteredProducts = [...allProducts];
                     applyInitialFiltersFromQuery();
                 } catch (error) {
