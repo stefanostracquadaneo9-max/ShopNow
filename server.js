@@ -704,6 +704,7 @@ async function sendOrderConfirmationEmail({
 app.post("/create-payment-intent", async (req, res) => {
     try {
         const { amount, customerName, customerEmail, items } = req.body;
+        const stripeClient = getStripeClient();
         let payableAmount = Number(amount || 0);
         if (Array.isArray(items) && items.length) {
             const checkoutSnapshot = buildCheckoutStockSnapshot(items);
@@ -717,7 +718,7 @@ app.post("/create-payment-intent", async (req, res) => {
         if (!payableAmount || payableAmount <= 0) {
             return res.status(400).json({ error: "Amount non valido" });
         }
-        const paymentIntent = await stripe.paymentIntents.create({
+        const paymentIntent = await stripeClient.paymentIntents.create({
             amount: Math.round(payableAmount * 100),
             currency: "eur",
             description: `Ordine da ${customerName}`,
@@ -751,8 +752,9 @@ app.post("/create-payment-intent", async (req, res) => {
 app.post("/confirm-payment", async (req, res) => {
     try {
         const { paymentIntentId } = req.body;
+        const stripeClient = getStripeClient();
         const paymentIntent =
-            await stripe.paymentIntents.retrieve(paymentIntentId);
+            await stripeClient.paymentIntents.retrieve(paymentIntentId);
         if (paymentIntent.status === "succeeded") {
             res.json({
                 success: true,
@@ -844,7 +846,8 @@ app.post("/api/checkout", async (req, res) => {
                 }
             };
         } else if (isFileModeCheckout) {
-            confirmedPaymentIntent = await stripe.paymentIntents.create({
+            const stripeClient = getStripeClient();
+            confirmedPaymentIntent = await stripeClient.paymentIntents.create({
                 amount: expectedAmount,
                 currency: "eur",
                 payment_method: "pm_card_visa",

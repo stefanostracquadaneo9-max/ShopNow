@@ -235,6 +235,17 @@ function setCheckoutLoading(isLoading) {
           ? "Conferma ordine"
           : "Procedi al pagamento";
 }
+function fetchWithTimeout(url, options = {}, timeout = 15000) {
+    return Promise.race([
+        fetch(url, options),
+        new Promise((_, reject) =>
+            setTimeout(
+                () => reject(new Error("Timeout: il server non risponde.")),
+                timeout,
+            ),
+        ),
+    ]);
+}
 function formatCurrency(value) {
     return currencyFormatter.format(Number(value || 0));
 }
@@ -658,7 +669,7 @@ async function initializeStripeCheckout() {
         return;
     }
     await loadStripeScript();
-    const configResponse = await fetch(getApiUrl("/config"), {
+    const configResponse = await fetchWithTimeout(getApiUrl("/config"), {
         headers: getApiRequestHeaders(),
     });
     const config = await configResponse.json();
@@ -667,7 +678,9 @@ async function initializeStripeCheckout() {
         !config.stripePublicKey ||
         config.stripePublicKey.includes("placeholder")
     ) {
-        throw new Error("Stripe non configurato correttamente.");
+        throw new Error(
+            config.error || "Stripe non configurato correttamente.",
+        );
     }
     stripeInstance = window.Stripe(config.stripePublicKey);
     const elements = stripeInstance.elements({
@@ -724,7 +737,7 @@ async function handleCheckoutSubmit(event) {
         if (!stripeInstance || !stripeCardElement) {
             throw new Error("Pagamento non disponibile al momento.");
         }
-        const intentResponse = await fetch(
+        const intentResponse = await fetchWithTimeout(
             getApiUrl("/create-payment-intent"),
             {
                 method: "POST",
@@ -752,6 +765,11 @@ async function handleCheckoutSubmit(event) {
                 intentData.error || "Impossibile iniziare il pagamento.",
             );
         }
+        if (!intentData.clientSecret) {
+            throw new Error(
+                intentData.error || "Client secret Stripe mancante.",
+            );
+        }
         const paymentResult = await stripeInstance.confirmCardPayment(
             intentData.clientSecret,
             {
@@ -775,21 +793,24 @@ async function handleCheckoutSubmit(event) {
                 paymentResult.error.message || "Pagamento non riuscito.",
             );
         }
-        const checkoutResponse = await fetch(getApiUrl("/api/checkout"), {
-            method: "POST",
-            headers: getApiRequestHeaders({
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${typeof getSessionToken === "function" ? getSessionToken() : ""}`,
-            }),
-            body: JSON.stringify({
-                paymentIntentId: paymentResult.paymentIntent.id,
-                items: items,
-                total: total,
-                shippingAddress: shippingAddress,
-                customerName: name,
-                customerEmail: email,
-            }),
-        });
+        const checkoutResponse = await fetchWithTimeout(
+            getApiUrl("/api/checkout"),
+            {
+                method: "POST",
+                headers: getApiRequestHeaders({
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${typeof getSessionToken === "function" ? getSessionToken() : ""}`,
+                }),
+                body: JSON.stringify({
+                    paymentIntentId: paymentResult.paymentIntent.id,
+                    items: items,
+                    total: total,
+                    shippingAddress: shippingAddress,
+                    customerName: name,
+                    customerEmail: email,
+                }),
+            },
+        );
         const data = await checkoutResponse.json();
         if (!checkoutResponse.ok) {
             if (
