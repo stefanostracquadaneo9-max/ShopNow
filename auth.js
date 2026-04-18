@@ -1337,3 +1337,4 @@ window.isStaticHostedMode = isStaticHostedMode;
 window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
+window.getDefaultProducts = getDefaultProducts;
