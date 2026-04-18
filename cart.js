@@ -63,14 +63,11 @@ function getCartStorageArea() {
 }
 function getApiUrl(path) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-    if (isLocalhostMode()) {
-        const baseUrl =
-            typeof getServerBaseUrl === "function"
-                ? getServerBaseUrl()
-                : window.location.origin;
-        return `${baseUrl}${normalizedPath}`;
-    }
-    return `${SERVER_BASE_URL}${normalizedPath}`;
+    const baseUrl =
+        typeof getServerBaseUrl === "function"
+            ? getServerBaseUrl()
+            : SERVER_BASE_URL;
+    return `${baseUrl}${normalizedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"
