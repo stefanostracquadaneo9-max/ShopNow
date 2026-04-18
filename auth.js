@@ -685,6 +685,7 @@ async function syncProductsFromServer() {
         });
         const data = await response.json().catch(() => null);
         if (!response.ok || !Array.isArray(data)) {
+            console.warn("Risposta server prodotti non valida");
             return;
         }
         const normalizedProducts = data.map((product) => ({
@@ -692,9 +693,67 @@ async function syncProductsFromServer() {
             image: resolveProductImage(product),
         }));
         saveData("products", normalizedProducts);
+        console.log(`✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`);
     } catch (error) {
-        console.warn("Sync prodotti server non disponibile:", error.message);
+        console.warn("❌ Sync prodotti server fallito:", error.message);
+        // Se siamo su GitHub Pages e la sync fallisce, assicuriamoci di avere prodotti locali
+        if (window.location.hostname.includes('github.io')) {
+            ensureFallbackProducts();
+        }
     }
+}
+function ensureFallbackProducts() {
+    const existingProducts = getAllProducts();
+    if (existingProducts && existingProducts.length > 0) {
+        console.log(`📦 Usando ${existingProducts.length} prodotti locali`);
+        return;
+    }
+
+    // Prodotti di fallback quando il server non è raggiungibile
+    const fallbackProducts = [
+        {
+            id: 1,
+            name: "Laptop Pro",
+            description: "Potente laptop per professionisti",
+            price: 1299.99,
+            category: "elettronica",
+            image: "uploads/Laptop_Pro.jpg",
+            stock: 20,
+            rating: 5,
+            createdAt: "2026-04-04 14:55:54",
+            updatedAt: "2026-04-13 16:21:58",
+            reviewCount: 0
+        },
+        {
+            id: 2,
+            name: "Mouse Wireless",
+            description: "Mouse senza fili ergonomico",
+            price: 29.99,
+            category: "elettronica",
+            image: "https://via.placeholder.com/300x200?text=Mouse",
+            stock: 43,
+            rating: 0,
+            createdAt: "2026-04-04 14:55:54",
+            updatedAt: "2026-04-04 14:55:54",
+            reviewCount: 0
+        },
+        {
+            id: 7,
+            name: "Pantaloni Jeans",
+            description: "Jeans di qualità premium",
+            price: 79.99,
+            category: "abbigliamento",
+            image: "uploads/Pantaloni_Jeans.jpg",
+            stock: 43,
+            rating: 0,
+            createdAt: "2026-04-05 08:57:16",
+            updatedAt: "2026-04-13 15:44:43",
+            reviewCount: 0
+        }
+    ];
+
+    saveData("products", fallbackProducts);
+    console.log(`🔄 Caricati ${fallbackProducts.length} prodotti di fallback`);
 }
 function findUserEntryByEmail(users, email) {
     const normalizedEmail = String(email || "")
@@ -1199,8 +1258,16 @@ async function getCurrentUserOrders() {
     }
 }
 function getAllProducts() {
-    const products = loadData("products", []);
+    let products = loadData("products", []);
     console.log("getAllProducts loaded:", products.length, "products");
+
+    // Se non ci sono prodotti e siamo su GitHub Pages, assicuriamoci di averne di fallback
+    if ((!products || products.length === 0) && window.location.hostname.includes('github.io')) {
+        ensureFallbackProducts();
+        products = loadData("products", []);
+        console.log("getAllProducts fallback loaded:", products.length, "products");
+    }
+
     return products;
 }
 function getProductById(id) {
@@ -1269,3 +1336,4 @@ window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
 window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
+window.ensureFallbackProducts = ensureFallbackProducts;

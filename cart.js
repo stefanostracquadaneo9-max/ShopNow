@@ -961,6 +961,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof initializeLocalDB === "function") {
         await initializeLocalDB();
     }
+
+    // Assicuriamoci che i prodotti siano disponibili prima di renderizzare
+    if (typeof syncProductsFromServer === "function") {
+        try {
+            await syncProductsFromServer();
+        } catch (error) {
+            console.warn("Errore sync prodotti:", error.message);
+        }
+    }
+
     updateCartCount();
     renderCart();
     const checkoutForm = document.getElementById("checkout-form");
