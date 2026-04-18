@@ -1138,17 +1138,20 @@
                             e,
                             "Il riepilogo Stripe non ha restituito dati validi.",
                         );
-                    if (!e.ok)
+                    if (!e.ok) {
+                        console.error("Errore Stripe:", t.error || "Riepilogo Stripe non disponibile");
                         throw new Error(
                             t.error || "Riepilogo Stripe non disponibile",
                         );
+                    }
                     stripeSummary = t;
+                    console.log("Stripe summary caricato:", stripeSummary);
                 } catch (e) {
-                    (console.warn(
+                    console.error(
                         "Riepilogo Stripe non disponibile:",
                         e.message,
-                    ),
-                        (stripeSummary = null));
+                    );
+                    (stripeSummary = null);
                 }
             }
             async function syncStripeHistoryIfMissing() {

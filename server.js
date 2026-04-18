@@ -460,31 +460,37 @@ async function syncStripeHistory(limit = 100) {
     };
 }
 async function getStripeDashboardSummary(limit = 100) {
-    const stripeClient = getStripeClient();
-    const paymentIntents = await stripeClient.paymentIntents.list({
-        limit: limit,
-        expand: ["data.latest_charge"],
-    });
-    const succeededPaymentIntents = paymentIntents.data.filter(
-        (paymentIntent) => paymentIntent.status === "succeeded",
-    );
-    const stripeRevenue = succeededPaymentIntents.reduce(
-        (sum, paymentIntent) => {
-            return (
-                sum +
-                Number(
-                    paymentIntent.amount_received || paymentIntent.amount || 0,
-                ) /
-                    100
-            );
-        },
-        0,
-    );
-    return {
-        ordersCount: succeededPaymentIntents.length,
-        revenue: stripeRevenue,
-        paymentIntents: succeededPaymentIntents,
-    };
+    try {
+        const stripeClient = getStripeClient();
+        const paymentIntents = await stripeClient.paymentIntents.list({
+            limit: limit,
+            expand: ["data.latest_charge"],
+        });
+        const succeededPaymentIntents = paymentIntents.data.filter(
+            (paymentIntent) => paymentIntent.status === "succeeded",
+        );
+        const stripeRevenue = succeededPaymentIntents.reduce(
+            (sum, paymentIntent) => {
+                return (
+                    sum +
+                    Number(
+                        paymentIntent.amount_received || paymentIntent.amount || 0,
+                    ) /
+                        100
+                );
+            },
+            0,
+        );
+        console.log(`Stripe: ${succeededPaymentIntents.length} ordini, €${stripeRevenue.toFixed(2)} di ricavi`);
+        return {
+            ordersCount: succeededPaymentIntents.length,
+            revenue: stripeRevenue,
+            paymentIntents: succeededPaymentIntents,
+        };
+    } catch (error) {
+        console.error("Errore caricamento Stripe:", error.message);
+        throw error;
+    }
 }
 async function sendOrderConfirmationEmail({
     customerName,
@@ -1457,13 +1463,14 @@ app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
 app.get("/api/admin/stripe-summary", requireAdmin, async (req, res) => {
     try {
         const summary = await getStripeDashboardSummary(100);
+        console.log("Stripe summary result:", summary);
         res.json({
             success: true,
             ordersCount: summary.ordersCount,
             revenue: summary.revenue,
         });
     } catch (error) {
-        console.error("Errore riepilogo Stripe:", error);
+        console.error("Errore riepilogo Stripe:", error.message || error);
         res.status(500).json({
             error: error.message || "Errore riepilogo Stripe",
         });
@@ -1471,10 +1478,12 @@ app.get("/api/admin/stripe-summary", requireAdmin, async (req, res) => {
 });
 app.post("/api/admin/sync-stripe-history", requireAdmin, async (req, res) => {
     try {
+        console.log("Avvio sincronizzazione Stripe...");
         const result = await syncStripeHistory(100);
+        console.log(`Sincronizzazione completata: ${result.imported} importati, ${result.skipped} saltati`);
         res.json({ success: true, ...result });
     } catch (error) {
-        console.error("Errore sync Stripe:", error);
+        console.error("Errore sync Stripe:", error.message || error);
         res.status(500).json({
             error: error.message || "Errore sincronizzazione Stripe",
         });
