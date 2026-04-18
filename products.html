@@ -407,6 +407,7 @@
                     }
                     filteredProducts = [...allProducts];
                     applyInitialFiltersFromQuery();
+                    displayProducts(); // Forza la visualizzazione
                 } catch (error) {
                     console.error("Error loading products:", error);
                     showEmptyState("Errore nel caricamento dei prodotti");
