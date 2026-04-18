@@ -236,15 +236,20 @@ function setCheckoutLoading(isLoading) {
           : "Procedi al pagamento";
 }
 function fetchWithTimeout(url, options = {}, timeout = 15000) {
-    return Promise.race([
-        fetch(url, options),
-        new Promise((_, reject) =>
-            setTimeout(
-                () => reject(new Error("Timeout: il server non risponde.")),
-                timeout,
-            ),
-        ),
-    ]);
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    const fetchOptions = {
+        ...options,
+        signal: controller.signal,
+    };
+    return fetch(url, fetchOptions)
+        .finally(() => clearTimeout(id))
+        .catch((error) => {
+            if (error.name === "AbortError") {
+                throw new Error("Timeout: il server non risponde.");
+            }
+            throw error;
+        });
 }
 function formatCurrency(value) {
     return currencyFormatter.format(Number(value || 0));
@@ -862,9 +867,18 @@ async function handleCheckoutSubmit(event) {
         );
     } catch (error) {
         console.error("Errore checkout:", error);
+        const isNetworkFailure =
+            error.message &&
+            (error.message.includes("Timeout") ||
+                error.message.includes("NetworkError") ||
+                error.message.includes("Failed to fetch") ||
+                error.message.includes("non e stato possibile") ||
+                error.message.includes("net::ERR"));
         showCheckoutMessage(
             "danger",
-            error.message || "Errore durante il checkout.",
+            isNetworkFailure
+                ? "Connessione al backend fallita. Controlla `SHOPNOW_API_BASE_URL` in `config.js` e assicurati che il backend sia attivo."
+                : error.message || "Errore durante il checkout.",
         );
     } finally {
         setCheckoutLoading(false);
@@ -958,9 +972,18 @@ document.addEventListener("DOMContentLoaded", async () => {
         await initializeStripeCheckout();
     } catch (error) {
         console.error("Errore inizializzazione Stripe:", error);
+        const isNetworkFailure =
+            error.message &&
+            (error.message.includes("Timeout") ||
+                error.message.includes("NetworkError") ||
+                error.message.includes("Failed to fetch") ||
+                error.message.includes("non e stato possibile") ||
+                error.message.includes("net::ERR"));
         showCheckoutMessage(
             "danger",
-            "Stripe non disponibile. Riprova tra poco.",
+            isNetworkFailure
+                ? "Impossibile raggiungere il backend. Controlla `SHOPNOW_API_BASE_URL` in `config.js` e il deploy del server."
+                : "Stripe non disponibile. Riprova tra poco.",
         );
     }
     if (shouldFocusCheckout()) {

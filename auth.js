@@ -61,10 +61,23 @@ function getConfiguredApiBaseUrl() {
             : "";
     return queryValue;
 }
+let hasLoggedApiBaseUrlWarning = false;
+
 function getServerBaseUrl() {
     const configuredBaseUrl = getConfiguredApiBaseUrl();
     if (configuredBaseUrl) {
         return configuredBaseUrl;
+    }
+    if (
+        typeof window !== "undefined" &&
+        window.location &&
+        !hasLoggedApiBaseUrlWarning
+    ) {
+        console.warn(
+            "SHOPNOW_API_BASE_URL non impostato. Uso window.location.origin per le API:",
+            normalizeBaseUrl(window.location.origin),
+        );
+        hasLoggedApiBaseUrlWarning = true;
     }
     if (typeof window !== "undefined" && window.location) {
         return normalizeBaseUrl(window.location.origin);
