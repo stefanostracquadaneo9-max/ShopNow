@@ -1330,6 +1330,17 @@ if (typeof document !== "undefined") {
         updateAuthNav();
     });
 }
+function getDefaultProducts() {
+    return [
+        { id: 1, name: "Laptop Pro", description: "Potente laptop per professionisti", price: 1299.99, category: "elettronica", image: "uploads/Laptop_Pro.jpg", stock: 10, rating: 0 },
+        { id: 2, name: "Mouse Wireless", description: "Mouse senza fili ergonomico", price: 29.99, category: "elettronica", image: "", stock: 50, rating: 0 },
+        { id: 3, name: "Tastiera Meccanica", description: "Tastiera con switch meccanici", price: 149.99, category: "elettronica", image: "", stock: 25, rating: 0 },
+        { id: 4, name: "Monitor 4K", description: "Monitor 4K da 27 pollici", price: 399.99, category: "elettronica", image: "", stock: 15, rating: 0 },
+        { id: 5, name: "Cuffie ANC", description: "Cuffie con cancellazione rumore", price: 199.99, category: "elettronica", image: "", stock: 30, rating: 0 },
+        { id: 6, name: "Maglietta Premium", description: "Maglietta in cotone 100% organico", price: 34.99, category: "abbigliamento", image: "", stock: 60, rating: 0 },
+        { id: 7, name: "Pantaloni Jeans", description: "Jeans di qualità premium", price: 79.99, category: "abbigliamento", image: "uploads/Pantaloni_Jeans.jpg", stock: 40, rating: 0 }
+    ];
+}
 window.logout = logout;
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
