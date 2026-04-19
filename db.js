@@ -1,6 +1,6 @@
 const Database = require("better-sqlite3");
-const path = require("path");
 const crypto = require("crypto");
+const path = require("path");
 
 const DB_PATH = path.join(__dirname, "app.db");
 const db = new Database(DB_PATH);
@@ -8,16 +8,88 @@ const db = new Database(DB_PATH);
 const ADMIN_EMAIL = "admin@gmail.com";
 
 const DEFAULT_PRODUCTS = [
-    { name: "Laptop Pro", description: "Potente laptop per professionisti", price: 1299.99, category: "elettronica", image: "uploads/Laptop_Pro.jpg", stock: 10, rating: 4.5 },
-    { name: "Mouse Wireless", description: "Mouse senza fili ergonomico", price: 29.99, category: "elettronica", image: "", stock: 50, rating: 4.2 },
-    { name: "Tastiera Meccanica", description: "Tastiera con switch meccanici", price: 149.99, category: "elettronica", image: "", stock: 25, rating: 4.7 },
-    { name: "Monitor 4K", description: "Monitor 4K da 27 pollici", price: 399.99, category: "elettronica", image: "", stock: 15, rating: 4.4 },
-    { name: "Cuffie ANC", description: "Cuffie con cancellazione rumore", price: 199.99, category: "elettronica", image: "", stock: 30, rating: 4.6 },
-    { name: "Maglietta Premium", description: "Maglietta in cotone 100% organico", price: 34.99, category: "abbigliamento", image: "", stock: 60, rating: 4.3 },
-    { name: "Pantaloni Jeans", description: "Jeans di qualità premium", price: 79.99, category: "abbigliamento", image: "uploads/Pantaloni_Jeans.jpg", stock: 40, rating: 4.4 },
+    {
+        name: "Laptop Pro",
+        description: "Potente laptop per professionisti",
+        price: 1299.99,
+        category: "elettronica",
+        image: "uploads/Laptop_Pro.jpg",
+        stock: 10,
+        rating: 4.5,
+    },
+    {
+        name: "Mouse Wireless",
+        description: "Mouse senza fili ergonomico",
+        price: 29.99,
+        category: "elettronica",
+        image: "",
+        stock: 50,
+        rating: 4.2,
+    },
+    {
+        name: "Tastiera Meccanica",
+        description: "Tastiera con switch meccanici",
+        price: 149.99,
+        category: "elettronica",
+        image: "",
+        stock: 25,
+        rating: 4.7,
+    },
+    {
+        name: "Monitor 4K",
+        description: "Monitor 4K da 27 pollici",
+        price: 399.99,
+        category: "elettronica",
+        image: "",
+        stock: 15,
+        rating: 4.4,
+    },
+    {
+        name: "Cuffie ANC",
+        description: "Cuffie con cancellazione rumore",
+        price: 199.99,
+        category: "elettronica",
+        image: "",
+        stock: 30,
+        rating: 4.6,
+    },
+    {
+        name: "Maglietta Premium",
+        description: "Maglietta in cotone 100% organico",
+        price: 34.99,
+        category: "abbigliamento",
+        image: "",
+        stock: 60,
+        rating: 4.3,
+    },
+    {
+        name: "Pantaloni Jeans",
+        description: "Jeans di qualita premium",
+        price: 79.99,
+        category: "abbigliamento",
+        image: "uploads/Pantaloni_Jeans.jpg",
+        stock: 40,
+        rating: 4.4,
+    },
 ];
 
 db.pragma("foreign_keys = ON");
+
+function ensureColumn(tableName, columnName, definition) {
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    const hasColumn = columns.some((column) => column.name === columnName);
+    if (!hasColumn) {
+        db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+    }
+}
+
+function getTableColumns(tableName) {
+    return db.prepare(`PRAGMA table_info(${tableName})`).all();
+}
+
+function tableHasColumn(tableName, columnName) {
+    return getTableColumns(tableName).some((column) => column.name === columnName);
+}
 
 function initializeDatabase() {
     db.exec(`
@@ -83,11 +155,70 @@ function initializeDatabase() {
         )
     `);
 
-    console.log("✅ SQLite Database Inizializzato");
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS addresses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId INTEGER NOT NULL,
+            street TEXT NOT NULL,
+            city TEXT NOT NULL,
+            postalCode TEXT NOT NULL,
+            country TEXT NOT NULL,
+            phone TEXT,
+            isDefault INTEGER DEFAULT 0,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS paymentMethods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId INTEGER NOT NULL,
+            alias TEXT NOT NULL,
+            brand TEXT NOT NULL,
+            last4 TEXT NOT NULL,
+            expiry TEXT NOT NULL,
+            isDefault INTEGER DEFAULT 0,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+
+    ensureColumn(
+        "users",
+        "updatedAt",
+        "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
+    );
+    ensureColumn(
+        "products",
+        "updatedAt",
+        "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
+    );
+    ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
+    ensureColumn("users", "deletedAt", "deletedAt DATETIME");
+    ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
+    ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
+    ensureColumn(
+        "orders",
+        "stripePaymentIntentId",
+        "stripePaymentIntentId TEXT",
+    );
+    ensureColumn("paymentMethods", "alias", "alias TEXT");
+    ensureColumn("paymentMethods", "brand", "brand TEXT");
+    ensureColumn("paymentMethods", "last4", "last4 TEXT");
+    ensureColumn("paymentMethods", "expiry", "expiry TEXT");
+    ensureColumn("paymentMethods", "cardNumber", "cardNumber TEXT");
+    ensureColumn("paymentMethods", "cardHolder", "cardHolder TEXT");
+    ensureColumn("paymentMethods", "expiryDate", "expiryDate TEXT");
+
+    console.log("SQLite Database Inizializzato");
 }
 
 function hashPassword(password) {
-    return crypto.createHash("sha256").update(password).digest("hex");
+    return crypto
+        .createHash("sha256")
+        .update(String(password || ""))
+        .digest("hex");
 }
 
 function generateSessionToken() {
@@ -95,26 +226,55 @@ function generateSessionToken() {
 }
 
 function createUser(email, name, password, role = "user") {
-    email = String(email).trim().toLowerCase();
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedName = String(name || "").trim();
     const passwordHash = hashPassword(password);
     const sessionToken = generateSessionToken();
+
     try {
-        const stmt = db.prepare(`INSERT INTO users (email, name, passwordHash, role, sessionToken) VALUES (?, ?, ?, ?, ?)`);
-        const result = stmt.run(email, name, passwordHash, role, sessionToken);
-        return { id: result.lastInsertRowid, email, name, role, sessionToken };
+        const stmt = db.prepare(`
+            INSERT INTO users (email, name, passwordHash, role, sessionToken)
+            VALUES (?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(
+            normalizedEmail,
+            normalizedName,
+            passwordHash,
+            role,
+            sessionToken,
+        );
+        return {
+            id: result.lastInsertRowid,
+            email: normalizedEmail,
+            name: normalizedName,
+            role: role,
+            sessionToken: sessionToken,
+        };
     } catch (error) {
-        throw new Error("Email già in uso");
+        throw new Error("Email gia in uso");
     }
 }
 
 function getUserByEmail(email) {
-    email = String(email).trim().toLowerCase();
-    const stmt = db.prepare("SELECT * FROM users WHERE email = ?");
-    return stmt.get(email);
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const stmt = db.prepare(`
+        SELECT *
+        FROM users
+        WHERE email = ?
+            AND (deletedAt IS NULL)
+            AND COALESCE(role, 'user') <> 'deleted'
+    `);
+    return stmt.get(normalizedEmail);
 }
 
 function getUserBySessionToken(token) {
-    const stmt = db.prepare("SELECT * FROM users WHERE sessionToken = ?");
+    const stmt = db.prepare(`
+        SELECT *
+        FROM users
+        WHERE sessionToken = ?
+            AND (deletedAt IS NULL)
+            AND COALESCE(role, 'user') <> 'deleted'
+    `);
     return stmt.get(token);
 }
 
@@ -124,27 +284,109 @@ function getUserById(id) {
 }
 
 function authenticateUser(email, password) {
-    email = String(email).trim().toLowerCase();
-    const user = getUserByEmail(email);
-    if (!user) throw new Error("Utente non trovato");
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const user = getUserByEmail(normalizedEmail);
+    if (!user) {
+        throw new Error("Utente non trovato");
+    }
 
     const passwordHash = hashPassword(password);
-    if (user.passwordHash !== passwordHash) throw new Error("Password errata");
+    if (user.passwordHash !== passwordHash) {
+        throw new Error("Password errata");
+    }
 
     const sessionToken = generateSessionToken();
-    db.prepare("UPDATE users SET sessionToken = ? WHERE id = ?").run(sessionToken, user.id);
-    return { id: user.id, email: user.email, name: user.name, role: user.role, sessionToken };
+    db.prepare(
+        "UPDATE users SET sessionToken = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+    ).run(sessionToken, user.id);
+
+    return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        sessionToken: sessionToken,
+    };
 }
 
 function getAllUsers() {
-    const stmt = db.prepare("SELECT id, email, name, role FROM users");
+    const stmt = db.prepare(`
+        SELECT
+            id,
+            email,
+            name,
+            role,
+            createdAt,
+            updatedAt,
+            CASE
+                WHEN sessionToken IS NOT NULL AND TRIM(sessionToken) <> '' THEN 1
+                ELSE 0
+            END AS sessionActive
+        FROM users
+        WHERE deletedAt IS NULL
+            AND COALESCE(role, 'user') <> 'deleted'
+        ORDER BY createdAt DESC, id DESC
+    `);
     return stmt.all();
+}
+
+function updateUser(userId, updates) {
+    const fields = [];
+    const values = [];
+
+    if (updates.name !== undefined) {
+        fields.push("name = ?");
+        values.push(String(updates.name || "").trim());
+    }
+    if (updates.email !== undefined) {
+        fields.push("email = ?");
+        values.push(String(updates.email || "").trim().toLowerCase());
+    }
+    if (updates.role !== undefined) {
+        fields.push("role = ?");
+        values.push(String(updates.role || "").trim());
+    }
+
+    if (!fields.length) {
+        throw new Error("Nessun campo da aggiornare");
+    }
+
+    fields.push("updatedAt = CURRENT_TIMESTAMP");
+    values.push(userId);
+
+    const result = db.prepare(
+        `UPDATE users SET ${fields.join(", ")} WHERE id = ?`,
+    ).run(...values);
+
+    if (result.changes === 0) {
+        throw new Error("Utente non trovato");
+    }
+
+    return getUserById(userId);
+}
+
+function deleteUser(userId) {
+    db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM reviews WHERE userId = ?").run(userId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    return true;
 }
 
 function createProduct(name, price, category, description, image, stock) {
     const normalizedStock = Math.max(0, Math.floor(Number(stock) || 0));
-    const stmt = db.prepare(`INSERT INTO products (name, price, category, description, image, stock) VALUES (?, ?, ?, ?, ?, ?)`);
-    const result = stmt.run(name, price, category, description, image, normalizedStock);
+    const stmt = db.prepare(`
+        INSERT INTO products (name, price, category, description, image, stock)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+        String(name || "").trim(),
+        Number(price || 0),
+        String(category || "").trim(),
+        String(description || "").trim(),
+        String(image || "").trim(),
+        normalizedStock,
+    );
     return getProductById(result.lastInsertRowid);
 }
 
@@ -154,33 +396,50 @@ function getProductById(id) {
 }
 
 function getAllProducts() {
-    const stmt = db.prepare("SELECT * FROM products ORDER BY createdAt DESC");
+    const stmt = db.prepare("SELECT * FROM products ORDER BY createdAt DESC, id DESC");
     const products = stmt.all();
-    
-    // Se non ci sono prodotti nel database, restituisci quelli di default
-    if (!products || products.length === 0) {
-        console.log("Database vuoto, restituisco prodotti di default");
+
+    if (!products.length) {
         return DEFAULT_PRODUCTS.map((product, index) => ({
             id: index + 1,
             ...product,
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
         }));
     }
-    
+
     return products;
 }
 
 function updateProduct(productId, updates) {
     const fields = [];
     const values = [];
-    for (const [key, value] of Object.entries(updates)) {
-        if (["name", "price", "category", "description", "image", "stock"].includes(key)) {
+
+    for (const [key, value] of Object.entries(updates || {})) {
+        if (
+            ["name", "price", "category", "description", "image", "stock"].includes(
+                key,
+            )
+        ) {
             fields.push(`${key} = ?`);
-            values.push(key === "stock" ? Math.max(0, Math.floor(Number(value))) : value);
+            values.push(
+                key === "stock"
+                    ? Math.max(0, Math.floor(Number(value) || 0))
+                    : value,
+            );
         }
     }
+
+    if (!fields.length) {
+        return getProductById(productId);
+    }
+
+    fields.push("updatedAt = CURRENT_TIMESTAMP");
     values.push(productId);
-    db.prepare(`UPDATE products SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+
+    db.prepare(`UPDATE products SET ${fields.join(", ")} WHERE id = ?`).run(
+        ...values,
+    );
     return getProductById(productId);
 }
 
@@ -193,7 +452,9 @@ function consumeProductStock(orderItems) {
         throw new Error("orderItems deve essere un array");
     }
 
-    const updateStmt = db.prepare("UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?");
+    const updateStmt = db.prepare(
+        "UPDATE products SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND stock >= ?",
+    );
 
     for (const item of orderItems) {
         if (!item.id || !item.quantity) {
@@ -202,53 +463,82 @@ function consumeProductStock(orderItems) {
 
         const quantity = Math.floor(Number(item.quantity));
         if (quantity <= 0) {
-            throw new Error("La quantità deve essere positiva");
+            throw new Error("La quantita deve essere positiva");
         }
 
-        // Verifica che ci sia abbastanza stock
         const product = getProductById(item.id);
         if (!product) {
             throw new Error(`Prodotto con ID ${item.id} non trovato`);
         }
 
-        if (product.stock < quantity) {
-            throw new Error(`Stock insufficiente per ${product.name}: disponibile ${product.stock}, richiesto ${quantity}`);
+        if (Number(product.stock || 0) < quantity) {
+            throw new Error(
+                `Stock insufficiente per ${product.name}: disponibile ${product.stock}, richiesto ${quantity}`,
+            );
         }
 
-        // Riduci lo stock
         const result = updateStmt.run(quantity, item.id, quantity);
         if (result.changes === 0) {
-            throw new Error(`Impossibile aggiornare lo stock per il prodotto ${item.id}`);
+            throw new Error(
+                `Impossibile aggiornare lo stock per il prodotto ${item.id}`,
+            );
         }
     }
 
     return true;
 }
 
-function createOrder(userId, total, items, shippingAddress, stripePaymentIntentId = null) {
+function createOrder(
+    userId,
+    total,
+    items,
+    shippingAddress,
+    stripePaymentIntentId = null,
+) {
     const itemsJson = Array.isArray(items) ? JSON.stringify(items) : items;
-    const stmt = db.prepare(`INSERT INTO orders (userId, total, items, shippingAddress, stripePaymentIntentId) VALUES (?, ?, ?, ?, ?)`);
-    const result = stmt.run(userId, total, itemsJson, shippingAddress, stripePaymentIntentId);
+    const stmt = db.prepare(`
+        INSERT INTO orders (userId, total, items, shippingAddress, stripePaymentIntentId)
+        VALUES (?, ?, ?, ?, ?)
+    `);
+    const result = stmt.run(
+        userId,
+        Number(total || 0),
+        itemsJson,
+        shippingAddress,
+        stripePaymentIntentId,
+    );
     return getOrderById(result.lastInsertRowid);
 }
 
 function getOrderById(orderId) {
     const stmt = db.prepare("SELECT * FROM orders WHERE id = ?");
     const order = stmt.get(orderId);
-    if (order) order.items = JSON.parse(order.items);
+    if (order && typeof order.items === "string") {
+        order.items = JSON.parse(order.items);
+    }
     return order;
 }
 
 function getOrdersByUserId(userId) {
-    const stmt = db.prepare("SELECT * FROM orders WHERE userId = ? ORDER BY createdAt DESC");
+    const stmt = db.prepare(
+        "SELECT * FROM orders WHERE userId = ? ORDER BY createdAt DESC, id DESC",
+    );
     const orders = stmt.all(userId);
-    return orders.map((order) => ({ ...order, items: JSON.parse(order.items) }));
+    return orders.map((order) => ({
+        ...order,
+        items:
+            typeof order.items === "string" ? JSON.parse(order.items) : order.items,
+    }));
 }
 
 function getAllOrders() {
-    const stmt = db.prepare("SELECT * FROM orders ORDER BY createdAt DESC");
+    const stmt = db.prepare("SELECT * FROM orders ORDER BY createdAt DESC, id DESC");
     const orders = stmt.all();
-    return orders.map((order) => ({ ...order, items: JSON.parse(order.items) }));
+    return orders.map((order) => ({
+        ...order,
+        items:
+            typeof order.items === "string" ? JSON.parse(order.items) : order.items,
+    }));
 }
 
 function updateOrderStatus(orderId, status) {
@@ -257,27 +547,225 @@ function updateOrderStatus(orderId, status) {
 }
 
 function getOrderByStripePaymentIntentId(stripePaymentIntentId) {
-    if (!stripePaymentIntentId) return null;
-    const stmt = db.prepare("SELECT * FROM orders WHERE stripePaymentIntentId = ?");
+    if (!stripePaymentIntentId) {
+        return null;
+    }
+    const stmt = db.prepare(
+        "SELECT * FROM orders WHERE stripePaymentIntentId = ?",
+    );
     const order = stmt.get(stripePaymentIntentId);
-    if (order) order.items = JSON.parse(order.items);
+    if (order && typeof order.items === "string") {
+        order.items = JSON.parse(order.items);
+    }
     return order;
+}
+
+function getAddressById(addressId) {
+    const stmt = db.prepare("SELECT * FROM addresses WHERE id = ?");
+    return stmt.get(addressId);
+}
+
+function getAddressesByUserId(userId) {
+    const stmt = db.prepare(`
+        SELECT *
+        FROM addresses
+        WHERE userId = ?
+        ORDER BY isDefault DESC, createdAt DESC, id DESC
+    `);
+    return stmt.all(userId);
+}
+
+function addAddress(
+    userId,
+    street,
+    city,
+    postalCode,
+    country,
+    phone = "",
+    isDefault = false,
+) {
+    return db.transaction(() => {
+        const hasExisting = db
+            .prepare("SELECT id FROM addresses WHERE userId = ? LIMIT 1")
+            .get(userId);
+        const shouldBeDefault = Boolean(isDefault) || !hasExisting;
+
+        if (shouldBeDefault) {
+            db.prepare("UPDATE addresses SET isDefault = 0 WHERE userId = ?").run(
+                userId,
+            );
+        }
+
+        const stmt = db.prepare(`
+            INSERT INTO addresses (userId, street, city, postalCode, country, phone, isDefault)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `);
+        const result = stmt.run(
+            userId,
+            String(street || "").trim(),
+            String(city || "").trim(),
+            String(postalCode || "").trim(),
+            String(country || "").trim().toUpperCase(),
+            String(phone || "").trim(),
+            shouldBeDefault ? 1 : 0,
+        );
+        return getAddressById(result.lastInsertRowid);
+    })();
+}
+
+function deleteAddress(addressId) {
+    return db.transaction(() => {
+        const existingAddress = getAddressById(addressId);
+        if (!existingAddress) {
+            return false;
+        }
+
+        db.prepare("DELETE FROM addresses WHERE id = ?").run(addressId);
+
+        if (Number(existingAddress.isDefault || 0) === 1) {
+            const replacement = db
+                .prepare(`
+                    SELECT id
+                    FROM addresses
+                    WHERE userId = ?
+                    ORDER BY createdAt DESC, id DESC
+                    LIMIT 1
+                `)
+                .get(existingAddress.userId);
+            if (replacement) {
+                db.prepare("UPDATE addresses SET isDefault = 1 WHERE id = ?").run(
+                    replacement.id,
+                );
+            }
+        }
+
+        return true;
+    })();
+}
+
+function getPaymentMethodById(paymentMethodId) {
+    const stmt = db.prepare("SELECT * FROM paymentMethods WHERE id = ?");
+    return stmt.get(paymentMethodId);
+}
+
+function getPaymentMethodsByUserId(userId) {
+    const stmt = db.prepare(`
+        SELECT *
+        FROM paymentMethods
+        WHERE userId = ?
+        ORDER BY isDefault DESC, createdAt DESC, id DESC
+    `);
+    return stmt.all(userId);
+}
+
+function addPaymentMethod(userId, method, isDefault = false) {
+    return db.transaction(() => {
+        const hasExisting = db
+            .prepare("SELECT id FROM paymentMethods WHERE userId = ? LIMIT 1")
+            .get(userId);
+        const shouldBeDefault = Boolean(isDefault) || !hasExisting;
+
+        if (shouldBeDefault) {
+            db.prepare(
+                "UPDATE paymentMethods SET isDefault = 0 WHERE userId = ?",
+            ).run(userId);
+        }
+
+        const alias = String(method?.alias || method?.cardHolder || "").trim();
+        const brand = String(method?.brand || "").trim();
+        const last4 = String(
+            method?.last4 || method?.cardNumber || "",
+        ).trim();
+        const expiry = String(
+            method?.expiry || method?.expiryDate || "",
+        ).trim();
+
+        const payload = {
+            userId: userId,
+            isDefault: shouldBeDefault ? 1 : 0,
+        };
+
+        if (tableHasColumn("paymentMethods", "alias")) {
+            payload.alias = alias;
+        }
+        if (tableHasColumn("paymentMethods", "brand")) {
+            payload.brand = brand;
+        }
+        if (tableHasColumn("paymentMethods", "last4")) {
+            payload.last4 = last4;
+        }
+        if (tableHasColumn("paymentMethods", "expiry")) {
+            payload.expiry = expiry;
+        }
+        if (tableHasColumn("paymentMethods", "cardNumber")) {
+            payload.cardNumber = last4;
+        }
+        if (tableHasColumn("paymentMethods", "cardHolder")) {
+            payload.cardHolder = alias;
+        }
+        if (tableHasColumn("paymentMethods", "expiryDate")) {
+            payload.expiryDate = expiry;
+        }
+
+        const columns = Object.keys(payload);
+        const placeholders = columns.map(() => "?").join(", ");
+        const stmt = db.prepare(`
+            INSERT INTO paymentMethods (${columns.join(", ")})
+            VALUES (${placeholders})
+        `);
+        const result = stmt.run(...columns.map((column) => payload[column]));
+        return getPaymentMethodById(result.lastInsertRowid);
+    })();
+}
+
+function deletePaymentMethod(paymentMethodId) {
+    return db.transaction(() => {
+        const existingMethod = getPaymentMethodById(paymentMethodId);
+        if (!existingMethod) {
+            return false;
+        }
+
+        db.prepare("DELETE FROM paymentMethods WHERE id = ?").run(
+            paymentMethodId,
+        );
+
+        if (Number(existingMethod.isDefault || 0) === 1) {
+            const replacement = db
+                .prepare(`
+                    SELECT id
+                    FROM paymentMethods
+                    WHERE userId = ?
+                    ORDER BY createdAt DESC, id DESC
+                    LIMIT 1
+                `)
+                .get(existingMethod.userId);
+            if (replacement) {
+                db.prepare(
+                    "UPDATE paymentMethods SET isDefault = 1 WHERE id = ?",
+                ).run(replacement.id);
+            }
+        }
+
+        return true;
+    })();
 }
 
 function getCart(userId) {
     const stmt = db.prepare("SELECT * FROM cartItems WHERE userId = ?");
     const cart = stmt.get(userId);
-    if (cart) cart.items = JSON.parse(cart.items);
+    if (cart && typeof cart.items === "string") {
+        cart.items = JSON.parse(cart.items);
+    }
     return cart;
 }
 
 function updateCart(userId, items) {
-    const itemsJson = JSON.stringify(items);
+    const itemsJson = JSON.stringify(Array.isArray(items) ? items : []);
     const stmt = db.prepare(`
         INSERT INTO cartItems (userId, items) VALUES (?, ?)
-        ON CONFLICT(userId) DO UPDATE SET items = ?
+        ON CONFLICT(userId) DO UPDATE SET items = excluded.items
     `);
-    stmt.run(userId, itemsJson, itemsJson);
+    stmt.run(userId, itemsJson);
     return getCart(userId);
 }
 
@@ -287,11 +775,11 @@ function clearCart(userId) {
 
 function getReviewsByProductId(productId) {
     const stmt = db.prepare(`
-        SELECT r.*, u.name as authorName
+        SELECT r.*, u.name AS authorName
         FROM reviews r
         JOIN users u ON r.userId = u.id
         WHERE r.productId = ?
-        ORDER BY r.updatedAt DESC
+        ORDER BY r.updatedAt DESC, r.id DESC
     `);
     return stmt.all(productId);
 }
@@ -304,108 +792,66 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
         throw new Error("La recensione deve contenere almeno 5 caratteri");
     }
 
-    // Inserisci o aggiorna la recensione
-    const stmt = db.prepare(`
+    db.prepare(`
         INSERT INTO reviews (productId, userId, rating, comment, updatedAt)
         VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(productId, userId) DO UPDATE SET
             rating = excluded.rating,
             comment = excluded.comment,
             updatedAt = CURRENT_TIMESTAMP
-    `);
+    `).run(productId, userId, ratingNum, commentStr);
 
-    const result = stmt.run(productId, userId, ratingNum, commentStr);
+    const stats = db
+        .prepare(`
+            SELECT AVG(rating) AS avgRating, COUNT(*) AS reviewCount
+            FROM reviews
+            WHERE productId = ?
+        `)
+        .get(productId);
 
-    // Ricalcola la valutazione media del prodotto
-    const avgStmt = db.prepare(`
-        SELECT AVG(rating) as avgRating, COUNT(*) as reviewCount
-        FROM reviews
-        WHERE productId = ?
-    `);
-
-    const stats = avgStmt.get(productId);
-    const newRating = Number(stats.avgRating || 0).toFixed(1);
-
-    // Aggiorna il prodotto con la nuova valutazione
-    db.prepare("UPDATE products SET rating = ? WHERE id = ?").run(newRating, productId);
+    db.prepare(
+        "UPDATE products SET rating = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+    ).run(Number(stats.avgRating || 0).toFixed(1), productId);
+    if (tableHasColumn("products", "reviewCount")) {
+        db.prepare(
+            "UPDATE products SET reviewCount = ? WHERE id = ?",
+        ).run(Number(stats.reviewCount || 0), productId);
+    }
 
     return {
         product: getProductById(productId),
-        reviews: getReviewsByProductId(productId)
+        reviews: getReviewsByProductId(productId),
     };
 }
 
-function updateUser(userId, updates) {
-    const fields = [];
-    const values = [];
-    
-    // Costruisci la query dinamicamente
-    if (updates.name !== undefined) {
-        fields.push("name = ?");
-        values.push(updates.name);
-    }
-    if (updates.email !== undefined) {
-        fields.push("email = ?");
-        values.push(updates.email);
-    }
-    if (updates.role !== undefined) {
-        fields.push("role = ?");
-        values.push(updates.role);
-    }
-    
-    if (fields.length === 0) {
-        throw new Error("Nessun campo da aggiornare");
-    }
-    
-    values.push(userId);
-    const result = db.prepare(`UPDATE users SET ${fields.join(", ")} WHERE id = ?`).run(...values);
-    
-    if (result.changes === 0) {
-        throw new Error("Utente non trovato");
-    }
-    
-    return getUserById(userId);
-}
-
-function deleteUser(userId) {
-    // Prima elimina tutti gli ordini dell'utente per mantenere l'integrità referenziale
-    db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);
-    
-    // Elimina il carrello dell'utente
-    db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
-    
-    // Elimina le recensioni dell'utente
-    db.prepare("DELETE FROM reviews WHERE userId = ?").run(userId);
-    
-    // Infine elimina l'utente
-    const result = db.prepare("DELETE FROM users WHERE id = ?").run(userId);
-    
-    if (result.changes === 0) {
-        throw new Error("Utente non trovato");
-    }
-    
-    return true;
-}
-
 function seedDatabase() {
-    const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get().count;
+    const userCount = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
     if (userCount === 0) {
         createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
     }
 
-    const existingProducts = getAllProducts();
-    const existingNames = new Set(existingProducts.map((p) => p.name));
+    const existingRows = db.prepare("SELECT name FROM products").all();
+    const existingNames = new Set(existingRows.map((product) => product.name));
 
     let insertedProducts = 0;
-    DEFAULT_PRODUCTS.forEach((product) => {
+    for (const product of DEFAULT_PRODUCTS) {
         if (!existingNames.has(product.name)) {
-            createProduct(product.name, product.price, product.category, product.description, product.image, product.stock);
+            createProduct(
+                product.name,
+                product.price,
+                product.category,
+                product.description,
+                product.image,
+                product.stock,
+            );
             insertedProducts += 1;
         }
-    });
+    }
 
     if (userCount === 0 || insertedProducts > 0) {
-        console.log(`✅ Database: Admin creato + ${insertedProducts} prodotti aggiunti`);
+        console.log(
+            `Database pronta: admin creato, prodotti aggiunti ${insertedProducts}`,
+        );
     }
 }
 
@@ -434,6 +880,14 @@ module.exports = {
     getAllOrders,
     updateOrderStatus,
     getOrderByStripePaymentIntentId,
+    addAddress,
+    getAddressById,
+    getAddressesByUserId,
+    deleteAddress,
+    addPaymentMethod,
+    getPaymentMethodById,
+    getPaymentMethodsByUserId,
+    deletePaymentMethod,
     getReviewsByProductId,
     addOrUpdateProductReview,
     getCart,

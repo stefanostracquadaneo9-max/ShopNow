@@ -1124,6 +1124,8 @@ app.get("/api/auth/users", (req, res) => {
                 `
             SELECT id, email, name, role, createdAt, passwordHash
             FROM users
+            WHERE deletedAt IS NULL
+                AND COALESCE(role, 'user') <> 'deleted'
         `,
             )
             .all();

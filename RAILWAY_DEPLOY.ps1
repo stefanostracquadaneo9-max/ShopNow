@@ -9,7 +9,7 @@ $PROJECT_ID = "4f69a0a3-1d8b-4806-bca3-1d8eaf51e272"
 $ENVIRONMENT_NAME = "production"
 
 Write-Host "=== Railway Deployment Script ===" -ForegroundColor Cyan
-Write-Host "Project: diplomatic-generosity" -ForegroundColor Green
+Write-Host "Project: ShopNow" -ForegroundColor Green
 Write-Host "Environment: $ENVIRONMENT_NAME (Europa)" -ForegroundColor Green
 Write-Host ""
 
