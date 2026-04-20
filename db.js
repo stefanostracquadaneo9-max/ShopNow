@@ -268,6 +268,7 @@ function initializeDatabase() {
         "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
     );
     ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
+    ensureColumn("users", "deletedAt", "deletedAt DATETIME");
     ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
     ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
     ensureColumn(
@@ -526,40 +527,35 @@ function consumeProductStock(orderItems) {
         throw new Error("orderItems deve essere un array");
     }
 
-    const updateStmt = db.prepare(
-        "UPDATE products SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND stock >= ?",
-    );
+    return db.transaction(() => {
+        const updateStmt = db.prepare(
+            "UPDATE products SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND stock >= ?",
+        );
 
-    for (const item of orderItems) {
-        if (!item.id || !item.quantity) {
-            throw new Error("Ogni item deve avere id e quantity");
+        for (const item of orderItems) {
+            if (!item.id || !item.quantity) {
+                throw new Error("Ogni item deve avere id e quantity");
+            }
+
+            const quantity = Math.floor(Number(item.quantity));
+            if (quantity <= 0) continue;
+
+            const product = getProductById(item.id);
+            if (!product) {
+                throw new Error(`Prodotto con ID ${item.id} non trovato`);
+            }
+
+            if (Number(product.stock || 0) < quantity) {
+                throw new Error(`Stock insufficiente per ${product.name}`);
+            }
+
+            const result = updateStmt.run(quantity, item.id, quantity);
+            if (result.changes === 0) {
+                throw new Error(`Errore aggiornamento stock prodotto ${item.id}`);
+            }
         }
-
-        const quantity = Math.floor(Number(item.quantity));
-        if (quantity <= 0) {
-            throw new Error("La quantita deve essere positiva");
-        }
-
-        const product = getProductById(item.id);
-        if (!product) {
-            throw new Error(`Prodotto con ID ${item.id} non trovato`);
-        }
-
-        if (Number(product.stock || 0) < quantity) {
-            throw new Error(
-                `Stock insufficiente per ${product.name}: disponibile ${product.stock}, richiesto ${quantity}`,
-            );
-        }
-
-        const result = updateStmt.run(quantity, item.id, quantity);
-        if (result.changes === 0) {
-            throw new Error(
-                `Impossibile aggiornare lo stock per il prodotto ${item.id}`,
-            );
-        }
-    }
-
-    return true;
+        return true;
+    })();
 }
 
 function createOrder(

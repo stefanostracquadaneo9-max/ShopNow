@@ -187,9 +187,7 @@ function normalizeAdminShippingAddress(shippingAddress) {
 }
 function buildAdminUserPayload(userId) {
     const user = getUserById(userId);
-    if (!user) {
-        return null;
-    }
+    if (!user) return null;
     const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
     const paymentMethods = getPaymentMethodsByUserId(userId).map(
         normalizeProfilePaymentMethod,
@@ -1022,6 +1020,9 @@ app.get("/products", requireAuth, (req, res) => {
 app.get("/cart", requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "cart.html"));
 });
+app.get("/checkout", requireAuth, (req, res) => {
+    res.sendFile(path.join(__dirname, "checkout.html"));
+});
 app.get("/orders", requireAuth, (req, res) => {
     res.sendFile(path.join(__dirname, "orders.html"));
 });
@@ -1122,17 +1123,10 @@ app.post("/login", async (req, res) => {
 });
 app.get("/api/auth/users", (req, res) => {
     try {
-        const users = db
-            .prepare(
-                `
-            SELECT id, email, name, role, createdAt, passwordHash
-            FROM users
-        `,
-            )
-            .all();
-        res.json({ success: true, users: users });
+        const users = getAllUsers();
+        res.json({ success: true, users });
     } catch (error) {
-        console.error("Errore elenco utenti auth:", error);
+        console.error("Errore elenco utenti:", error);
         res.status(500).json({ error: "Errore interno del server" });
     }
 });

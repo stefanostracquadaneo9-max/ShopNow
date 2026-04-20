@@ -697,14 +697,10 @@ async function syncUsersFromServer() {
         let localUsers = loadData("users", {});
         let changed = false;
 
-        // Identifica le email presenti sul server per pulire i fantasmi locali
-        const serverEmails = new Set(
-            data.users.map((u) => String(u.email || "").trim().toLowerCase()),
-        );
-
-        // Rimuove gli utenti locali che non esistono più sul server (tranne l'admin locale se necessario)
-        Object.keys(localUsers).forEach((email) => {
-            if (email !== "admin@gmail.com" && !serverEmails.has(email)) {
+        // Sincronizzazione professionale: rimuovi utenti locali non più presenti sul server
+        const serverEmailSet = new Set(data.users.map(u => String(u.email).toLowerCase().trim()));
+        Object.keys(localUsers).forEach(email => {
+            if (email !== 'admin@gmail.com' && !serverEmailSet.has(email)) {
                 delete localUsers[email];
                 changed = true;
             }

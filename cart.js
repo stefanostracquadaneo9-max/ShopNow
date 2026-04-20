@@ -50,13 +50,28 @@ function clearCheckoutFocusFlag() {
         `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
     );
 }
-function focusCheckoutPanel() {
-    const checkoutPanel = document.getElementById("checkout-panel");
-    if (!checkoutPanel) {
-        return;
+/**
+ * Gestione "Acquista ora" in stile Amazon
+ */
+function buyNow(productId) {
+    const normalizedId = String(productId ?? "").trim();
+    if (!normalizedId) return;
+    try {
+        const checkoutItems = { [normalizedId]: 1 };
+        window.sessionStorage.setItem("shopnow-active-checkout", JSON.stringify(checkoutItems));
+        window.location.href = `checkout.html?mode=direct`;
+    } catch (error) {
+        console.error("Errore Buy Now:", error);
     }
-    checkoutPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-    clearCheckoutFocusFlag();
+}
+
+/**
+ * Avvia il checkout per un set specifico di prodotti
+ */
+function proceedToCheckout(items) {
+    if (!items || Object.keys(items).length === 0) return;
+    window.sessionStorage.setItem("shopnow-active-checkout", JSON.stringify(items));
+    window.location.href = "checkout.html";
 }
 function getCartStorageArea() {
     return isBuyNowMode() ? window.sessionStorage : window.localStorage;
@@ -172,6 +187,22 @@ function getCart() {
         return {};
     }
 }
+function addToCart(productId) {
+    const cart = getCart();
+    const product = getProductsForCart().find(p => String(p.id) === String(productId));
+    const stock = getAvailableStockValue(product);
+    
+    const currentQty = cart[productId] || 0;
+    if (currentQty >= stock) {
+        alert("Prodotto esaurito o limite stock raggiunto.");
+        return false;
+    }
+
+    cart[productId] = currentQty + 1;
+    saveCart(cart);
+    return true;
+}
+
 function saveCart(cart) {
     try {
         getCartStorageArea().setItem(
@@ -544,7 +575,12 @@ function renderCart() {
                 <div class="small text-muted mt-1">Disponibili: ${item.stock}</div>
             </td>
             <td>${formatCurrency(item.price * item.quantity)}</td>
-            <td><button class="btn btn-sm btn-danger" onclick="removeFromCart(${item.id})">Rimuovi</button></td>
+            <td>
+                <div class="d-flex flex-column gap-1">
+                    <button class="btn btn-sm btn-buy-now py-0" onclick="checkoutSingleItem(${item.id})">Acquista ora</button>
+                    <button class="btn btn-sm btn-outline-danger py-0" onclick="removeFromCart(${item.id})">Rimuovi</button>
+                </div>
+            </td>
         </tr>
     `,
         )
@@ -1002,3 +1038,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 window.removeFromCart = removeFromCart;
 window.updateQuantity = updateQuantity;
+window.addToCart = addToCart;
+window.buyNow = buyNow;
+window.proceedToCheckout = proceedToCheckout;
+window.checkoutSingleItem = checkoutSingleItem;

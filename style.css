@@ -3,6 +3,9 @@
     --amazon-dark: #131921;
     --amazon-light: #f3f3f3;
     --amazon-blue: #007185;
+    --amazon-yellow: #ffd814;
+    --amazon-yellow-hover: #f7ca00;
+    --amazon-orange-bright: #ffa41c;
 }
 
 .amazon-footer,
@@ -202,8 +205,22 @@
 
 .product-buy-now-btn:hover {
     color: #fff;
-    transform: translateY(-1px);
-    box-shadow: 0 12px 24px rgba(19, 25, 33, 0.18);
+    background-color: var(--amazon-dark);
+    border-color: var(--amazon-dark);
+}
+
+.btn-buy-now {
+    background-color: var(--amazon-yellow);
+    border: 1px solid #fcd200;
+    border-radius: 20px;
+    color: #0f1111;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+}
+
+.btn-buy-now:hover {
+    background-color: var(--amazon-yellow-hover);
+    border-color: #f2c200;
 }
 
 .product-buy-note {
