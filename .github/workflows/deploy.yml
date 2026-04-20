@@ -13,6 +13,10 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      RAILWAY_PROJECT_ID: "${{ vars.RAILWAY_PROJECT_ID }}"
+      RAILWAY_ENVIRONMENT: "${{ vars.RAILWAY_ENVIRONMENT }}"
+      RAILWAY_SERVICE: "${{ vars.RAILWAY_SERVICE }}"
 
     steps:
       - name: Checkout code
@@ -29,4 +33,19 @@ jobs:
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: "${{ secrets.RAILWAY_TOKEN }}"
-        run: railway up --ci --project "4f69a0a3-1d8b-4806-bca3-1d8eaf51e272" --environment "production"
+        run: |
+          if [ -z "$RAILWAY_TOKEN" ]; then
+            echo "Missing GitHub secret RAILWAY_TOKEN" >&2
+            exit 1
+          fi
+
+          project_id="${RAILWAY_PROJECT_ID:-4f69a0a3-1d8b-4806-bca3-1d8eaf51e272}"
+          environment_name="${RAILWAY_ENVIRONMENT:-production}"
+
+          command=(railway up --ci --project "$project_id" --environment "$environment_name")
+
+          if [ -n "$RAILWAY_SERVICE" ]; then
+            command+=(--service "$RAILWAY_SERVICE")
+          fi
+
+          "${command[@]}"

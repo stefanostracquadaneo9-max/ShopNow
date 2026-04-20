@@ -66,6 +66,14 @@ app.use(
         lastModified: true,
     }),
 );
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        ok: true,
+        status: "healthy",
+        uptime: process.uptime(),
+        databasePath: process.env.DB_PATH || path.join(__dirname, "app.db"),
+    });
+});
 function requireAuth(req, res, next) {
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token)

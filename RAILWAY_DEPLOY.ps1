@@ -15,6 +15,7 @@ $ENVIRONMENT_NAME = if ($env:RAILWAY_ENVIRONMENT) {
 } else {
     "production"
 }
+$SERVICE_NAME = $env:RAILWAY_SERVICE
 
 if ([string]::IsNullOrWhiteSpace($RAILWAY_TOKEN)) {
     throw "Imposta la variabile d'ambiente RAILWAY_TOKEN prima di eseguire questo script."
@@ -40,6 +41,9 @@ Get-Content ".env" | ForEach-Object {
 
 # Aggiungi NODE_ENV=production
 $envVars["NODE_ENV"] = "production"
+if (-not $envVars.ContainsKey("DB_PATH")) {
+    $envVars["DB_PATH"] = "/data/app.db"
+}
 
 # Imposta le variabili su Railway
 Write-Host "[3/4] Impostando variabili su Railway..." -ForegroundColor Yellow
@@ -51,7 +55,11 @@ foreach ($key in $envVars.Keys) {
 
 # Deploy
 Write-Host "[4/4] Facendo deploy su Railway..." -ForegroundColor Yellow
-npx @railway/cli up --ci --project "$PROJECT_ID" --environment "$ENVIRONMENT_NAME" 2>&1 | Out-Null
+$deployArgs = @("up", "--ci", "--project", "$PROJECT_ID", "--environment", "$ENVIRONMENT_NAME")
+if (-not [string]::IsNullOrWhiteSpace($SERVICE_NAME)) {
+    $deployArgs += @("--service", "$SERVICE_NAME")
+}
+npx @railway/cli @deployArgs 2>&1 | Out-Null
 
 Write-Host ""
 Write-Host "OK Deployment completato!" -ForegroundColor Green

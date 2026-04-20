@@ -1,8 +1,12 @@
 const Database = require("better-sqlite3");
 const crypto = require("crypto");
+const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.join(__dirname, "app.db");
+const DB_PATH = path.resolve(
+    process.env.DB_PATH || path.join(__dirname, "app.db"),
+);
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 
 const ADMIN_EMAIL = "admin@gmail.com";
