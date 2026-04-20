@@ -1,9 +1,14 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
 name: Deploy to Railway
 
 on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
@@ -13,9 +18,15 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy to Railway
-        uses: railwayapp/actions@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          project_id: 4f69a0a3-1d8b-4806-bca3-1d8eaf51e272
-          environment: production
+          node-version: 20
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: "${{ secrets.RAILWAY_TOKEN }}"
+        run: railway up --ci --project "4f69a0a3-1d8b-4806-bca3-1d8eaf51e272" --environment "production"

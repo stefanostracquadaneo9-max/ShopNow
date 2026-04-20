@@ -1,5 +1,6 @@
 # Auto-convert line endings for all text files and scripts
 * text=auto
+.gitattributes text eol=lf
 
 # Shell scripts
 *.sh text eol=lf
@@ -9,10 +10,13 @@
 *.bat text eol=crlf
 *.cmd text eol=crlf
 *.exe text eol=crlf
+*.ps1 text eol=crlf
 
 # Source code
 *.js text eol=lf
 *.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
 *.html text eol=lf
 *.css text eol=lf
 *.md text eol=lf

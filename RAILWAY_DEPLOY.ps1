@@ -4,9 +4,21 @@
 $ErrorActionPreference = "Stop"
 
 # Token e info di Railway
-$RAILWAY_TOKEN = "K9C6uCrS4bYISJfYHEQCY8tgr5fJtBkVnFazq6FhXtZ"
-$PROJECT_ID = "4f69a0a3-1d8b-4806-bca3-1d8eaf51e272"
-$ENVIRONMENT_NAME = "production"
+$RAILWAY_TOKEN = $env:RAILWAY_TOKEN
+$PROJECT_ID = if ($env:RAILWAY_PROJECT_ID) {
+    $env:RAILWAY_PROJECT_ID
+} else {
+    "4f69a0a3-1d8b-4806-bca3-1d8eaf51e272"
+}
+$ENVIRONMENT_NAME = if ($env:RAILWAY_ENVIRONMENT) {
+    $env:RAILWAY_ENVIRONMENT
+} else {
+    "production"
+}
+
+if ([string]::IsNullOrWhiteSpace($RAILWAY_TOKEN)) {
+    throw "Imposta la variabile d'ambiente RAILWAY_TOKEN prima di eseguire questo script."
+}
 
 Write-Host "=== Railway Deployment Script ===" -ForegroundColor Cyan
 Write-Host "Project: ShopNow" -ForegroundColor Green
@@ -29,26 +41,18 @@ Get-Content ".env" | ForEach-Object {
 # Aggiungi NODE_ENV=production
 $envVars["NODE_ENV"] = "production"
 
-# Prepara il comando railway variables
+# Imposta le variabili su Railway
 Write-Host "[3/4] Impostando variabili su Railway..." -ForegroundColor Yellow
-
-$setCommands = @()
 foreach ($key in $envVars.Keys) {
     $value = $envVars[$key]
-    $setCommands += "railway variables set $key=$value"
-}
-
-# Esegui i comandi via npx railway
-foreach ($cmd in $setCommands) {
-    Write-Host "  → Impostando: $(($cmd -split ' set ')[1].Split('=')[0])" -ForegroundColor Cyan
-    $railwayCmd = $cmd -replace '^railway', 'npx @railway/cli'
-    Invoke-Expression "$railwayCmd" 2>&1 | Out-Null
+    Write-Host "  -> Impostando: $key" -ForegroundColor Cyan
+    npx @railway/cli variable set "$key=$value" --environment "$ENVIRONMENT_NAME" --project "$PROJECT_ID" 2>&1 | Out-Null
 }
 
 # Deploy
 Write-Host "[4/4] Facendo deploy su Railway..." -ForegroundColor Yellow
-Invoke-Expression "npx @railway/cli deploy --project $PROJECT_ID" 2>&1 | Out-Null
+npx @railway/cli up --ci --project "$PROJECT_ID" --environment "$ENVIRONMENT_NAME" 2>&1 | Out-Null
 
 Write-Host ""
 Write-Host "OK Deployment completato!" -ForegroundColor Green
-Write-Host 'App disponibile a: https://shopnow-production.up.railway.app' -ForegroundColor Green
+Write-Host "App disponibile a: https://shopnow-production.up.railway.app" -ForegroundColor Green
