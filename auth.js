@@ -3,6 +3,7 @@ const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_SERVER_BASE_URL = "http://localhost:3000";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
+const DEFAULT_STATIC_API_BASE_URL = "https://shopnow-production.up.railway.app";
 const PRODUCT_IMAGE_OVERRIDES = {
     "Laptop Pro": "uploads/Laptop_Pro.jpg",
     "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg",
@@ -35,6 +36,16 @@ function normalizeBaseUrl(value) {
     }
     return normalized.replace(/\/+$/, "");
 }
+function getImplicitApiBaseUrl() {
+    if (typeof window === "undefined" || !window.location) {
+        return "";
+    }
+    const protocol = String(window.location.protocol || "").toLowerCase();
+    const hostname = String(window.location.hostname || "").toLowerCase();
+    const isStaticHost =
+        protocol === "file:" || hostname.endsWith(".github.io");
+    return isStaticHost ? DEFAULT_STATIC_API_BASE_URL : "";
+}
 function getConfiguredApiBaseUrl() {
     if (typeof window === "undefined") {
         return "";
@@ -59,7 +70,10 @@ function getConfiguredApiBaseUrl() {
                   new URLSearchParams(window.location.search).get("api_base"),
               )
             : "";
-    return queryValue;
+    if (queryValue) {
+        return queryValue;
+    }
+    return getImplicitApiBaseUrl();
 }
 let hasLoggedApiBaseUrlWarning = false;
 

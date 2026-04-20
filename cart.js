@@ -632,7 +632,7 @@ function configureStaticCheckoutUi() {
     }
     if (paymentHint) {
         paymentHint.textContent =
-            "Per usare Stripe da GitHub Pages devi configurare un backend sicuro e impostare `SHOPNOW_API_BASE_URL` nel file `config.js`.";
+            "Per usare Stripe da GitHub Pages devi configurare un backend sicuro e controllare l'URL API centrale definito in `auth.js`.";
     }
     if (cardErrors) {
         cardErrors.textContent = "";
@@ -736,7 +736,7 @@ async function handleCheckoutSubmit(event) {
     try {
         if (isStaticCheckoutMode()) {
             throw new Error(
-                "Stripe richiede un backend configurato. Imposta `SHOPNOW_API_BASE_URL` in `config.js`.",
+                "Stripe richiede un backend configurato. Controlla l'URL API centrale in `auth.js`.",
             );
         }
         if (!stripeInstance || !stripeCardElement) {
@@ -877,7 +877,7 @@ async function handleCheckoutSubmit(event) {
         showCheckoutMessage(
             "danger",
             isNetworkFailure
-                ? "Connessione al backend fallita. Controlla `SHOPNOW_API_BASE_URL` in `config.js` e assicurati che il backend sia attivo."
+                ? "Connessione al backend fallita. Controlla l'URL API centrale in `auth.js` e assicurati che il backend sia attivo."
                 : error.message || "Errore durante il checkout.",
         );
     } finally {
@@ -992,7 +992,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         showCheckoutMessage(
             "danger",
             isNetworkFailure
-                ? "Impossibile raggiungere il backend. Controlla `SHOPNOW_API_BASE_URL` in `config.js` e il deploy del server."
+                ? "Impossibile raggiungere il backend. Controlla l'URL API centrale in `auth.js` e il deploy del server."
                 : "Stripe non disponibile. Riprova tra poco.",
         );
     }
