@@ -1,5 +1,3 @@
-const SERVER_BASE_URL = "http://localhost:3000";
-const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const BUY_NOW_CART_KEY = "shopnow-buy-now-cart";
 const CART_BRIDGE_KEYS = [
@@ -81,8 +79,7 @@ function getApiUrl(path) {
     const baseUrl =
         typeof getServerBaseUrl === "function"
             ? getServerBaseUrl()
-            : SERVER_BASE_URL;
-    return `${baseUrl}${normalizedPath}`;
+            : "http://localhost:izedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"
