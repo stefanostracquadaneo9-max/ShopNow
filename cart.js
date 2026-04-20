@@ -79,7 +79,8 @@ function getApiUrl(path) {
     const baseUrl =
         typeof getServerBaseUrl === "function"
             ? getServerBaseUrl()
-            : "http://localhost:izedPath}`;
+            : "http://localhost:3000";
+    return `${baseUrl}${normalizedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"
