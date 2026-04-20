@@ -1083,39 +1083,56 @@
                 </div>
             `;
             }
+            function applyServerDashboardPayload(e) {
+                var t = Array.isArray(e.users) ? e.users : [],
+                    a = Array.isArray(e.products) ? e.products : [],
+                    r = Array.isArray(e.orders) ? e.orders : [];
+                (users = t),
+                    (products = a),
+                    (orders = r.map((e) => normalizeIncomingOrder(e))),
+                    "function" == typeof saveData && saveData("products", a);
+            }
+            function getStripeBackedOrdersCount() {
+                return orders.filter(
+                    (order) => order && order.stripePaymentIntentId,
+                ).length;
+            }
+            async function fetchDashboardDataFromServer() {
+                var e = await fetch(
+                        SERVER_BASE_URL + "/api/admin/dashboard",
+                        getAdminFetchOptions(),
+                    ),
+                    t = await parseJsonResponse(
+                        e,
+                        "La dashboard server non ha restituito dati validi.",
+                    );
+                if (!e.ok)
+                    throw new Error(t.error || "Dashboard server non disponibile");
+                return t;
+            }
             async function loadDashboardDataFromServer() {
                 if (!isServerBackedAdminMode()) {
                     return !1;
                 }
                 try {
-                    await syncStripeHistoryIfMissing();
-                    var e,
-                        t,
-                        a,
-                        r = await fetch(
-                            SERVER_BASE_URL + "/api/admin/dashboard",
-                            getAdminFetchOptions(),
+                    applyServerDashboardPayload(
+                        await fetchDashboardDataFromServer(),
+                    );
+                    await loadStripeSummaryFromServer();
+                    const e = Number(
+                            (stripeSummary && stripeSummary.ordersCount) || 0,
                         ),
-                        n = await parseJsonResponse(
-                            r,
-                            "La dashboard server non ha restituito dati validi.",
-                        );
-                    if (r.ok)
-                        return (
-                            (e = Array.isArray(n.users) ? n.users : []),
-                            (t = Array.isArray(n.products) ? n.products : []),
-                            (a = Array.isArray(n.orders) ? n.orders : []),
-                            (users = e),
-                            (products = t),
-                            (orders = a.map((e) => normalizeIncomingOrder(e))),
-                            "function" == typeof saveData &&
-                                saveData("products", products),
-                            await loadStripeSummaryFromServer(),
-                            saveDashboardCache(),
-                            !0
-                        );
-                    throw new Error(
-                        n.error || "Dashboard server non disponibile",
+                        t = await syncStripeHistoryIfNeeded(e);
+                    return (
+                        (t && Number(t.imported || 0) > 0) ||
+                        e > getStripeBackedOrdersCount()
+                            ? (applyServerDashboardPayload(
+                                  await fetchDashboardDataFromServer(),
+                              ),
+                              await loadStripeSummaryFromServer(),
+                              saveDashboardCache(),
+                              !0)
+                            : (saveDashboardCache(), !0)
                     );
                 } catch (e) {
                     return (
@@ -1154,39 +1171,39 @@
                     (stripeSummary = null);
                 }
             }
-            async function syncStripeHistoryIfMissing() {
+            async function syncStripeHistoryIfNeeded(e = 0) {
                 if (!isServerBackedAdminMode()) {
-                    return;
+                    return null;
                 }
-                const hasStripeOrders = orders.some(
-                    (order) => order && order.stripePaymentIntentId,
-                );
-                if (hasStripeOrders) {
-                    return;
+                const t = getStripeBackedOrdersCount();
+                if ((0 === e && 0 < t) || (0 < e && e <= t)) {
+                    return null;
                 }
                 try {
-                    const response = await fetch(
+                    const a = await fetch(
                         SERVER_BASE_URL + "/api/admin/sync-stripe-history",
                         getAdminFetchOptions({ method: "POST" }),
                     );
-                    const result = await parseJsonResponse(
-                        response,
+                    const r = await parseJsonResponse(
+                        a,
                         "Sincronizzazione Stripe non riuscita.",
                     );
-                    if (!response.ok)
+                    if (!a.ok)
                         throw new Error(
-                            result.error || "Sincronizzazione Stripe non riuscita",
+                            r.error || "Sincronizzazione Stripe non riuscita",
                         );
-                    if (result.imported > 0) {
+                    if (r.imported > 0 || r.skipped > 0) {
                         console.info(
-                            `Storico Stripe importato automaticamente: ${result.imported} elementi.`,
+                            `Storico Stripe verificato automaticamente: ${r.imported} importati, ${r.skipped} gia presenti.`,
                         );
                     }
+                    return r;
                 } catch (error) {
                     console.warn(
                         "Sync Stripe automatico non riuscito:",
                         error.message || error,
                     );
+                    return null;
                 }
             }
             function loadDashboardDataFromCache() {

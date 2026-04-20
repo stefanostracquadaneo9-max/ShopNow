@@ -1447,12 +1447,7 @@ app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
                 userName: orderUser?.name || "Cliente",
             };
         });
-        const stripeBackedOrders = allOrders.filter(
-            (order) => order.stripePaymentIntentId,
-        );
-        const orders = stripeBackedOrders.length
-            ? stripeBackedOrders
-            : allOrders;
+        const orders = allOrders;
         const totalRevenue = orders.reduce(
             (sum, order) => sum + Number(order.total || 0),
             0,

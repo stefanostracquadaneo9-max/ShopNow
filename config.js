@@ -1,8 +1,19 @@
-// Se il backend e il frontend sono serviti dallo stesso dominio, lascia vuoto.
-// Se il frontend è separato (ad esempio site statico su GitHub Pages o altro hosting),
-// imposta qui l'URL pubblico del backend.
-window.SHOPNOW_API_BASE_URL = "";
+// Se il frontend gira su GitHub Pages o da file locale, usa il backend Railway.
+// Se il frontend gira direttamente su Railway, usa lo stesso dominio corrente.
+(function resolveShopNowApiBaseUrl() {
+    const DEFAULT_RAILWAY_BACKEND_URL =
+        "https://shopnow-production.up.railway.app";
 
-// Esempio per un backend pubblico:
-// window.SHOPNOW_API_BASE_URL = "https://your-backend-service.up.railway.app";
-// Sostituisci con il backend reale del tuo progetto Railway.
+    if (typeof window === "undefined" || !window.location) {
+        return;
+    }
+
+    const protocol = String(window.location.protocol || "").toLowerCase();
+    const hostname = String(window.location.hostname || "").toLowerCase();
+    const isStaticHost =
+        protocol === "file:" || hostname.endsWith(".github.io");
+
+    window.SHOPNOW_API_BASE_URL = isStaticHost
+        ? DEFAULT_RAILWAY_BACKEND_URL
+        : "";
+})();

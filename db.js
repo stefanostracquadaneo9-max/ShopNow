@@ -3,9 +3,13 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const DB_PATH = path.resolve(
-    process.env.DB_PATH || path.join(__dirname, "app.db"),
-);
+const railwayVolumeMountPath = String(
+    process.env.RAILWAY_VOLUME_MOUNT_PATH || "",
+).trim();
+const defaultDbPath = railwayVolumeMountPath
+    ? path.join(railwayVolumeMountPath, "app.db")
+    : path.join(__dirname, "app.db");
+const DB_PATH = path.resolve(process.env.DB_PATH || defaultDbPath);
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 
