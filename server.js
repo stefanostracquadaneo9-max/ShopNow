@@ -1123,10 +1123,17 @@ app.post("/login", async (req, res) => {
 });
 app.get("/api/auth/users", (req, res) => {
     try {
-        const users = getAllUsers();
-        res.json({ success: true, users });
+        const users = db
+            .prepare(
+                `
+            SELECT id, email, name, role, createdAt, passwordHash
+            FROM users
+        `,
+            )
+            .all();
+        res.json({ success: true, users: users });
     } catch (error) {
-        console.error("Errore elenco utenti:", error);
+        console.error("Errore elenco utenti auth:", error);
         res.status(500).json({ error: "Errore interno del server" });
     }
 });

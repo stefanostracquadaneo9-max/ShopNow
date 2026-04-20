@@ -268,7 +268,6 @@ function initializeDatabase() {
         "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
     );
     ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
-    ensureColumn("users", "deletedAt", "deletedAt DATETIME");
     ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
     ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
     ensureColumn(
@@ -463,6 +462,13 @@ function createProduct(name, price, category, description, image, stock) {
         normalizedStock,
     );
     return getProductById(result.lastInsertRowid);
+}
+
+function deleteUsersByDomain(domain) {
+    const pattern = `%@${domain.replace(/^@/, "")}`;
+    const users = db.prepare("SELECT id FROM users WHERE email LIKE ?").all(pattern);
+    users.forEach((u) => deleteUser(u.id));
+    return users.length;
 }
 
 function getProductById(id) {
@@ -922,6 +928,7 @@ module.exports = {
     getAllUsers,
     updateUser,
     deleteUser,
+    deleteUsersByDomain,
     createProduct,
     getProductById,
     getAllProducts,
