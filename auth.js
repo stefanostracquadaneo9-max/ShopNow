@@ -226,13 +226,13 @@ async function initializeLocalDB() {
             console.log("Immagini prodotti migrate a fallback locale");
         }
     }
-    const expectedShaHash =
+    const expectedAdminShaHash =
         "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
     if (initialized && adminUser && adminUser.passwordHash) {
         const expectedLegacyHash = simpleHash("admin");
         if (
             adminUser.passwordHash !== expectedLegacyHash &&
-            adminUser.passwordHash !== expectedShaHash
+            adminUser.passwordHash !== expectedAdminShaHash
         ) {
             console.log(
                 "Hash admin non valido trovato, ripristino con hash legacy.",
@@ -694,8 +694,22 @@ async function syncUsersFromServer() {
         if (!response.ok || !data?.users || !Array.isArray(data.users)) {
             return;
         }
-        const localUsers = loadData("users", {});
+        let localUsers = loadData("users", {});
         let changed = false;
+
+        // Identifica le email presenti sul server per pulire i fantasmi locali
+        const serverEmails = new Set(
+            data.users.map((u) => String(u.email || "").trim().toLowerCase()),
+        );
+
+        // Rimuove gli utenti locali che non esistono più sul server (tranne l'admin locale se necessario)
+        Object.keys(localUsers).forEach((email) => {
+            if (email !== "admin@gmail.com" && !serverEmails.has(email)) {
+                delete localUsers[email];
+                changed = true;
+            }
+        });
+
         data.users.forEach((serverUser) => {
             const normalizedEmail = String(serverUser.email || "")
                 .trim()

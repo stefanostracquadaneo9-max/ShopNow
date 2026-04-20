@@ -268,7 +268,6 @@ function initializeDatabase() {
         "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
     );
     ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
-    ensureColumn("users", "deletedAt", "deletedAt DATETIME");
     ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
     ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
     ensureColumn(
@@ -335,8 +334,6 @@ function getUserByEmail(email) {
         SELECT *
         FROM users
         WHERE email = ?
-            AND (deletedAt IS NULL)
-            AND COALESCE(role, 'user') <> 'deleted'
     `);
     return stmt.get(normalizedEmail);
 }
@@ -346,8 +343,6 @@ function getUserBySessionToken(token) {
         SELECT *
         FROM users
         WHERE sessionToken = ?
-            AND (deletedAt IS NULL)
-            AND COALESCE(role, 'user') <> 'deleted'
     `);
     return stmt.get(token);
 }
@@ -397,8 +392,6 @@ function getAllUsers() {
                 ELSE 0
             END AS sessionActive
         FROM users
-        WHERE deletedAt IS NULL
-            AND COALESCE(role, 'user') <> 'deleted'
         ORDER BY createdAt DESC, id DESC
     `);
     return stmt.all();

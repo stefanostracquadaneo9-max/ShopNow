@@ -60,12 +60,14 @@ app.use(cors());
 app.use(express.json());
 app.use(
     express.static(__dirname, {
-        index: false,
+        index: "index.html",
         maxAge: "1d",
         etag: true,
         lastModified: true,
     }),
 );
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 app.get("/health", (req, res) => {
     res.status(200).json({
         ok: true,
@@ -185,7 +187,7 @@ function normalizeAdminShippingAddress(shippingAddress) {
 }
 function buildAdminUserPayload(userId) {
     const user = getUserById(userId);
-    if (!user || user.deletedAt) {
+    if (!user) {
         return null;
     }
     const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
@@ -1000,13 +1002,6 @@ app.post("/send-order-email", async (req, res) => {
         });
     }
 });
-app.get("/health", (req, res) => {
-    res.json({ status: "OK", timestamp: new Date() });
-});
-app.use(express.static(path.join(__dirname)));
-app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
-});
 app.get("/config", (req, res) =>
     res.json({
         stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "pk_test_placeholder",
@@ -1132,8 +1127,6 @@ app.get("/api/auth/users", (req, res) => {
                 `
             SELECT id, email, name, role, createdAt, passwordHash
             FROM users
-            WHERE deletedAt IS NULL
-                AND COALESCE(role, 'user') <> 'deleted'
         `,
             )
             .all();
@@ -1668,10 +1661,6 @@ app.delete("/admin/products/:id", requireAdmin, (req, res) => {
         res.status(500).json({ error: "Errore interno del server" });
     }
 });
-app.get("/*", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
-});
 app.listen(PORT, "0.0.0.0", () => {
     console.log(`Server funzionante su http://0.0.0.0:${PORT}`);
 });
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
