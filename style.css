@@ -205,8 +205,39 @@
 
 .product-buy-now-btn:hover {
     color: #fff;
-    background-color: var(--amazon-dark);
-    border-color: var(--amazon-dark);
+    background-color: #232f3e;
+    border-color: #232f3e;
+}
+
+.checkout-step-card {
+    background: #fff;
+    border: 1px solid var(--amazon-border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: all 0.2s;
+}
+
+.checkout-step-card.active {
+    border-left: 5px solid var(--amazon-orange);
+}
+
+.selection-card {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 12px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    transition: background 0.2s;
+}
+
+.selection-card:hover {
+    background: #f7f7f7;
+}
+
+.selection-card.selected {
+    border: 2px solid var(--amazon-orange);
+    background: #fffdf5;
 }
 
 .btn-buy-now {
