@@ -99,6 +99,71 @@ function tableHasColumn(tableName, columnName) {
     return getTableColumns(tableName).some((column) => column.name === columnName);
 }
 
+function refreshProductReviewStats(productId = null, options = {}) {
+    const touchUpdatedAt = Boolean(options.touchUpdatedAt);
+    const hasReviewCountColumn = tableHasColumn("products", "reviewCount");
+    const targetProductIds =
+        productId == null
+            ? db.prepare("SELECT id FROM products").all().map((row) => row.id)
+            : [Number(productId)].filter(Number.isFinite);
+
+    if (!targetProductIds.length) {
+        return;
+    }
+
+    const statsStmt = db.prepare(`
+        SELECT AVG(rating) AS avgRating, COUNT(*) AS reviewCount
+        FROM reviews
+        WHERE productId = ?
+    `);
+    const currentStmt = hasReviewCountColumn
+        ? db.prepare("SELECT rating, reviewCount FROM products WHERE id = ?")
+        : db.prepare("SELECT rating FROM products WHERE id = ?");
+    const updateStmt = hasReviewCountColumn
+        ? touchUpdatedAt
+            ? db.prepare(
+                  "UPDATE products SET rating = ?, reviewCount = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+              )
+            : db.prepare(
+                  "UPDATE products SET rating = ?, reviewCount = ? WHERE id = ?",
+              )
+        : touchUpdatedAt
+          ? db.prepare(
+                "UPDATE products SET rating = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+            )
+          : db.prepare("UPDATE products SET rating = ? WHERE id = ?");
+
+    targetProductIds.forEach((id) => {
+        const stats = statsStmt.get(id) || {};
+        const nextRating = Number(Number(stats.avgRating || 0).toFixed(1));
+        const nextReviewCount = Number(stats.reviewCount || 0);
+        const currentProduct = currentStmt.get(id);
+
+        if (!currentProduct) {
+            return;
+        }
+
+        const currentRating = Number(currentProduct.rating || 0);
+        const currentReviewCount = hasReviewCountColumn
+            ? Number(currentProduct.reviewCount || 0)
+            : nextReviewCount;
+
+        if (
+            currentRating === nextRating &&
+            currentReviewCount === nextReviewCount
+        ) {
+            return;
+        }
+
+        if (hasReviewCountColumn) {
+            updateStmt.run(nextRating, nextReviewCount, id);
+            return;
+        }
+
+        updateStmt.run(nextRating, id);
+    });
+}
+
 function initializeDatabase() {
     db.exec(`
         CREATE TABLE IF NOT EXISTS users (
@@ -218,6 +283,7 @@ function initializeDatabase() {
     ensureColumn("paymentMethods", "cardNumber", "cardNumber TEXT");
     ensureColumn("paymentMethods", "cardHolder", "cardHolder TEXT");
     ensureColumn("paymentMethods", "expiryDate", "expiryDate TEXT");
+    refreshProductReviewStats();
 
     console.log("SQLite Database Inizializzato");
 }
@@ -374,10 +440,17 @@ function updateUser(userId, updates) {
 }
 
 function deleteUser(userId) {
+    const reviewedProducts = db
+        .prepare("SELECT DISTINCT productId FROM reviews WHERE userId = ?")
+        .all(userId)
+        .map((row) => row.productId);
     db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM reviews WHERE userId = ?").run(userId);
     db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+    reviewedProducts.forEach((productId) => {
+        refreshProductReviewStats(productId);
+    });
     return true;
 }
 
@@ -808,23 +881,7 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
             comment = excluded.comment,
             updatedAt = CURRENT_TIMESTAMP
     `).run(productId, userId, ratingNum, commentStr);
-
-    const stats = db
-        .prepare(`
-            SELECT AVG(rating) AS avgRating, COUNT(*) AS reviewCount
-            FROM reviews
-            WHERE productId = ?
-        `)
-        .get(productId);
-
-    db.prepare(
-        "UPDATE products SET rating = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
-    ).run(Number(stats.avgRating || 0).toFixed(1), productId);
-    if (tableHasColumn("products", "reviewCount")) {
-        db.prepare(
-            "UPDATE products SET reviewCount = ? WHERE id = ?",
-        ).run(Number(stats.reviewCount || 0), productId);
-    }
+    refreshProductReviewStats(productId, { touchUpdatedAt: true });
 
     return {
         product: getProductById(productId),

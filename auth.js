@@ -19,6 +19,33 @@ function resolveProductImage(product) {
     }
     return product?.image || "";
 }
+function normalizeLocalCatalogProduct(product) {
+    const reviews = Array.isArray(product?.reviews)
+        ? product.reviews.filter(Boolean).map((review) => ({ ...review }))
+        : [];
+    const reviewCount = reviews.length;
+    const rating = reviewCount
+        ? Number(
+              (
+                  reviews.reduce(
+                      (sum, review) => sum + Number(review.rating || 0),
+                      0,
+                  ) / reviewCount
+              ).toFixed(1),
+          )
+        : 0;
+    return {
+        ...product,
+        reviews: reviews,
+        rating: rating,
+        reviewCount: reviewCount,
+    };
+}
+function normalizeLocalCatalogProducts(products) {
+    return Array.isArray(products)
+        ? products.map((product) => normalizeLocalCatalogProduct(product))
+        : [];
+}
 function getRuntimeOverride() {
     if (typeof window === "undefined" || !window.location) {
         return "";
@@ -166,7 +193,7 @@ async function initializeLocalDB() {
     const initialized = localStorage.getItem(DB_KEY_PREFIX + "initialized");
     const existingUsers = loadData("users", {});
     const adminUser = existingUsers["admin@gmail.com"];
-    const existingProducts = loadData("products", []);
+    let existingProducts = loadData("products", []);
     if (existingProducts.length > 0) {
         let updated = false;
         existingProducts.forEach((product) => {
@@ -183,6 +210,17 @@ async function initializeLocalDB() {
                 updated = true;
             }
         });
+        if (!prefersServerAuth()) {
+            const normalizedProducts =
+                normalizeLocalCatalogProducts(existingProducts);
+            if (
+                JSON.stringify(normalizedProducts) !==
+                JSON.stringify(existingProducts)
+            ) {
+                existingProducts = normalizedProducts;
+                updated = true;
+            }
+        }
         if (updated) {
             saveData("products", existingProducts);
             console.log("Immagini prodotti migrate a fallback locale");
@@ -218,7 +256,7 @@ async function initializeLocalDB() {
                 orders: [],
             },
         };
-        const products = [
+        const products = normalizeLocalCatalogProducts([
             {
                 id: 1,
                 name: "Laptop Pro",
@@ -469,7 +507,7 @@ async function initializeLocalDB() {
                 stock: 60,
                 rating: 4.2,
             },
-        ];
+        ]);
         saveData("users", users);
         saveData("products", products);
         saveData("orders", []);
@@ -724,7 +762,7 @@ function ensureFallbackProducts() {
     }
 
     // Prodotti di fallback quando il server non è raggiungibile
-    const fallbackProducts = [
+    const fallbackProducts = normalizeLocalCatalogProducts([
         {
             id: 1,
             name: "Laptop Pro",
@@ -764,7 +802,7 @@ function ensureFallbackProducts() {
             updatedAt: "2026-04-13 15:44:43",
             reviewCount: 0
         }
-    ];
+    ]);
 
     saveData("products", fallbackProducts);
     console.log(`🔄 Caricati ${fallbackProducts.length} prodotti di fallback`);
@@ -1345,7 +1383,7 @@ if (typeof document !== "undefined") {
     });
 }
 function getDefaultProducts() {
-    return [
+    return normalizeLocalCatalogProducts([
         { id: 1, name: "Laptop Pro", description: "Potente laptop per professionisti", price: 1299.99, category: "elettronica", image: "uploads/Laptop_Pro.jpg", stock: 10, rating: 0 },
         { id: 2, name: "Mouse Wireless", description: "Mouse senza fili ergonomico", price: 29.99, category: "elettronica", image: "", stock: 50, rating: 0 },
         { id: 3, name: "Tastiera Meccanica", description: "Tastiera con switch meccanici", price: 149.99, category: "elettronica", image: "", stock: 25, rating: 0 },
@@ -1353,7 +1391,7 @@ function getDefaultProducts() {
         { id: 5, name: "Cuffie ANC", description: "Cuffie con cancellazione rumore", price: 199.99, category: "elettronica", image: "", stock: 30, rating: 0 },
         { id: 6, name: "Maglietta Premium", description: "Maglietta in cotone 100% organico", price: 34.99, category: "abbigliamento", image: "", stock: 60, rating: 0 },
         { id: 7, name: "Pantaloni Jeans", description: "Jeans di qualità premium", price: 79.99, category: "abbigliamento", image: "uploads/Pantaloni_Jeans.jpg", stock: 40, rating: 0 }
-    ];
+    ]);
 }
 window.logout = logout;
 window.searchProducts = searchProducts;
