@@ -433,18 +433,25 @@ function updateUser(userId, updates) {
 }
 
 function deleteUser(userId) {
-    const reviewedProducts = db
-        .prepare("SELECT DISTINCT productId FROM reviews WHERE userId = ?")
-        .all(userId)
-        .map((row) => row.productId);
-    db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);
-    db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
-    db.prepare("DELETE FROM reviews WHERE userId = ?").run(userId);
-    db.prepare("DELETE FROM users WHERE id = ?").run(userId);
-    reviewedProducts.forEach((productId) => {
-        refreshProductReviewStats(productId);
-    });
-    return true;
+    return db.transaction(() => {
+        const reviewedProducts = db
+            .prepare("SELECT DISTINCT productId FROM reviews WHERE userId = ?")
+            .all(userId)
+            .map((row) => row.productId);
+
+        db.prepare("DELETE FROM orders WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM reviews WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM addresses WHERE userId = ?").run(userId);
+        db.prepare("DELETE FROM paymentMethods WHERE userId = ?").run(userId);
+        
+        const result = db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+        
+        reviewedProducts.forEach((productId) => {
+            refreshProductReviewStats(productId);
+        });
+        return result.changes > 0;
+    })();
 }
 
 function createProduct(name, price, category, description, image, stock) {
@@ -465,10 +472,12 @@ function createProduct(name, price, category, description, image, stock) {
 }
 
 function deleteUsersByDomain(domain) {
-    const pattern = `%@${domain.replace(/^@/, "")}`;
-    const users = db.prepare("SELECT id FROM users WHERE email LIKE ?").all(pattern);
-    users.forEach((u) => deleteUser(u.id));
-    return users.length;
+    return db.transaction(() => {
+        const pattern = `%@${domain.replace(/^@/, "")}`;
+        const users = db.prepare("SELECT id FROM users WHERE email LIKE ?").all(pattern);
+        users.forEach((u) => deleteUser(u.id));
+        return users.length;
+    })();
 }
 
 function getProductById(id) {

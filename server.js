@@ -1121,6 +1121,18 @@ app.post("/login", async (req, res) => {
         });
     }
 });
+app.post("/api/admin/users/mass-delete", requireAdmin, (req, res) => {
+    try {
+        const { domain } = req.body;
+        if (!domain) return res.status(400).json({ error: "Dominio richiesto" });
+        const count = deleteUsersByDomain(domain);
+        res.json({ success: true, message: `Eliminati ${count} utenti con dominio ${domain}` });
+    } catch (error) {
+        console.error("Errore mass delete:", error);
+        res.status(500).json({ error: "Errore interno del server" });
+    }
+});
+
 app.get("/api/auth/users", (req, res) => {
     try {
         const users = db
@@ -1384,26 +1396,12 @@ app.get("/admin/orders", requireAdmin, (req, res) => {
         res.status(500).json({ error: "Errore interno del server" });
     }
 });
-app.delete("/admin/users/:id", requireAdmin, (req, res) => {
-    try {
-        const userId = Number(req.params.id);
-        const targetUser = getUserById(userId);
-        if (!targetUser)
-            return res.status(404).json({ error: "Utente non trovato" });
-        if (targetUser.role === "admin")
-            return res
-                .status(400)
-                .json({ error: "Non puoi eliminare un amministratore" });
-        deleteUser(userId);
-        res.json({ success: true, message: "Utente eliminato" });
-    } catch (error) {
-        console.error("Errore eliminazione utente admin:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
-});
 app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
     try {
         const userId = Number(req.params.id);
+        if (userId === req.user.id) {
+            return res.status(400).json({ error: "Non puoi eliminare il tuo stesso account amministratore" });
+        }
         const targetUser = getUserById(userId);
         if (!targetUser)
             return res.status(404).json({ error: "Utente non trovato" });

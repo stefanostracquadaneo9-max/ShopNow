@@ -1905,31 +1905,9 @@
                         let e = !1,
                             t = null;
                         if (isServerBackedAdminMode()) {
-                            for (var i of n) {
-                                var o = await fetch(
-                                        i,
-                                        getAdminFetchOptions({
-                                            method: "DELETE",
-                                        }),
-                                    ),
-                                    s = await parseJsonResponse(
-                                        o,
-                                        "Il server non ha restituito una risposta valida per l'eliminazione utente.",
-                                    );
-                                if (o.ok) {
-                                    e = !0;
-                                    break;
-                                }
-                                if (
-                                    ((t = new Error(
-                                        s.error ||
-                                            "Eliminazione utente non riuscita",
-                                    )),
-                                    404 !== o.status)
-                                )
-                                    throw t;
-                            }
-                            if (!e && t) throw t;
+                            const response = await fetch(SERVER_BASE_URL + "/api/admin/users/" + a, getAdminFetchOptions({ method: "DELETE" }));
+                            const data = await parseJsonResponse(response, "Errore eliminazione");
+                            if (!response.ok) throw new Error(data.error || "Eliminazione fallita");
                         } else {
                             // Eliminazione definitiva dell'utente in modalità locale
                             var d = loadData("users", {}),
