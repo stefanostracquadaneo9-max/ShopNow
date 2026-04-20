@@ -575,6 +575,9 @@
                             <span class="product-stars">${renderRatingStars(rating)}</span>
                             <span class="product-rating-text">${ratingText}</span>
                         </div>
+                        <a class="btn btn-sm btn-outline-secondary mt-2" href="${productUrl}#reviews-section">
+                            ${reviews > 0 ? "Leggi recensioni" : "Apri recensioni"}
+                        </a>
                         <div class="product-price">EUR ${Number(product.price || 0).toFixed(2)}</div>
                         <div class="product-availability ${isOutOfStock ? "out-of-stock" : stock <= 10 ? "low-stock" : ""}">
                             ${getAvailabilityLabel(stock)}

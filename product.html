@@ -261,6 +261,14 @@
                 }).format(Number(value || 0));
             }
 
+            function truncateReviewText(value, maxLength = 160) {
+                const normalized = String(value || "").trim();
+                if (normalized.length <= maxLength) {
+                    return normalized;
+                }
+                return `${normalized.slice(0, maxLength - 1).trim()}...`;
+            }
+
             function openProductZoom() {
                 if (!currentProduct?.image) {
                     return;
@@ -734,6 +742,9 @@
                 const shippingDescription = getShippingDescription(
                     product.price,
                 );
+                const latestReview = productReviews.length
+                    ? productReviews[0]
+                    : null;
                 const reviewsLabel =
                     reviewsCount === 1
                         ? "1 recensione"
@@ -776,6 +787,7 @@
                                 <div class="product-detail-rating-row">
                                     <div class="product-detail-rating">${renderStars(product.rating || 0)}</div>
                                     <a href="#reviews-section" class="product-review-anchor">${Number(product.rating || 0).toFixed(1)} · ${reviewsLabel}</a>
+                                    <a href="#reviews-section" class="btn btn-sm btn-outline-secondary">Leggi recensioni</a>
                                 </div>
                                 <div class="product-detail-price">${formatCurrency(product.price)}</div>
                                 <div class="product-price-caption">Prezzo finale IVA inclusa</div>
@@ -853,7 +865,11 @@
                             </div>
                         </div>
                         <div class="product-review-highlight">
-                            ${reviewsCount > 0 ? "Le stelle e il numero recensioni si aggiornano automaticamente dopo ogni invio." : "Il prodotto non ha ancora recensioni: puoi essere il primo a lasciare il tuo feedback."}
+                            ${
+                                latestReview
+                                    ? `<strong>Ultima recensione</strong><div>${escapeHtml(latestReview.authorName || "Cliente")} · ${Number(latestReview.rating || 0).toFixed(1)} / 5</div><p class="mb-0 mt-2">${escapeHtml(truncateReviewText(latestReview.comment || ""))}</p>`
+                                    : "Il prodotto non ha ancora recensioni: puoi essere il primo a lasciare il tuo feedback."
+                            }
                         </div>
                     </div>
                     <div class="row g-4 mt-1">
