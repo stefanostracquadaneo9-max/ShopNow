@@ -306,57 +306,6 @@
         <script src="auth.js?v=20260420b"></script>
         <script src="cart.js"></script>
         <script src="auth_ui.js"></script>
-        <script>
-            // Funzione per mostrare/nascondere password
-            function togglePasswordVisibility(inputId, buttonId) {
-                const input = document.getElementById(inputId);
-                const button = document.getElementById(buttonId);
-                const icon = button.querySelector("i");
-
-                if (input.type === "password") {
-                    input.type = "text";
-                    icon.classList.remove("fa-eye");
-                    icon.classList.add("fa-eye-slash");
-                    button.title = "Nascondi password";
-                } else {
-                    input.type = "password";
-                    icon.classList.remove("fa-eye-slash");
-                    icon.classList.add("fa-eye");
-                    button.title = "Mostra password";
-                }
-            }
-
-            // Inizializza i toggle delle password
-            document.addEventListener("DOMContentLoaded", function () {
-                // Toggle per i campi registrazione
-                const togglePasswordBtn = document.getElementById(
-                    "toggle-register-password",
-                );
-                const toggleConfirmPasswordBtn = document.getElementById(
-                    "toggle-register-confirm-password",
-                );
-
-                if (togglePasswordBtn) {
-                    togglePasswordBtn.addEventListener("click", function () {
-                        togglePasswordVisibility(
-                            "register-password",
-                            "toggle-register-password",
-                        );
-                    });
-                }
-
-                if (toggleConfirmPasswordBtn) {
-                    toggleConfirmPasswordBtn.addEventListener(
-                        "click",
-                        function () {
-                            togglePasswordVisibility(
-                                "register-confirm-password",
-                                "toggle-register-confirm-password",
-                            );
-                        },
-                    );
-                }
-            });
-        </script>
+        <script src="auth_ui.js"></script>
     </body>
 </html>

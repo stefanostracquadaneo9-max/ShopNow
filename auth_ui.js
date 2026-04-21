@@ -1,6 +1,23 @@
 document.addEventListener("DOMContentLoaded", async function () {
+    await initializeLocalDB();
+    
     const loginForm = document.getElementById("login-form");
     const registerForm = document.getElementById("register-form");
+    const authSection = document.getElementById("auth-section");
+    const siteContent = document.getElementById("site-content");
+    const siteHeader = document.getElementById("site-header");
+    const siteFooter = document.getElementById("site-footer");
+
+    const currentUser = await getCurrentUser();
+
+    if (currentUser) {
+        if (window.location.pathname.endsWith("index.html") || window.location.pathname.endsWith("register.html") || window.location.pathname === "/") {
+            if (currentUser.role === "admin") window.location.href = "admin.html";
+            else showSiteContent();
+        }
+    } else if (authSection) {
+        showAuthSection();
+    }
 
     if (loginForm) {
         loginForm.addEventListener("submit", async (e) => {
@@ -39,6 +56,38 @@ document.addEventListener("DOMContentLoaded", async function () {
             }
         });
     }
+
+    function showAuthSection() {
+        if (authSection) authSection.style.display = "block";
+        if (siteContent) siteContent.style.display = "none";
+        if (siteHeader) siteHeader.style.display = "none";
+        if (siteFooter) siteFooter.style.display = "none";
+    }
+
+    function showSiteContent() {
+        if (authSection) authSection.style.display = "none";
+        if (siteContent) siteContent.style.display = "block";
+        if (siteHeader) siteHeader.style.display = "block";
+        if (siteFooter) siteFooter.style.display = "block";
+    }
+
+    // Setup toggles if button exists
+    const list = [
+        {btn: 'toggle-login-password', input: 'login-password'},
+        {btn: 'toggle-register-password', input: 'register-password'},
+        {btn: 'toggle-register-confirm-password', input: 'register-confirm-password'}
+    ];
+    list.forEach(t => {
+        const b = document.getElementById(t.btn);
+        if (b) b.onclick = () => togglePasswordVisibility(t.input, t.btn);
+    });
+
+    document.addEventListener("click", function (event) {
+        if (event.target.id === "logout-link") {
+            event.preventDefault();
+            logout();
+        }
+    });
 });
 
 function showAuthMessage(type, text) {
@@ -63,16 +112,3 @@ function togglePasswordVisibility(inputId, buttonId) {
         icon.classList.replace("fa-eye-slash", "fa-eye");
     }
 }
-
-const setupToggles = () => {
-    const list = [
-        {btn: 'toggle-login-password', input: 'login-password'},
-        {btn: 'toggle-register-password', input: 'register-password'},
-        {btn: 'toggle-register-confirm-password', input: 'register-confirm-password'}
-    ];
-    list.forEach(t => {
-        const b = document.getElementById(t.btn);
-        if (b) b.onclick = () => togglePasswordVisibility(t.input, t.btn);
-    });
-};
-setupToggles();
