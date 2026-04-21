@@ -8,9 +8,13 @@
 # Node modules
 node_modules/
 npm-debug.log
+yarn-error.log
+pnpm-debug.log
 
 # User data
 users.json
+uploads/*
+!uploads/.gitkeep
 
 # IDE
 .vscode/
@@ -30,6 +34,8 @@ build/
 app.db
 *.db
 *.sqlite
+*.sqlite-journal
+*.sqlite3
 
 # Logs
 *.log
@@ -56,3 +62,10 @@ CHECKOUT_OPTIMIZATIONS.md
 .DS_Store
 Thumbs.db/
 desktop.ini
+
+# Certificates and Archives
+*.pem
+*.key
+*.crt
+*.zip
+*.7z
