@@ -717,8 +717,10 @@ async function initializeStripeCheckout() {
             config.error || "Stripe non configurato correttamente.",
         );
     }
+    const checkoutForm = document.getElementById("checkout-form");
     const cardElementContainer = document.getElementById("card-element");
-    if (cardElementContainer) { // Solo se l'elemento esiste nella pagina
+
+    if (checkoutForm && cardElementContainer) {
         stripeInstance = window.Stripe(config.stripePublicKey);
         const elements = stripeInstance.elements({
             appearance: {
@@ -991,40 +993,23 @@ async function prefillCheckoutForm() {
 }
 document.addEventListener("DOMContentLoaded", async () => {
     consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm
-    // Assicuriamoci che i prodotti siano disponibili prima di renderizzare
-    if (typeof syncProductsFromServer === "function") {
-        try {
-            await syncProductsFromServer();
-        } catch (error) { // Correzione: mancava una parentesi graffa chiusa qui
-            console.warn("Errore sync prodotti:", error.message);
-        }
-    }
-
+    
     updateCartCount();
     renderCart();
+    
     const checkoutForm = document.getElementById("checkout-form");
     if (checkoutForm) {
         checkoutForm.addEventListener("submit", handleCheckoutSubmit);
+        try {
+            await initializeStripeCheckout();
+        } catch (error) {
+            console.error("Errore inizializzazione Stripe:", error);
+            showCheckoutMessage("danger", "Stripe non disponibile. Riprova tra poco.");
+        }
     }
+    
     await prefillCheckoutForm();
-    try {
-        await initializeStripeCheckout();
-    } catch (error) {
-        console.error("Errore inizializzazione Stripe:", error);
-        const isNetworkFailure =
-            error.message &&
-            (error.message.includes("Timeout") ||
-                error.message.includes("NetworkError") ||
-                error.message.includes("Failed to fetch") ||
-                error.message.includes("non e stato possibile") ||
-                error.message.includes("net::ERR"));
-        showCheckoutMessage(
-            "danger",
-            isNetworkFailure
-                ? "Impossibile raggiungere il backend. Controlla l'URL API centrale in `auth.js` e il deploy del server."
-                : "Stripe non disponibile. Riprova tra poco.",
-        );
-    }
+
     if (shouldFocusCheckout()) {
         window.setTimeout(focusCheckoutPanel, 150);
     }
