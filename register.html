@@ -15,9 +15,8 @@
         />
         <link href="style.css" rel="stylesheet" />
     </head>
-    <body>
-        <!-- Amazon-style Header (hidden for auth page) -->
-        <header class="amazon-header" id="site-header" style="display: none">
+    <body class="initially-hidden">
+        <header class="amazon-header d-none" id="site-header">
             <div class="container-fluid">
                 <div class="row align-items-center">
                     <div class="col-auto">
@@ -73,8 +72,7 @@
                 </div>
             </div>
         </header>
-
-        <main class="auth-main">
+        <main class="auth-main" id="auth-main-content">
             <!-- Sezione Registrazione per utenti non autenticati -->
             <div id="auth-section" class="container">
                 <div class="row justify-content-center">
@@ -192,7 +190,7 @@
                 </div>
 
                 <!-- Sezione contenuto sito per utenti autenticati -->
-                <div id="site-content" style="display: none">
+                <div id="site-content" class="d-none">
                     <div class="container">
                         <div class="row justify-content-center">
                             <div class="col-md-8 col-lg-6">
@@ -221,7 +219,7 @@
             </div>
         </main>
 
-        <footer class="amazon-footer" id="site-footer" style="display: none">
+        <footer class="amazon-footer d-none" id="site-footer">
             <div class="container">
                 <div class="row">
                     <div class="col-md-3">
@@ -303,7 +301,7 @@
         </footer>
 
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-        <script src="auth.js?v=20260420b"></script>
+        <script src="auth.js"></script>
         <script src="cart.js"></script>
         <script src="auth_ui.js"></script>
     </body>

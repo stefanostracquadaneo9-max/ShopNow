@@ -964,4 +964,5 @@ module.exports = {
     updateCart,
     clearCart,
     seedDatabase,
+    DEFAULT_PRODUCTS, // Espongo i prodotti di default per coerenza
 };

@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", async function () {
     const currentUser = await getCurrentUser();
     const authSection = document.getElementById("auth-section");
-    const profileSection = document.getElementById("profile-section");
+    const profileSection = document.getElementById("profile-section"); 
     const accountMessage = document.getElementById("account-message");
     const loginForm = document.getElementById("login-form");
     const registerForm = document.getElementById("register-form");
@@ -11,8 +11,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     const paymentForm = document.getElementById("payment-form-account");
     const paymentList = document.getElementById("payment-list");
     const logoutButton = document.getElementById("logout-button");
-    if (currentUser) showProfile(currentUser);
-    else showAuthSection();    if (profileForm) {
+    if (currentUser) showProfile(currentUser); else showAuthSection();
+    if (profileForm) {
         profileForm.addEventListener("submit", async function (event) {
             event.preventDefault();
             clearMessage();
@@ -37,7 +37,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 postalCode: document
                     .getElementById("address-postal")
                     .value.trim(),
-                country: normalizeCountryCode(
+                country: window.normalizeCountryCode(
                     document.getElementById("address-country").value,
                 ),
                 phone: document.getElementById("address-phone").value.trim(),
@@ -274,95 +274,23 @@ document.addEventListener("DOMContentLoaded", async function () {
         accountMessage.style.display = "none";
         accountMessage.textContent = "";
     }
-    function normalizeCountryCode(value) {
-        const normalized = String(value || "")
-            .trim()
-            .toUpperCase();
-        const countryMap = {
-            ITALIA: "IT",
-            ITALY: "IT",
-            IT: "IT",
-            GERMANIA: "DE",
-            GERMANY: "DE",
-            DE: "DE",
-            FRANCIA: "FR",
-            FRANCE: "FR",
-            FR: "FR",
-            SPAGNA: "ES",
-            SPAIN: "ES",
-            ES: "ES",
-            "REGNO UNITO": "GB",
-            "UNITED KINGDOM": "GB",
-            UK: "GB",
-            GB: "GB",
-            "STATI UNITI": "US",
-            USA: "US",
-            "UNITED STATES": "US",
-            US: "US",
-        };
-        if (countryMap[normalized]) {
-            return countryMap[normalized];
-        }
-        if (/^[A-Z0-9]{2}$/.test(normalized)) {
-            return normalized;
-        }
-        return normalized.slice(0, 2);
-    }
-    function normalizeOrderItems(items) {
-        if (Array.isArray(items)) {
-            return items
-                .map((item) => ({
-                    id: Number(item.id),
-                    name: item.name || "",
-                    quantity: Number(item.quantity || 0),
-                }))
-                .filter((item) => item.id && item.quantity > 0);
-        }
-        if (items && typeof items === "object") {
-            return Object.keys(items)
-                .map((productId) => ({
-                    id: Number(productId),
-                    name: "",
-                    quantity: Number(items[productId] || 0),
-                }))
-                .filter((item) => item.id && item.quantity > 0);
-        }
-        return [];
-    }
-    function formatOrderDate(value) {
+
+    // Funzioni di utilità locali (se non già globali)
+    const normalizeOrderItems = (items) => {
+        if (!Array.isArray(items)) return [];
+        return items.map(item => ({ id: Number(item.id), name: item.name || "", quantity: Number(item.quantity || 0) })).filter(item => item.id && item.quantity > 0);
+    };
+
+    const formatOrderDate = (value) => {
         if (!value) return "Data non disponibile";
         const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return value;
-        return date.toLocaleString("it-IT");
-    }
-    function formatShippingAddress(shippingAddress) {
+        return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("it-IT");
+    };
+
+    const formatShippingAddress = (shippingAddress) => {
         if (!shippingAddress) return "";
-        let address = shippingAddress;
-        if (typeof shippingAddress === "string") {
-            try {
-                address = JSON.parse(shippingAddress);
-            } catch (error) {
-                return shippingAddress;
-            }
-        }
+        let address = typeof shippingAddress === "string" ? JSON.parse(shippingAddress) : shippingAddress;
         if (!address || typeof address !== "object") return "";
-        const parts = [
-            address.line1,
-            address.postalCode,
-            address.city,
-            address.country,
-        ].filter(Boolean);
-        return parts.join(", ");
-    }
-    function getDefaultProducts() {
-        return [
-            { id: 1, name: "RAM DDR4 16GB", price: 60 },
-            { id: 2, name: "Scheda Madre ATX", price: 120 },
-            { id: 3, name: "Case Gaming RGB", price: 80 },
-            { id: 4, name: "CPU Intel Core i5", price: 250 },
-            { id: 5, name: "GPU NVIDIA RTX 3060", price: 400 },
-            { id: 6, name: "SSD NVMe 1TB", price: 100 },
-            { id: 7, name: "Alimentatore 650W", price: 70 },
-        ];
-    }
+        return [address.line1, address.postalCode, address.city, address.country].filter(Boolean).join(", ");
+    };
 });

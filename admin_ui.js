@@ -58,7 +58,7 @@ window.removeProductImageSelection = function() {
 };
 
 function formatAdminCurrency(e) {
-    return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(e || 0));
+    return window.formatCurrency(e);
 }
 
 function renderUserStatusBadge(e) {
@@ -159,7 +159,7 @@ function renderProductsTable() {
         <tr>
             <td><img src="${e.image || ''}" class="admin-product-image" style="width:40px" onclick="openProductImagePreview('${e.id}')"></td>
             <td>${e.name}</td>
-            <td>${e.category}</td>
+            <td>${window.escapeHtml(e.category)}</td>
             <td>${formatAdminCurrency(e.price)}</td>
             <td>${e.stock}</td>
             <td>
@@ -175,7 +175,7 @@ function renderOrdersTable() {
         <tr>
             <td>${e.id}</td>
             <td>${e.userName}</td>
-            <td>${new Date(e.createdAt || e.date).toLocaleDateString("it-IT")}</td>
+            <td>${new Date(e.createdAt || e.date).toLocaleDateString("it-IT")}</td> 
             <td>${formatAdminCurrency(e.total)}</td>
             <td>${e.status}</td>
             <td><button class="btn btn-sm btn-outline-primary" onclick="alert('Dettagli non disponibili')"><i class="fas fa-eye"></i></button></td>
@@ -265,15 +265,101 @@ function renderCharts() {
 
 document.addEventListener("DOMContentLoaded", async function () {
     await initializeLocalDB();
+    // Assicurati che i prodotti siano disponibili prima di caricare la dashboard
+    if (typeof syncProductsFromServer === "function") {
+        try {
+            await syncProductsFromServer();
+        } catch (error) {
+            console.warn("Errore sync prodotti in admin_ui:", error.message);
+        }
+    }
     await checkAdminAccess();
     loadDashboardData();
+
+    // Event listeners per l'upload immagine prodotto
+    document.getElementById("product-image").addEventListener("input", () => {
+        if (pendingImageRemoval && document.getElementById("product-image").value.trim()) {
+            pendingImageRemoval = false;
+        }
+        window.updateProductImagePreview(document.getElementById("product-image").value.trim());
+    });
+
+    document.getElementById("product-image-file").addEventListener("change", async () => {
+        pendingImageRemoval = false;
+        const file = document.getElementById("product-image-file").files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => window.updateProductImagePreview(e.target.result);
+            reader.readAsDataURL(file);
+        } else {
+            window.updateProductImagePreview(document.getElementById("product-image").value.trim());
+        }
+    });
+
+    // Ricarica i grafici quando la sezione analytics diventa visibile
+    const analyticsSection = document.getElementById("analytics-section");
+    if (analyticsSection) {
+        new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === "attributes" && mutation.attributeName === "class" && analyticsSection.classList.contains("admin-section-hidden") === false) {
+                    setTimeout(renderCharts, 100);
+                }
+            });
+        }).observe(analyticsSection, { attributes: true });
+    }
 });
 
 window.searchAdmin = function() {
     let q = document.getElementById("search-input").value.toLowerCase();
     if (!q) { renderUsersTable(); renderProductsTable(); return; }
     let filteredU = users.filter(u => u.email.toLowerCase().includes(q) || u.name?.toLowerCase().includes(q));
-    let filteredP = products.filter(p => p.name.toLowerCase().includes(q));
-    if (filteredP.length) { window.showSection("products"); } else { window.showSection("users"); }
-    // ... rendering filtrato ...
+    let filteredP = products.filter(p => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q) || p.category?.toLowerCase().includes(q));
+
+    // Mostra la sezione con più risultati o una predefinita
+    if (filteredP.length > 0 || filteredU.length === 0) {
+        window.showSection("products");
+        renderProductsTable(filteredP);
+        // Se ci sono risultati per i prodotti, non mostrare gli utenti filtrati nella sezione utenti
+        if (filteredP.length > 0) return;
+    }
+    if (filteredU.length > 0 || filteredP.length === 0) {
+        window.showSection("users");
+        renderUsersTable(filteredU);
+    }
+
+    if (filteredP.length === 0 && filteredU.length === 0) {
+        alert("Nessun risultato trovato per: " + q);
+        loadDashboardData(); // Ricarica tutti i dati se non ci sono risultati
+    }
 };
+
+// Funzioni di rendering filtrate (per la ricerca)
+function renderFilteredUsersTable(filteredUsers) {
+    let body = document.getElementById("users-table-body");
+    body.innerHTML = filteredUsers.map(e => `
+        <tr>
+            <td><div class="user-avatar">${(e.name || "U").charAt(0).toUpperCase()}</div></td>
+            <td>${window.escapeHtml(e.name || "N/D")}</td>
+            <td>${window.escapeHtml(e.email)}</td>
+            <td>${renderUserStatusBadge(e)}</td>
+            <td>${window.escapeHtml(e.role)}</td>
+            <td>${new Date(e.createdAt || Date.now()).toLocaleDateString("it-IT")}</td>
+            <td><button class="btn btn-sm btn-outline-primary" onclick="viewUserDetails('${e.id}')"><i class="fas fa-eye"></i></button></td>
+        </tr>`).join("");
+}
+
+function renderFilteredProductsTable(filteredProducts) {
+    let body = document.getElementById("products-table-body");
+    body.innerHTML = filteredProducts.map(e => `
+        <tr>
+            <td><img src="${window.escapeHtml(e.image || '')}" class="admin-product-image" style="width:40px" onclick="openProductImagePreview('${e.id}')"></td>
+            <td>${window.escapeHtml(e.name)}</td>
+            <td>${window.escapeHtml(e.category)}</td>
+            <td>${window.formatCurrency(e.price)}</td>
+            <td>${e.stock}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-warning" onclick="editProduct('${e.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct('${e.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`).join("");
+}

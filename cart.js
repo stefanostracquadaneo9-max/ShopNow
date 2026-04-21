@@ -94,6 +94,7 @@ function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"
         ? getBackendRequestHeaders(extraHeaders)
         : { ...extraHeaders };
+}
 function renderSavedPaymentMethod(method) {
     const box = document.getElementById("saved-payment-method");
     if (!box) {
@@ -273,7 +274,162 @@ function fetchWithTimeout(url, options = {}, timeout = 15000) {
                 throw new Error("Timeout: il server non risponde.");
             }
             throw error;
-    });
+        });
+}
+function formatCurrency(value) {
+    return currencyFormatter.format(Number(value || 0));
+}
+function calculateShippingCost(subtotal) {
+    const normalizedSubtotal = Number(subtotal || 0);
+    if (
+        normalizedSubtotal <= 0 ||
+        normalizedSubtotal >= FREE_SHIPPING_THRESHOLD
+    ) {
+        return 0;
+    }
+    return Number(
+        (normalizedSubtotal * SHIPPING_RATE_UNDER_THRESHOLD).toFixed(2),
+    );
+}
+function normalizeCountryCode(value) {
+    const normalized = String(value || "")
+        .trim()
+        .toUpperCase();
+
+    // Mappa paesi comuni con variazioni
+    const countryMap = {
+        // Italia
+        ITALIA: "IT",
+        ITALY: "IT",
+        IT: "IT",
+        // Stati Uniti
+        "STATI UNITI": "US",
+        USA: "US",
+        "UNITED STATES": "US",
+        US: "US",
+        // Regno Unito
+        "REGNO UNITO": "GB",
+        "UNITED KINGDOM": "GB",
+        UK: "GB",
+        GB: "GB",
+        // Germania
+        GERMANIA: "DE",
+        GERMANY: "DE",
+        DE: "DE",
+        // Francia
+        FRANCIA: "FR",
+        FRANCE: "FR",
+        FR: "FR",
+        // Spagna
+        SPAGNA: "ES",
+        SPAIN: "ES",
+        ES: "ES",
+        // Altri paesi europei comuni
+        AUSTRIA: "AT",
+        AUSTRIA: "AT",
+        AT: "AT",
+        BELGIO: "BE",
+        BELGIUM: "BE",
+        BE: "BE",
+        OLANDA: "NL",
+        NETHERLANDS: "NL",
+        NL: "NL",
+        SVEZIA: "SE",
+        SWEDEN: "SE",
+        SE: "SE",
+        NORVEGIA: "NO",
+        NORWAY: "NO",
+        NO: "NO",
+        DANIMARCA: "DK",
+        DENMARK: "DK",
+        DK: "DK",
+        SVIZZERA: "CH",
+        SWITZERLAND: "CH",
+        CH: "CH",
+        PORTOGALLO: "PT",
+        PORTUGAL: "PT",
+        PT: "PT",
+        IRLANDA: "IE",
+        IRELAND: "IE",
+        IE: "IE",
+        FINLANDIA: "FI",
+        FINLAND: "FI",
+        FI: "FI",
+        POLONIA: "PL",
+        POLAND: "PL",
+        PL: "PL",
+        CECOSLOVACCHIA: "CZ",
+        "REPUBBLICA CECA": "CZ",
+        CZECH: "CZ",
+        CZ: "CZ",
+        UNGHERIA: "HU",
+        HUNGARY: "HU",
+        HU: "HU",
+        GRECIA: "GR",
+        GREECE: "GR",
+        GR: "GR",
+        // Altri paesi
+        CANADA: "CA",
+        CA: "CA",
+        AUSTRALIA: "AU",
+        AU: "AU",
+        GIAPPONE: "JP",
+        JAPAN: "JP",
+        JP: "JP",
+        CINA: "CN",
+        CHINA: "CN",
+        CN: "CN",
+        INDIA: "IN",
+        IN: "IN",
+        BRASILE: "BR",
+        BRAZIL: "BR",
+        BR: "BR",
+        MESSICO: "MX",
+        MEXICO: "MX",
+        MX: "MX",
+        ARGENTINA: "AR",
+        AR: "AR",
+        CILE: "CL",
+        CHILE: "CL",
+        CL: "CL",
+        COLOMBIA: "CO",
+        CO: "CO",
+        PERU: "PE",
+        PE: "PE",
+        VENEZUELA: "VE",
+        VE: "VE",
+        URUGUAY: "UY",
+        UY: "UY",
+        PARAGUAY: "PY",
+        PY: "PY",
+        BOLIVIA: "BO",
+        BO: "BO",
+        ECUADOR: "EC",
+        EC: "EC",
+    };
+
+    // Se è nella mappa, usa il codice corrispondente
+    if (countryMap[normalized]) {
+        return countryMap[normalized];
+    }
+
+    // Se è già un codice ISO a 2 lettere valido, restituiscilo
+    if (/^[A-Z]{2}$/.test(normalized)) {
+        return normalized;
+    }
+
+    // Per paesi non riconosciuti, prova a estrarre un codice a 2 lettere
+    // o usa una logica di fallback
+    const words = normalized.split(/\s+/);
+    if (words.length > 0) {
+        const firstWord = words[0];
+        if (firstWord.length >= 2) {
+            return firstWord.substring(0, 2).toUpperCase();
+        }
+    }
+
+    // Fallback: restituisci i primi 2 caratteri
+    return normalized.substring(0, 2).toUpperCase() || "IT";
 }
 function getProductsForCart() {
     if (typeof getAllProducts === "function") {
@@ -372,7 +528,7 @@ function getCartItemImageMarkup(item) {
     if (!item.image) {
         return '<span class="text-muted small">N/D</span>';
     }
-    return `<img src="${escapeHtml(item.image)}" alt="${escapeHtml(item.name)}" style="width:50px;height:50px;object-fit:cover">`;
+    return `<img src="${window.escapeHtml(item.image)}" alt="${window.escapeHtml(item.name)}" class="cart-item-image">`;
 }
 function renderCart() {
     const itemsContainer = document.getElementById("cart-items");
@@ -404,15 +560,15 @@ function renderCart() {
             (item) => `
         <tr>
             <td>${getCartItemImageMarkup(item)}</td>
-            <td>${escapeHtml(item.name)}</td>
-            <td>${formatCurrency(item.price)}</td>
+            <td>${window.escapeHtml(item.name)}</td>
+            <td>${window.formatCurrency(item.price)}</td>
             <td>
                 <button class="btn btn-sm btn-outline-secondary" onclick="updateQuantity(${item.id}, ${item.quantity - 1})">-</button>
                 <span class="mx-2">${item.quantity}</span>
                 <button class="btn btn-sm btn-outline-secondary" onclick="updateQuantity(${item.id}, ${item.quantity + 1})" ${item.quantity >= item.stock ? "disabled" : ""}>+</button>
                 <div class="small text-muted mt-1">Disponibili: ${item.stock}</div>
             </td>
-            <td>${formatCurrency(item.price * item.quantity)}</td>
+            <td>${window.formatCurrency(item.price * item.quantity)}</td>
             <td>
                 <div class="d-flex flex-column gap-1">
                     <button class="btn btn-sm btn-buy-now py-0" onclick="checkoutSingleItem(${item.id})">Acquista ora</button>
@@ -449,13 +605,13 @@ function renderCart() {
     `;
     totalContainer.innerHTML = `
         <div class="summary-card">
-            <div class="summary-row"><span>Subtotale:</span> <span>${formatCurrency(subtotal)}</span></div>
-            <div class="summary-row"><span>IVA (22%):</span> <span>${formatCurrency(vat)}</span></div>
-            <div class="summary-row"><span>Spedizione:</span> <span>${shipping > 0 ? `${formatCurrency(shipping)} (5% sotto ${formatCurrency(FREE_SHIPPING_THRESHOLD)})` : "Gratis"}</span></div>
-            <div class="summary-row total"><span>Totale:</span> <span>${formatCurrency(total)}</span></div>
+            <div class="summary-row"><span>Subtotale:</span> <span>${window.formatCurrency(subtotal)}</span></div>
+            <div class="summary-row"><span>IVA (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
+            <div class="summary-row"><span>Spedizione:</span> <span>${shipping > 0 ? `${window.formatCurrency(shipping)} (5% sotto ${window.formatCurrency(FREE_SHIPPING_THRESHOLD)})` : "Gratis"}</span></div>
+            <div class="summary-row total"><span>Totale:</span> <span>${window.formatCurrency(total)}</span></div>
         </div>
     `;
-    totalLabel.textContent = formatCurrency(total);
+    totalLabel.textContent = window.formatCurrency(total);
     checkoutPanel.style.display = "block";
     checkoutButton.style.display = "inline-block";
 }
@@ -585,7 +741,7 @@ async function handleCheckoutSubmit(event) {
     const street =
         document.getElementById("checkout-address")?.value.trim() || "";
     const city = document.getElementById("checkout-city")?.value.trim() || "";
-    const postalCode =
+    const postalCode = 
         document.getElementById("checkout-postal")?.value.trim() || "";
     const country = normalizeCountryCode(
         document.getElementById("checkout-country")?.value || "",
@@ -779,7 +935,7 @@ async function prefillCheckoutForm() {
             cityInput.value = bridgedCheckoutPrefill.city || "";
         }
         if (postalInput && !postalInput.value) {
-            postalInput.value = bridgedCheckoutPrefill.postalCode || "";
+            postalInput.value = bridgedCheckoutPrefill.postalCode || ""; 
         }
         if (countryInput && !countryInput.value) {
             countryInput.value = normalizeCountryCode(
@@ -814,7 +970,7 @@ async function prefillCheckoutForm() {
             cityInput.value = firstAddress.city || "";
         }
         if (postalInput && !postalInput.value) {
-            postalInput.value = firstAddress.postalCode || "";
+            postalInput.value = firstAddress.postalCode || ""; 
         }
         if (countryInput && !countryInput.value) {
             countryInput.value = normalizeCountryCode(
@@ -831,11 +987,7 @@ async function prefillCheckoutForm() {
     );
 }
 document.addEventListener("DOMContentLoaded", async () => {
-    consumeBridgeData();
-    if (typeof initializeLocalDB === "function") {
-        await initializeLocalDB();
-    }
-
+    consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm
     // Assicuriamoci che i prodotti siano disponibili prima di renderizzare
     if (typeof syncProductsFromServer === "function") {
         try {

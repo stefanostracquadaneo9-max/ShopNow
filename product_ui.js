@@ -6,33 +6,24 @@ let productReviews = [];
 const PRODUCT_FREE_SHIPPING_THRESHOLD = 30;
 const PRODUCT_SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 
-document.addEventListener("DOMContentLoaded", async function () {
-    await loadProductDetail();
-});
+document.addEventListener("DOMContentLoaded", async () => await loadProductDetail());
 
 function getProductIdFromQuery() {
     return new URLSearchParams(window.location.search).get("id");
 }
 
-const getProductZoomModalInstance = () => (productZoomModal = productZoomModal || new bootstrap.Modal(document.getElementById("productZoomModal")));
-
+const getProductZoomModalInstance = () => (productZoomModal = productImagePreviewModal || new bootstrap.Modal(document.getElementById("productZoomModal")));
 const truncateReviewText = (v, m = 160) => v.length <= m ? v : `${v.slice(0, m - 1).trim()}...`;
-
-function openProductZoom() {
+const openProductZoom = () => {
     if (!currentProduct?.image) return;
     document.getElementById("product-zoom-title").textContent = currentProduct.name || "Anteprima prodotto";
-    const image = document.getElementById("product-zoom-image");
-    image.src = currentProduct.image;
-    image.alt = currentProduct.name || "Anteprima prodotto";
+    const previewImage = document.getElementById("product-zoom-image");
+    previewImage.src = currentProduct.image;
+    previewImage.alt = currentProduct.name || "Anteprima prodotto";
     getProductZoomModalInstance().show();
-}
-
-function getSelectedQuantity() {
-    const quantityElement = document.getElementById("product-quantity");
-    return Math.max(1, Math.floor(Number(quantityElement?.value || 1)));
-}
-
-function addCurrentProductToCart(redirectToCart) {
+};
+const getSelectedQuantity = () => Math.max(1, Math.floor(Number(document.getElementById("product-quantity")?.value || 1)));
+const addCurrentProductToCart = (redirectToCart) => {
     if (!currentProduct) return;
     const quantity = getSelectedQuantity();
     if (redirectToCart) {
@@ -48,7 +39,7 @@ function addCurrentProductToCart(redirectToCart) {
             if (window.addToCart(currentProduct.id) === false) break;
             added++;
         }
-        if (added > 0) updateCartCount();
+        if (added > 0 && typeof updateCartCount === "function") updateCartCount();
     }
 }
 
@@ -193,7 +184,7 @@ function renderProductDetail(product) {
                     <span class="product-category-pill">${escapeHtml(product.category || "Prodotto")}</span>
                     <h1 class="product-detail-title">${escapeHtml(product.name)}</h1>
                     <div class="product-detail-rating-row">
-                        <div class="product-detail-rating">${renderRatingStars(product.rating || 0)}</div>
+                        <div class="product-detail-rating">${window.renderRatingStars(product.rating || 0)}</div>
                         <span class="ms-2">${Number(product.rating || 0).toFixed(1)} · ${reviewsLabel}</span>
                     </div>
                     <div class="product-detail-price">${formatCurrency(product.price)}</div>
@@ -247,7 +238,7 @@ function renderReviewsList() {
     return productReviews.map(r => `
     <div class="product-review-card mb-3 p-2 border-bottom">
         <strong>${escapeHtml(r.authorName)}</strong>
-        <div>${renderRatingStars(r.rating)}</div>
+        <div>${window.renderRatingStars(r.rating)}</div>
         <p>${escapeHtml(r.comment)}</p>
     </div>`).join("");
 }

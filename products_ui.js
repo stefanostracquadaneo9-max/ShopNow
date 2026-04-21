@@ -138,27 +138,27 @@ function createProductCard(product) {
     return `
     <div class="product-card">
         <a href="${productUrl}" class="product-media-link">
-            <img src="${product.image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg=="}"
-                 alt="${product.name}" class="product-image" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg=='">
+            <img src="${window.escapeHtml(product.image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg==")}"
+                 alt="${window.escapeHtml(product.name)}" class="product-image" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg=='">
         </a>
         <div class="product-info">
-            <a href="${productUrl}" class="product-title product-title-link">${product.name}</a>
+            <a href="${productUrl}" class="product-title product-title-link">${window.escapeHtml(product.name)}</a>
             <div class="product-rating">
-                <span class="product-stars">${renderRatingStars(rating)}</span>
+                <span class="product-stars">${window.renderRatingStars(rating)}</span>
                 <span class="product-rating-text">${ratingText}</span>
             </div>
-            <div class="product-price">EUR ${Number(product.price || 0).toFixed(2)}</div>
+            <div class="product-price">${window.formatCurrency(product.price)}</div>
             <div class="product-availability ${isOutOfStock ? "out-of-stock" : stock <= 10 ? "low-stock" : ""}">
                 ${getAvailabilityLabel(stock)}
             </div>
             <button type="button" class="product-open-btn w-100" onclick="openProductPage(${product.id})">
                 <i class="fas fa-arrow-right me-2"></i>Dettagli prodotto
             </button>
-            <button type="button" class="add-to-cart-btn mt-2" onclick="window.addToCart(${product.id})" ${isOutOfStock ? "disabled" : ""}>
+            <button type="button" class="add-to-cart-btn mt-2" onclick="window.addToCart(${product.id})" ${isOutOfStock ? "disabled" : ""}> 
                 <i class="fas fa-cart-plus me-2"></i>${isOutOfStock ? "Esaurito" : "Aggiungi al carrello"}
             </button>
             <button type="button" class="btn btn-warning w-100 mt-2 fw-bold" onclick="window.buyNow(${product.id})" ${isOutOfStock ? "disabled" : ""}>Acquista ora</button>
-            ${product.image ? `<button type="button" class="btn btn-link btn-sm p-0 mt-2" onclick="openProductImage(${product.id})">Visualizza immagine ingrandita</button>` : ""}
+            ${product.image ? `<button type="button" class="btn btn-link btn-sm p-0 mt-2" onclick="window.openProductImage(${product.id})">Visualizza immagine ingrandita</button>` : ""}
         </div>
     </div>`;
 }

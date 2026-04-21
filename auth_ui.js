@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             if (currentUser.role === "admin") window.location.href = "admin.html";
             else showSiteContent();
         }
-    } else {
+    } else { // Utente non loggato
         if (authSection) showAuthSection();
     }
 

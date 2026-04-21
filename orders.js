@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", async function () {
-    if (typeof updateCartCount === "function") updateCartCount();
     await loadOrders();
 });
 async function loadOrders() {
@@ -49,18 +48,18 @@ function renderOrderCard(order, products) {
         <div class="order-card">
             <div class="order-header d-flex flex-column flex-md-row justify-content-between gap-2">
                 <div>
-                    <h5 class="mb-1">Ordine #${escapeHtml(order.id ?? "")}</h5>
-                    <p class="mb-1"><strong>Data:</strong> ${escapeHtml(formatOrderDate(order.date || order.createdAt))}</p>
-                    <p class="mb-1"><strong>Cliente:</strong> ${escapeHtml(order.customer || order.userName || "")}</p>
-                    <p class="mb-0"><strong>Email:</strong> ${escapeHtml(order.email || order.userEmail || "")}</p>
+                    <h5 class="mb-1">Ordine #${window.escapeHtml(order.id ?? "")}</h5>
+                    <p class="mb-1"><strong>Data:</strong> ${window.escapeHtml(formatOrderDate(order.date || order.createdAt))}</p>
+                    <p class="mb-1"><strong>Cliente:</strong> ${window.escapeHtml(order.customer || order.userName || "")}</p>
+                    <p class="mb-0"><strong>Email:</strong> ${window.escapeHtml(order.email || order.userEmail || "")}</p>
                 </div>
                 <div class="text-md-end">
                     <p class="mb-1"><strong>Totale:</strong></p>
-                    <p class="product-price mb-2">${formatCurrency(order.total)}</p>
-                    <span class="badge ${badgeClass}">${escapeHtml(order.status || "paid")}</span>
+                    <p class="product-price mb-2">${window.formatCurrency(order.total)}</p>
+                    <span class="badge ${badgeClass}">${window.escapeHtml(order.status || "paid")}</span>
                 </div>
             </div>
-            ${shippingText ? `<p class="mb-2"><strong>Spedizione:</strong> ${escapeHtml(shippingText)}</p>` : ""}
+            ${shippingText ? `<p class="mb-2"><strong>Spedizione:</strong> ${window.escapeHtml(shippingText)}</p>` : ""}
             <div>
                 <strong>Articoli:</strong>
                 <ul class="mb-0 mt-2">${itemsMarkup}</ul>
@@ -97,41 +96,15 @@ function formatOrderDate(value) {
     if (Number.isNaN(date.getTime())) return String(value);
     return date.toLocaleString("it-IT");
 }
-function formatShippingAddress(shippingAddress) {
+
+const formatShippingAddress = (shippingAddress) => {
     if (!shippingAddress) return "";
-    let address = shippingAddress;
-    if (typeof shippingAddress === "string") {
-        try {
-            address = JSON.parse(shippingAddress);
-        } catch (error) {
-            return shippingAddress;
-        }
-    }
+    let address = typeof shippingAddress === "string" ? JSON.parse(shippingAddress) : shippingAddress;
     if (!address || typeof address !== "object") return "";
-    return [
-        address.line1 || address.street,
-        address.postalCode,
-        address.city,
-        address.country,
-    ]
-        .filter(Boolean)
-        .join(", ");
-}
-function formatCurrency(value) {
-    return new Intl.NumberFormat("it-IT", {
-        style: "currency",
-        currency: "EUR",
-    }).format(Number(value || 0));
-}
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, function (char) {
-        const entities = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;",
-        };
-        return entities[char] || char;
-    });
-}
+    return [address.line1 || address.street, address.postalCode, address.city, address.country].filter(Boolean).join(", ");
+};
+const formatOrderDate = (value) => {
+    if (!value) return "Data non disponibile";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("it-IT");
+};
