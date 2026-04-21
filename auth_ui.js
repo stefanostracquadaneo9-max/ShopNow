@@ -1,6 +1,4 @@
 document.addEventListener("DOMContentLoaded", async function () {
-    await initializeLocalDB();
-    
     const loginForm = document.getElementById("login-form");
     const registerForm = document.getElementById("register-form");
     const authSection = document.getElementById("auth-section");
@@ -11,12 +9,13 @@ document.addEventListener("DOMContentLoaded", async function () {
     const currentUser = await getCurrentUser();
 
     if (currentUser) {
-        if (window.location.pathname.endsWith("index.html") || window.location.pathname.endsWith("register.html") || window.location.pathname === "/") {
+        const isAuthPage = window.location.pathname.endsWith("index.html") || window.location.pathname.endsWith("register.html") || window.location.pathname === "/";
+        if (isAuthPage) {
             if (currentUser.role === "admin") window.location.href = "admin.html";
             else showSiteContent();
         }
-    } else if (authSection) {
-        showAuthSection();
+    } else {
+        if (authSection) showAuthSection();
     }
 
     if (loginForm) {
@@ -57,6 +56,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         });
     }
 
+    // Funzioni helper sicure
     function showAuthSection() {
         if (authSection) authSection.style.display = "block";
         if (siteContent) siteContent.style.display = "none";
@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         if (siteFooter) siteFooter.style.display = "block";
     }
 
-    // Setup toggles if button exists
+    // Inizializzazione toggle password
     const list = [
         {btn: 'toggle-login-password', input: 'login-password'},
         {btn: 'toggle-register-password', input: 'register-password'},

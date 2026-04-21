@@ -58,6 +58,10 @@ function addCurrentProductToCart(redirectToCart) {
     if (redirectToCart) {
         window.sessionStorage.setItem("shopnow-buy-now-cart", JSON.stringify({ [currentProduct.id]: quantity }));
         window.location.href = "cart.html?mode=buy-now&checkout=1";
+        // Usa la funzione globale buyNow definita in cart.js per coerenza
+        if (typeof window.buyNow === "function") {
+            window.buyNow(currentProduct.id);
+        }
         return;
     }
     if (typeof window.addToCart === "function") {

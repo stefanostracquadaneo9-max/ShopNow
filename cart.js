@@ -52,10 +52,15 @@ function clearCheckoutFocusFlag() {
  * Gestione "Acquista ora" in stile Amazon
  */
 function buyNow(productId) {
-    const normalizedId = String(productId ?? "").trim();
-    if (!normalizedId) return;
+    if (!productId) return;
     try {
-        const checkoutItems = { [normalizedId]: 1 };
+        // Se l'utente non è loggato, reindirizza al login
+        const token = localStorage.getItem("ecommerce-session-token");
+        if (!token) {
+            window.location.href = "index.html?msg=login_required";
+            return;
+        }
+        const checkoutItems = { [String(productId)]: 1 };
         window.sessionStorage.setItem("shopnow-active-checkout", JSON.stringify(checkoutItems));
         window.location.href = `checkout.html?mode=direct`;
     } catch (error) {

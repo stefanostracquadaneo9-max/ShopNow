@@ -164,7 +164,6 @@ function isStaticHostedMode() {
     return !prefersServerAuth();
 }
 async function initializeLocalDB() {
-    console.log("Inizializzazione DB chiamata");
     const currentStorageVersion = localStorage.getItem(
         AUTH_STORAGE_VERSION_KEY,
     );
