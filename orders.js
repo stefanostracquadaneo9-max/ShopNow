@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", async function () {
-    await loadOrders();
+    await loadOrders(); // La chiamata a updateCartCount() è ora in auth.js
 });
 async function loadOrders() {
     const ordersContainer = document.getElementById("orders-container");
@@ -18,8 +18,8 @@ async function loadOrders() {
     }
     const products =
         typeof getAllProducts === "function" && getAllProducts().length
-            ? getAllProducts()
-            : getDefaultProducts();
+            ? window.getAllProducts() // Usiamo la funzione globale
+            : window.DEFAULT_PRODUCTS; // Usiamo la costante globale
     ordersContainer.innerHTML = orders
         .map((order) => renderOrderCard(order, products))
         .join("");

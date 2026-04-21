@@ -186,7 +186,7 @@ function isStaticHostedMode() {
     return !prefersServerAuth();
 }
 async function initializeLocalDB() {
-    const currentStorageVersion = localStorage.getItem(
+    const currentStorageVersion = window.localStorage.getItem(
         AUTH_STORAGE_VERSION_KEY,
     );
     if (currentStorageVersion !== AUTH_STORAGE_VERSION) {
@@ -198,11 +198,11 @@ async function initializeLocalDB() {
         new URLSearchParams(window.location.search).get("reset") === "1";
     if (forceReset) {
         console.log("Forzata reinizializzazione del DB locale");
-        localStorage.removeItem(DB_KEY_PREFIX + "initialized");
-        localStorage.removeItem(DB_KEY_PREFIX + "users");
-        localStorage.removeItem(DB_KEY_PREFIX + "products");
-        localStorage.removeItem(DB_KEY_PREFIX + "orders");
-        localStorage.removeItem("cart");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "initialized");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "users");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "products");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "orders");
+        window.localStorage.removeItem("cart");
         if (window.history && window.history.replaceState) {
             window.history.replaceState(
                 {},
@@ -211,7 +211,7 @@ async function initializeLocalDB() {
             );
         }
     }
-    const initialized = localStorage.getItem(DB_KEY_PREFIX + "initialized");
+    const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
     const existingUsers = loadData("users", {});
     const adminUser = existingUsers["admin@gmail.com"];
     let existingProducts = loadData("products", []);
@@ -259,7 +259,7 @@ async function initializeLocalDB() {
                 "Hash admin non valido trovato, ripristino con hash legacy.",
             );
             adminUser.passwordHash = expectedLegacyHash;
-            existingUsers[adminUser.email] = adminUser;
+            existingUsers[String(adminUser.email).toLowerCase()] = adminUser;
             saveData("users", existingUsers);
         }
     }
@@ -919,7 +919,7 @@ async function registerUser({ name, email, password }) {
         saveData("users", users);
         return { success: true, message: "Account creato con successo" };
     } catch (error) {
-        throw error;
+        throw error; // Rilancia l'errore per essere gestito dal chiamante
     }
 }
 async function loginUser(email, password) {
@@ -1354,7 +1354,7 @@ function getAllProducts() {
     return products;
 }
 function getProductById(id) {
-    const products = getAllProducts();
+    const products = window.getAllProducts();
     return products.find((p) => p.id === parseInt(id));
 }
 function logoutUser() {
@@ -1378,7 +1378,7 @@ async function updateAuthNav() {
     const authLinks = document.getElementById("auth-links");
     if (!authLinks) return;
     const token = getSessionToken();
-    if (token) {
+    if (token) { // Utente loggato
         try {
             const user = await getCurrentUser();
             if (!user) {
@@ -1400,7 +1400,7 @@ async function updateAuthNav() {
                 });
             }
         } catch (error) {
-            console.error("Errore nav:", error);
+            console.error("Errore aggiornamento navigazione autenticata:", error);
             authLinks.innerHTML = `<a href="#" id="logout-link" class="text-white">Esci</a>`;
         }
     } else {
@@ -1410,7 +1410,7 @@ async function updateAuthNav() {
 if (typeof document !== "undefined") {
     document.addEventListener("DOMContentLoaded", async function () {
         await initializeLocalDB();
-        if (typeof updateCartCount === "function") updateCartCount();
+        if (typeof window.updateCartCount === "function") window.updateCartCount(); // Chiamata a funzione globale
         updateAuthNav();
     });
 }
@@ -1421,4 +1421,5 @@ window.isStaticHostedMode = isStaticHostedMode;
 window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
-window.getDefaultProducts = getDefaultProducts;
+window.getAllProducts = getAllProducts; // Espongo getAllProducts globalmente
+window.getProductById = getProductById; // Espongo getProductById globalmente

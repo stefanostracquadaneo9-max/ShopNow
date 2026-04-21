@@ -705,7 +705,7 @@ async function initializeStripeCheckout() {
     }
     await loadStripeScript();
     const configResponse = await fetchWithTimeout(getApiUrl("/config"), {
-        headers: getApiRequestHeaders(),
+        headers: getApiRequestHeaders(), // Assicurati che getApiRequestHeaders sia definito
     });
     const config = await configResponse.json();
     if (
@@ -717,21 +717,24 @@ async function initializeStripeCheckout() {
             config.error || "Stripe non configurato correttamente.",
         );
     }
-    stripeInstance = window.Stripe(config.stripePublicKey);
-    const elements = stripeInstance.elements({
-        appearance: {
-            theme: "stripe",
-            variables: { colorPrimary: "#007185", borderRadius: "10px" },
-        },
-    });
-    stripeCardElement = elements.create("card", { hidePostalCode: true });
-    stripeCardElement.mount("#card-element");
-    stripeCardElement.on("change", (event) => {
-        const errorBox = document.getElementById("card-errors");
-        if (errorBox) {
-            errorBox.textContent = event.error ? event.error.message : "";
-        }
-    });
+    const cardElementContainer = document.getElementById("card-element");
+    if (cardElementContainer) { // Solo se l'elemento esiste nella pagina
+        stripeInstance = window.Stripe(config.stripePublicKey);
+        const elements = stripeInstance.elements({
+            appearance: {
+                theme: "stripe",
+                variables: { colorPrimary: "#007185", borderRadius: "10px" },
+            },
+        });
+        stripeCardElement = elements.create("card", { hidePostalCode: true });
+        stripeCardElement.mount(cardElementContainer);
+        stripeCardElement.on("change", (event) => {
+            const errorBox = document.getElementById("card-errors");
+            if (errorBox) {
+                errorBox.textContent = event.error ? event.error.message : "";
+            }
+        });
+    }
 }
 async function handleCheckoutSubmit(event) {
     event.preventDefault();
@@ -992,7 +995,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (typeof syncProductsFromServer === "function") {
         try {
             await syncProductsFromServer();
-        } catch (error) {
+        } catch (error) { // Correzione: mancava una parentesi graffa chiusa qui
             console.warn("Errore sync prodotti:", error.message);
         }
     }

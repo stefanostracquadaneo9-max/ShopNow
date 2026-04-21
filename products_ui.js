@@ -105,7 +105,7 @@ function openProductPage(productId) {
     window.location.href = `product.html?id=${encodeURIComponent(productId)}`;
 }
 
-function getAvailabilityLabel(stock) {
+const getAvailabilityLabel = (stock) => {
     if (stock <= 0) return "Momentaneamente esaurito";
     if (stock <= 10) return `Ultimi ${stock} rimasti`;
     return "Disponibile";
@@ -127,7 +127,7 @@ function displayProducts() {
     updatePagination();
 }
 
-function createProductCard(product) {
+const createProductCard = (product) => {
     const rating = Number(product.rating || 0);
     const reviews = Number(product.reviewCount || 0);
     const stock = Math.max(0, Math.floor(Number(product.stock || 0)));
@@ -163,7 +163,7 @@ function createProductCard(product) {
     </div>`;
 }
 
-function showEmptyState(message) {
+const showEmptyState = (message) => {
     const container = document.getElementById("products-container");
     container.innerHTML = `<div class="empty-state"><i class="fas fa-search"></i><h4>${message}</h4><p>Prova a modificare i filtri o la ricerca</p><button class="btn btn-primary" onclick="resetFilters()">Rimuovi filtri</button></div>`;
     updateResultsCount();
@@ -174,7 +174,7 @@ function updateResultsCount() {
     document.getElementById("results-count").textContent = count === 1 ? "1 prodotto trovato" : `${count} prodotti trovati`;
 }
 
-function updatePagination() {
+const updatePagination = () => {
     const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
     const pagination = document.getElementById("pagination");
     if (totalPages <= 1) { pagination.innerHTML = ""; return; }
@@ -187,13 +187,13 @@ function updatePagination() {
     pagination.innerHTML = paginationHTML;
 }
 
-function changePage(page) {
+const changePage = (page) => {
     currentPage = page;
     displayProducts();
     window.scrollTo(0, 0);
 }
 
-function filterByCategory(category) {
+const filterByCategory = (category) => {
     currentCategory = category;
     currentPage = 1;
     filteredProducts = category === "all" ? [...allProducts] : allProducts.filter(p => p.category && p.category.toLowerCase() === category.toLowerCase());
@@ -201,7 +201,7 @@ function filterByCategory(category) {
     applyFilters();
 }
 
-function applyFilters() {
+const applyFilters = () => {
     let temp = [...allProducts];
     if (currentCategory !== "all") temp = temp.filter(p => p.category && p.category.toLowerCase() === currentCategory.toLowerCase());
     if (currentSearch !== "") temp = temp.filter(p => p.name.toLowerCase().includes(currentSearch) || (p.description && p.description.toLowerCase().includes(currentSearch)));
@@ -215,7 +215,7 @@ function applyFilters() {
     sortProducts();
 }
 
-function sortProducts() {
+const sortProducts = () => {
     const sortBy = document.getElementById("sort-select").value;
     currentSort = sortBy;
     filteredProducts.sort((a, b) => {
@@ -229,7 +229,7 @@ function sortProducts() {
     displayProducts();
 }
 
-function resetFilters() {
+const resetFilters = () => {
     document.getElementById("search-input").value = "";
     document.getElementById("min-price").value = "";
     document.getElementById("max-price").value = "";

@@ -1,6 +1,5 @@
 document.addEventListener("DOMContentLoaded", async function () {
     const currentUser = await getCurrentUser();
-    const authSection = document.getElementById("auth-section");
     const profileSection = document.getElementById("profile-section"); 
     const accountMessage = document.getElementById("account-message");
     const loginForm = document.getElementById("login-form");
@@ -11,7 +10,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const paymentForm = document.getElementById("payment-form-account");
     const paymentList = document.getElementById("payment-list");
     const logoutButton = document.getElementById("logout-button");
-    if (currentUser) showProfile(currentUser); else showAuthSection();
+    if (currentUser) showProfile(currentUser); else showAuthSection(); // showAuthSection è una funzione locale
     if (profileForm) {
         profileForm.addEventListener("submit", async function (event) {
             event.preventDefault();
@@ -37,7 +36,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 postalCode: document
                     .getElementById("address-postal")
                     .value.trim(),
-                country: window.normalizeCountryCode(
+                country: window.normalizeCountryCode( // Usiamo la funzione globale
                     document.getElementById("address-country").value,
                 ),
                 phone: document.getElementById("address-phone").value.trim(),
@@ -275,7 +274,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         accountMessage.textContent = "";
     }
 
-    // Funzioni di utilità locali (se non già globali)
+    // Funzioni di utilità locali (se non già globali, ora molte sono globali in auth.js)
     const normalizeOrderItems = (items) => {
         if (!Array.isArray(items)) return [];
         return items.map(item => ({ id: Number(item.id), name: item.name || "", quantity: Number(item.quantity || 0) })).filter(item => item.id && item.quantity > 0);
