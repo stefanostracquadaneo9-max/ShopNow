@@ -7,7 +7,6 @@ const PRODUCT_FREE_SHIPPING_THRESHOLD = 30;
 const PRODUCT_SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 
 document.addEventListener("DOMContentLoaded", async function () {
-    await initializeLocalDB();
     updateCartCount();
     await loadProductDetail();
 });
@@ -56,8 +55,6 @@ function addCurrentProductToCart(redirectToCart) {
     if (!currentProduct) return;
     const quantity = getSelectedQuantity();
     if (redirectToCart) {
-        window.sessionStorage.setItem("shopnow-buy-now-cart", JSON.stringify({ [currentProduct.id]: quantity }));
-        window.location.href = "cart.html?mode=buy-now&checkout=1";
         // Usa la funzione globale buyNow definita in cart.js per coerenza
         if (typeof window.buyNow === "function") {
             window.buyNow(currentProduct.id);

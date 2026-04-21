@@ -423,8 +423,7 @@
                             </div>
                             <div
                                 class="mb-3"
-                                id="product-image-preview-wrapper"
-                                        style="display: none"
+                                id="product-image-preview-wrapper" class="d-none"
                             >
                                 <label class="form-label"
                                     >Anteprima immagine</label
@@ -436,11 +435,7 @@
                                         id="product-image-preview"
                                         src=""
                                         alt="Anteprima prodotto"
-                                        class="img-fluid rounded"
-                                        style="
-                                            max-height: 180px;
-                                            object-fit: contain;
-                                        "
+                                        class="img-fluid rounded admin-preview-img"
                                     />
                                 </div>
                             </div>
@@ -460,7 +455,7 @@
                             class="btn btn-outline-danger me-auto"
                             id="product-remove-image-button"
                             onclick="removeProductImageSelection()"
-                            style="display: none"
+                            class="btn btn-outline-danger me-auto d-none"
                         >
                             Rimuovi Immagine
                         </button>
