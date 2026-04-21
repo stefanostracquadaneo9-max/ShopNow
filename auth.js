@@ -8,6 +8,28 @@ const PRODUCT_IMAGE_OVERRIDES = {
     "Laptop Pro": "uploads/Laptop_Pro.jpg",
     "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg",
 };
+
+// --- UTILITIES GLOBALI (Disponibili in tutto il sito) ---
+const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
+window.formatCurrency = (v) => currencyFormatter.format(Number(v || 0));
+
+window.escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+})[c]);
+
+window.normalizeCountryCode = (v) => {
+    const m = { ITALIA: "IT", ITALY: "IT", GERMANIA: "DE", FRANCE: "FR", SPAIN: "ES", USA: "US", UK: "GB" };
+    const n = String(v || "").trim().toUpperCase();
+    return m[n] || (n.length === 2 ? n : n.slice(0, 2) || "IT");
+};
+
+window.renderRatingStars = (r) => {
+    const n = Math.max(0, Math.min(5, Number(r || 0)));
+    const full = Math.floor(n), half = (n - full) >= 0.25 && (n - full) < 0.75, extra = (n - full) >= 0.75 ? 1 : 0;
+    return '<i class="fas fa-star"></i>'.repeat(full + extra) + (half ? '<i class="fas fa-star-half-alt"></i>' : "") + '<i class="far fa-star"></i>'.repeat(Math.max(0, 5 - full - extra - (half ? 1 : 0)));
+};
+// -------------------------------------------------------
+
 function resolveProductImage(product) {
     const overrideImage = PRODUCT_IMAGE_OVERRIDES[product?.name];
     if (
@@ -1388,6 +1410,7 @@ async function updateAuthNav() {
 if (typeof document !== "undefined") {
     document.addEventListener("DOMContentLoaded", async function () {
         await initializeLocalDB();
+        if (typeof updateCartCount === "function") updateCartCount();
         updateAuthNav();
     });
 }

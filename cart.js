@@ -6,10 +6,6 @@ const CART_BRIDGE_KEYS = [
     "cart",
     "cart-count",
 ];
-const currencyFormatter = new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: "EUR",
-});
 let stripeInstance = null;
 let stripeCardElement = null;
 let bridgedCheckoutPrefill = null;
@@ -98,19 +94,6 @@ function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"
         ? getBackendRequestHeaders(extraHeaders)
         : { ...extraHeaders };
-}
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (char) => {
-        const entities = {
-            "&": "&amp;",
-            "<": "&lt;",
-            ">": "&gt;",
-            '"': "&quot;",
-            "'": "&#39;",
-        };
-        return entities[char] || char;
-    });
-}
 function renderSavedPaymentMethod(method) {
     const box = document.getElementById("saved-payment-method");
     if (!box) {
@@ -290,162 +273,7 @@ function fetchWithTimeout(url, options = {}, timeout = 15000) {
                 throw new Error("Timeout: il server non risponde.");
             }
             throw error;
-        });
-}
-function formatCurrency(value) {
-    return currencyFormatter.format(Number(value || 0));
-}
-function calculateShippingCost(subtotal) {
-    const normalizedSubtotal = Number(subtotal || 0);
-    if (
-        normalizedSubtotal <= 0 ||
-        normalizedSubtotal >= FREE_SHIPPING_THRESHOLD
-    ) {
-        return 0;
-    }
-    return Number(
-        (normalizedSubtotal * SHIPPING_RATE_UNDER_THRESHOLD).toFixed(2),
-    );
-}
-function normalizeCountryCode(value) {
-    const normalized = String(value || "")
-        .trim()
-        .toUpperCase();
-
-    // Mappa paesi comuni con variazioni
-    const countryMap = {
-        // Italia
-        ITALIA: "IT",
-        ITALY: "IT",
-        IT: "IT",
-        // Stati Uniti
-        "STATI UNITI": "US",
-        USA: "US",
-        "UNITED STATES": "US",
-        US: "US",
-        // Regno Unito
-        "REGNO UNITO": "GB",
-        "UNITED KINGDOM": "GB",
-        UK: "GB",
-        GB: "GB",
-        // Germania
-        GERMANIA: "DE",
-        GERMANY: "DE",
-        DE: "DE",
-        // Francia
-        FRANCIA: "FR",
-        FRANCE: "FR",
-        FR: "FR",
-        // Spagna
-        SPAGNA: "ES",
-        SPAIN: "ES",
-        ES: "ES",
-        // Altri paesi europei comuni
-        AUSTRIA: "AT",
-        AUSTRIA: "AT",
-        AT: "AT",
-        BELGIO: "BE",
-        BELGIUM: "BE",
-        BE: "BE",
-        OLANDA: "NL",
-        NETHERLANDS: "NL",
-        NL: "NL",
-        SVEZIA: "SE",
-        SWEDEN: "SE",
-        SE: "SE",
-        NORVEGIA: "NO",
-        NORWAY: "NO",
-        NO: "NO",
-        DANIMARCA: "DK",
-        DENMARK: "DK",
-        DK: "DK",
-        SVIZZERA: "CH",
-        SWITZERLAND: "CH",
-        CH: "CH",
-        PORTOGALLO: "PT",
-        PORTUGAL: "PT",
-        PT: "PT",
-        IRLANDA: "IE",
-        IRELAND: "IE",
-        IE: "IE",
-        FINLANDIA: "FI",
-        FINLAND: "FI",
-        FI: "FI",
-        POLONIA: "PL",
-        POLAND: "PL",
-        PL: "PL",
-        CECOSLOVACCHIA: "CZ",
-        "REPUBBLICA CECA": "CZ",
-        CZECH: "CZ",
-        CZ: "CZ",
-        UNGHERIA: "HU",
-        HUNGARY: "HU",
-        HU: "HU",
-        GRECIA: "GR",
-        GREECE: "GR",
-        GR: "GR",
-        // Altri paesi
-        CANADA: "CA",
-        CA: "CA",
-        AUSTRALIA: "AU",
-        AU: "AU",
-        GIAPPONE: "JP",
-        JAPAN: "JP",
-        JP: "JP",
-        CINA: "CN",
-        CHINA: "CN",
-        CN: "CN",
-        INDIA: "IN",
-        IN: "IN",
-        BRASILE: "BR",
-        BRAZIL: "BR",
-        BR: "BR",
-        MESSICO: "MX",
-        MEXICO: "MX",
-        MX: "MX",
-        ARGENTINA: "AR",
-        AR: "AR",
-        CILE: "CL",
-        CHILE: "CL",
-        CL: "CL",
-        COLOMBIA: "CO",
-        CO: "CO",
-        PERU: "PE",
-        PE: "PE",
-        VENEZUELA: "VE",
-        VE: "VE",
-        URUGUAY: "UY",
-        UY: "UY",
-        PARAGUAY: "PY",
-        PY: "PY",
-        BOLIVIA: "BO",
-        BO: "BO",
-        ECUADOR: "EC",
-        EC: "EC",
-    };
-
-    // Se è nella mappa, usa il codice corrispondente
-    if (countryMap[normalized]) {
-        return countryMap[normalized];
-    }
-
-    // Se è già un codice ISO a 2 lettere valido, restituiscilo
-    if (/^[A-Z]{2}$/.test(normalized)) {
-        return normalized;
-    }
-
-    // Per paesi non riconosciuti, prova a estrarre un codice a 2 lettere
-    // o usa una logica di fallback
-    const words = normalized.split(/\s+/);
-    if (words.length > 0) {
-        const firstWord = words[0];
-        if (firstWord.length >= 2) {
-            return firstWord.substring(0, 2).toUpperCase();
-        }
-    }
-
-    // Fallback: restituisci i primi 2 caratteri
-    return normalized.substring(0, 2).toUpperCase() || "IT";
+    });
 }
 function getProductsForCart() {
     if (typeof getAllProducts === "function") {

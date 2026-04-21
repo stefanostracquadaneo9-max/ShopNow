@@ -7,7 +7,6 @@ const PRODUCT_FREE_SHIPPING_THRESHOLD = 30;
 const PRODUCT_SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 
 document.addEventListener("DOMContentLoaded", async function () {
-    updateCartCount();
     await loadProductDetail();
 });
 
@@ -15,27 +14,9 @@ function getProductIdFromQuery() {
     return new URLSearchParams(window.location.search).get("id");
 }
 
-function getProductZoomModalInstance() {
-    if (!productZoomModal) {
-        productZoomModal = new bootstrap.Modal(document.getElementById("productZoomModal"));
-    }
-    return productZoomModal;
-}
+const getProductZoomModalInstance = () => (productZoomModal = productZoomModal || new bootstrap.Modal(document.getElementById("productZoomModal")));
 
-function escapeHtml(value) {
-    return String(value ?? "").replace(/[&<>"']/g, (character) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
-    })[character]);
-}
-
-function formatCurrency(value) {
-    return new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" }).format(Number(value || 0));
-}
-
-function truncateReviewText(value, maxLength = 160) {
-    const normalized = String(value || "").trim();
-    return normalized.length <= maxLength ? normalized : `${normalized.slice(0, maxLength - 1).trim()}...`;
-}
+const truncateReviewText = (v, m = 160) => v.length <= m ? v : `${v.slice(0, m - 1).trim()}...`;
 
 function openProductZoom() {
     if (!currentProduct?.image) return;
@@ -69,16 +50,6 @@ function addCurrentProductToCart(redirectToCart) {
         }
         if (added > 0) updateCartCount();
     }
-}
-
-function renderStars(rating) {
-    const normalized = Math.max(0, Math.min(5, Number(rating || 0)));
-    const full = Math.floor(normalized);
-    const decimal = normalized - full;
-    const half = decimal >= 0.25 && decimal < 0.75;
-    const extra = decimal >= 0.75 ? 1 : 0;
-    const empty = Math.max(0, 5 - full - extra - (half ? 1 : 0));
-    return ['<i class="fas fa-star"></i>'.repeat(full + extra), half ? '<i class="fas fa-star-half-alt"></i>' : "", '<i class="far fa-star"></i>'.repeat(empty)].join("");
 }
 
 function getStockLabel(stock) {
@@ -222,7 +193,7 @@ function renderProductDetail(product) {
                     <span class="product-category-pill">${escapeHtml(product.category || "Prodotto")}</span>
                     <h1 class="product-detail-title">${escapeHtml(product.name)}</h1>
                     <div class="product-detail-rating-row">
-                        <div class="product-detail-rating">${renderStars(product.rating || 0)}</div>
+                        <div class="product-detail-rating">${renderRatingStars(product.rating || 0)}</div>
                         <span class="ms-2">${Number(product.rating || 0).toFixed(1)} · ${reviewsLabel}</span>
                     </div>
                     <div class="product-detail-price">${formatCurrency(product.price)}</div>
@@ -276,7 +247,7 @@ function renderReviewsList() {
     return productReviews.map(r => `
     <div class="product-review-card mb-3 p-2 border-bottom">
         <strong>${escapeHtml(r.authorName)}</strong>
-        <div>${renderStars(r.rating)}</div>
+        <div>${renderRatingStars(r.rating)}</div>
         <p>${escapeHtml(r.comment)}</p>
     </div>`).join("");
 }

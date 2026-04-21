@@ -9,9 +9,7 @@ let productImagePreviewModal = null;
 
 // Load products on page load
 document.addEventListener("DOMContentLoaded", async function () {
-    await initializeLocalDB();
     loadProducts();
-    updateCartCount();
 });
 
 async function loadProducts() {
@@ -105,21 +103,6 @@ function openProductImage(productId) {
 
 function openProductPage(productId) {
     window.location.href = `product.html?id=${encodeURIComponent(productId)}`;
-}
-
-function renderRatingStars(rating) {
-    const normalizedRating = Math.max(0, Math.min(5, Number(rating || 0)));
-    const fullStars = Math.floor(normalizedRating);
-    const decimalPart = normalizedRating - fullStars;
-    const hasHalfStar = decimalPart >= 0.25 && decimalPart < 0.75;
-    const extraFullStar = decimalPart >= 0.75 ? 1 : 0;
-    const emptyStars = 5 - fullStars - extraFullStar - (hasHalfStar ? 1 : 0);
-
-    return [
-        '<i class="fas fa-star"></i>'.repeat(fullStars + extraFullStar),
-        hasHalfStar ? '<i class="fas fa-star-half-alt"></i>' : "",
-        '<i class="far fa-star"></i>'.repeat(Math.max(0, emptyStars)),
-    ].join("");
 }
 
 function getAvailabilityLabel(stock) {
