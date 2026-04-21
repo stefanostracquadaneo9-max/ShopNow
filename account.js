@@ -12,66 +12,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const paymentList = document.getElementById("payment-list");
     const logoutButton = document.getElementById("logout-button");
     if (currentUser) showProfile(currentUser);
-    else showAuthSection();
-    if (loginForm) {
-        loginForm.addEventListener("submit", async function (event) {
-            event.preventDefault();
-            clearMessage();
-            try {
-                const email = document
-                    .getElementById("login-email")
-                    .value.trim();
-                const normalizedEmail = email.toLowerCase();
-                const password = document
-                    .getElementById("login-password")
-                    .value.trim();
-                await loginUser(normalizedEmail, password);
-                const user = await getCurrentUser();
-                showProfile(user);
-                showMessage("success", "Accesso eseguito con successo.");
-            } catch (error) {
-                showMessage("danger", error.message);
-            }
-        });
-    }
-    if (registerForm) {
-        registerForm.addEventListener("submit", async function (event) {
-            event.preventDefault();
-            clearMessage();
-            try {
-                const name = document
-                    .getElementById("register-name")
-                    .value.trim();
-                const email = document
-                    .getElementById("register-email")
-                    .value.trim();
-                const normalizedEmail = email.toLowerCase();
-                const password = document
-                    .getElementById("register-password")
-                    .value.trim();
-                const confirmPassword = document
-                    .getElementById("register-confirm-password")
-                    .value.trim();
-                if (password !== confirmPassword)
-                    throw new Error("Le password non corrispondono.");
-                await registerUser({
-                    name: name,
-                    email: normalizedEmail,
-                    password: password,
-                });
-                await loginUser(normalizedEmail, password);
-                const user = await getCurrentUser();
-                showProfile(user);
-                showMessage(
-                    "success",
-                    "Account creato con successo. Benvenuto!",
-                );
-            } catch (error) {
-                showMessage("danger", error.message);
-            }
-        });
-    }
-    if (profileForm) {
+    else showAuthSection();    if (profileForm) {
         profileForm.addEventListener("submit", async function (event) {
             event.preventDefault();
             clearMessage();

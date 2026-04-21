@@ -2,12 +2,42 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ShopNow - Checkout</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="style.css" rel="stylesheet">
 </head>
 <body>
-    <div class="container my-5">
+    <header class="amazon-header">
+        <div class="container-fluid">
+            <div class="row align-items-center">
+                <div class="col-auto">
+                    <a class="navbar-brand" href="products.html"><i class="fas fa-shopping-bag me-2"></i>ShopNow</a>
+                </div>
+                <div class="col">
+                    <div class="search-bar d-flex">
+                        <input type="text" id="search-input" class="form-control" placeholder="Cerca prodotti..." onkeypress="'Enter' === event.key && searchProducts()">
+                        <button class="btn" onclick="searchProducts()"><i class="fas fa-search"></i></button>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="nav-icons">
+                        <a href="products.html" class="nav-icon"><i class="fas fa-store"></i></a>
+                        <a href="orders.html" class="nav-icon"><i class="fas fa-list"></i></a>
+                        <a href="cart.html" class="nav-icon">
+                            <i class="fas fa-shopping-cart"></i>
+                            <span id="cart-count" class="cart-count">0</span>
+                        </a>
+                        <a href="account.html" class="nav-icon"><i class="fas fa-user"></i></a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container content my-5">
         <div class="row">
             <div class="col-md-7">
                 <div class="card shadow-sm p-4">
@@ -39,7 +69,15 @@
                             </div>
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Paese</label>
-                                <input type="text" id="checkout-country" class="form-control" value="Italia" required>
+                                <select id="checkout-country" class="form-control" required>
+                                    <option value="">Seleziona paese</option>
+                                    <option value="IT" selected>Italia</option>
+                                    <option value="US">Stati Uniti</option>
+                                    <option value="GB">Regno Unito</option>
+                                    <option value="DE">Germania</option>
+                                    <option value="FR">Francia</option>
+                                    <option value="ES">Spagna</option>
+                                </select>
                             </div>
                         </div>
                         
@@ -72,6 +110,42 @@
         </div>
     </div>
 
+    <footer class="amazon-footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3">
+                    <h5>ShopNow</h5>
+                    <p class="small">Il tuo marketplace di fiducia dal 2026</p>
+                </div>
+                <div class="col-md-3">
+                    <h6>Supporto</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-muted">Centro Assistenza</a></li>
+                        <li><a href="#" class="text-muted">Contatti</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h6>Account</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="account.html" class="text-muted">Il Mio Account</a></li>
+                        <li><a href="orders.html" class="text-muted">Ordini</a></li>
+                    </ul>
+                </div>
+                <div class="col-md-3">
+                    <h6>Informazioni</h6>
+                    <ul class="list-unstyled">
+                        <li><a href="#" class="text-muted">Privacy Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr />
+            <div class="text-center">
+                <p class="small text-muted mb-0">&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://js.stripe.com/v3/"></script>
     <script src="auth.js"></script>
     <script src="cart.js"></script>

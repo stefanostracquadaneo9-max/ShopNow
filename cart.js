@@ -64,6 +64,13 @@ function buyNow(productId) {
 }
 
 /**
+ * Alias per buyNow utilizzato nel rendering del carrello
+ */
+function checkoutSingleItem(productId) {
+    buyNow(productId);
+}
+
+/**
  * Avvia il checkout per un set specifico di prodotti
  */
 function proceedToCheckout(items) {
