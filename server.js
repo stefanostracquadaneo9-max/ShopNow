@@ -75,6 +75,11 @@ app.get("/health", (req, res) => {
         databasePath: process.env.DB_PATH || path.join(__dirname, "app.db"),
     });
 });
+
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
+
 function requireAuth(req, res, next) {
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token)

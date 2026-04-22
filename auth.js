@@ -4,9 +4,13 @@ const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
 
-const API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"))
-    ? "http://localhost:3000"
-    : "https://shopnow-production.up.railway.app";
+window.SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && window.location.hostname.includes('railway.app'))
+    ? "https://shopnow-production.up.railway.app"
+    : "http://localhost:3000";
+
+function getServerBaseUrl() {
+    return window.SHOPNOW_API_BASE_URL;
+}
 
 // --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
 let isRefreshing = false;
@@ -64,7 +68,7 @@ async function refreshAuthToken() {
     if (!refreshToken) return false;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        const response = await fetch(`${window.SHOPNOW_API_BASE_URL}/api/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken })
@@ -144,9 +148,6 @@ function normalizeLocalCatalogProducts(products) {
     return Array.isArray(products)
         ? products.map((product) => normalizeLocalCatalogProduct(product))
         : [];
-}
-function getServerBaseUrl() {
-    return API_BASE_URL;
 }
 function getBackendRequestHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
@@ -405,7 +406,7 @@ function getAuthApiUrl(path) {
     if (prefersServerAuth()) {
         return `${getServerBaseUrl()}${normalizedPath}`;
     }
-    return `${API_BASE_URL}${normalizedPath}`;
+    return `${window.SHOPNOW_API_BASE_URL}${normalizedPath}`;
 }
 async function tryServerRegister({ name, email, password }) {
     if (!prefersServerAuth()) {

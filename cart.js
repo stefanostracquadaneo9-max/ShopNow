@@ -87,7 +87,7 @@ function getCartStorageArea() {
 function getApiUrl(path) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
     const baseUrl = typeof getServerBaseUrl === "function" ? getServerBaseUrl() : (window.location.hostname === "localhost" ? "http://localhost:3000" : "https://shopnow-production.up.railway.app");
-    return `${baseUrl}${normalizedPath}`;
+    return `${SHOPNOW_API_BASE_URL}${normalizedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"
