@@ -17,7 +17,7 @@ function getDefaultProducts() {
 }
 
 function getServerBaseUrl() {
-    return SHOPNOW_API_BASE_URL;
+    return window.SHOPNOW_API_BASE_URL;
 }
 
 // --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
@@ -1086,7 +1086,9 @@ function logoutUser() {
     clearSessionToken();
     console.log("✅ Logout eseguito");
     updateAuthNav();
+    window.location.href = "index.html";
 }
+
 function searchProducts() {
     const input = document.getElementById("search-input");
     const query = String(input?.value || "")
@@ -1135,7 +1137,10 @@ if (typeof document !== "undefined") {
         updateAuthNav();
     });
 }
-window.logout = logoutUser;
+
+window.logout = logoutUser; // Risolve ReferenceError: logout is not defined
+window.login = loginUser;   // Esporta per onclick
+window.register = registerUser; // Esporta per onclick
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
