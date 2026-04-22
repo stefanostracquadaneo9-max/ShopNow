@@ -86,8 +86,8 @@ function getCartStorageArea() {
 }
 function getApiUrl(path) {
     const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-    const baseUrl = typeof getServerBaseUrl === "function" ? getServerBaseUrl() : (window.location.hostname === "localhost" ? "http://localhost:3000" : "https://shopnow-production.up.railway.app");
-    return `${SHOPNOW_API_BASE_URL}${normalizedPath}`;
+    const baseUrl = typeof getServerBaseUrl === "function" ? getServerBaseUrl() : (window.SHOPNOW_API_BASE_URL || "http://localhost:3000");
+    return `${baseUrl}${normalizedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {
     return typeof getBackendRequestHeaders === "function"

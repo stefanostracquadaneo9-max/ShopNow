@@ -3,13 +3,21 @@ const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
-
-window.SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && window.location.hostname.includes('railway.app'))
+const SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && window.location.hostname.includes('railway.app'))
     ? "https://shopnow-production.up.railway.app"
     : "http://localhost:3000";
 
+window.SHOPNOW_API_BASE_URL = SHOPNOW_API_BASE_URL;
+
+function getDefaultProducts() {
+    return [
+        { id: 1, name: "Laptop Pro", price: 1299.99, image: "uploads/Laptop_Pro.jpg", category: "elettronica", stock: 10 },
+        { id: 7, name: "Pantaloni Jeans", price: 79.99, image: "uploads/Pantaloni_Jeans.jpg", category: "abbigliamento", stock: 40 }
+    ];
+}
+
 function getServerBaseUrl() {
-    return window.SHOPNOW_API_BASE_URL;
+    return SHOPNOW_API_BASE_URL;
 }
 
 // --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
@@ -181,115 +189,120 @@ async function initializeLocalDB() {
     if (window.DB_INITIALIZING) return;
     window.DB_INITIALIZING = true;
 
-    // Se già inizializzato, facciamo solo una sync silente ed esciamo
-    if (window.localStorage.getItem(DB_KEY_PREFIX + "initialized") === "1" && !new URLSearchParams(window.location.search).get("reset")) {
-        syncUsersFromServer();
-        syncProductsFromServer();
-        window.DB_INITIALIZING = false;
-        return;
-    }
+    try {
+        // Se già inizializzato, facciamo solo una sync silente ed esciamo
+        if (window.localStorage.getItem(DB_KEY_PREFIX + "initialized") === "1" && !new URLSearchParams(window.location.search).get("reset")) {
+            syncUsersFromServer();
+            syncProductsFromServer();
+            window.DB_INITIALIZING = false;
+            return;
+        }
 
-    const currentStorageVersion = window.localStorage.getItem(
-        AUTH_STORAGE_VERSION_KEY,
-    );
-    if (currentStorageVersion !== AUTH_STORAGE_VERSION) {
-        migrateAuthStorage();
-    }
-    const forceReset =
-        typeof window !== "undefined" &&
-        window.location &&
-        new URLSearchParams(window.location.search).get("reset") === "1";
-    if (forceReset) {
-        console.log("Forzata reinizializzazione del DB locale");
-        window.localStorage.removeItem(DB_KEY_PREFIX + "initialized");
-        window.localStorage.removeItem(DB_KEY_PREFIX + "users");
-        window.localStorage.removeItem(DB_KEY_PREFIX + "products");
-        window.localStorage.removeItem(DB_KEY_PREFIX + "orders");
-        window.localStorage.removeItem("cart");
-        if (window.history && window.history.replaceState) {
-            window.history.replaceState(
-                {},
-                "",
-                window.location.pathname + window.location.hash,
-            );
+        const currentStorageVersion = window.localStorage.getItem(
+            AUTH_STORAGE_VERSION_KEY,
+        );
+        if (currentStorageVersion !== AUTH_STORAGE_VERSION) {
+            migrateAuthStorage();
         }
-    }
-    const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
-    const existingUsers = loadData("users", {});
-    const adminUser = existingUsers["admin@gmail.com"];
-    let existingProducts = loadData("products", []);
-    if (existingProducts.length > 0) {
-        let updated = false;
-        existingProducts.forEach((product) => {
+        const forceReset =
+            typeof window !== "undefined" &&
+            window.location &&
+            new URLSearchParams(window.location.search).get("reset") === "1";
+        if (forceReset) {
+            console.log("Forzata reinizializzazione del DB locale");
+            window.localStorage.removeItem(DB_KEY_PREFIX + "initialized");
+            window.localStorage.removeItem(DB_KEY_PREFIX + "users");
+            window.localStorage.removeItem(DB_KEY_PREFIX + "products");
+            window.localStorage.removeItem(DB_KEY_PREFIX + "orders");
+            window.localStorage.removeItem("cart");
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(
+                    {},
+                    "",
+                    window.location.pathname + window.location.hash,
+                );
+            }
+        }
+        const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
+        const existingUsers = loadData("users", {});
+        const adminUser = existingUsers["admin@gmail.com"];
+        let existingProducts = loadData("products", []);
+        if (existingProducts.length > 0) {
+            let updated = false;
+            existingProducts.forEach((product) => {
+                if (
+                    product.image &&
+                    product.image.startsWith("https://via.placeholder.com")
+                ) {
+                    product.image = "";
+                    updated = true;
+                }
+                const resolvedImage = resolveProductImage(product);
+                if (product && product.image !== resolvedImage) {
+                    product.image = resolvedImage;
+                    updated = true;
+                }
+            });
+            if (!prefersServerAuth()) {
+                const normalizedProducts =
+                    normalizeLocalCatalogProducts(existingProducts);
+                if (
+                    JSON.stringify(normalizedProducts) !==
+                    JSON.stringify(existingProducts)
+                ) {
+                    existingProducts = normalizedProducts;
+                    updated = true;
+                }
+            }
+            if (updated) {
+                saveData("products", existingProducts);
+                console.log("Immagini prodotti migrate a fallback locale");
+            }
+        }
+        const expectedAdminShaHash =
+            "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+        if (initialized && adminUser && adminUser.passwordHash) {
+            const expectedLegacyHash = simpleHash("admin");
             if (
-                product.image &&
-                product.image.startsWith("https://via.placeholder.com")
+                adminUser.passwordHash !== expectedLegacyHash &&
+                adminUser.passwordHash !== expectedAdminShaHash
             ) {
-                product.image = "";
-                updated = true;
-            }
-            const resolvedImage = resolveProductImage(product);
-            if (product && product.image !== resolvedImage) {
-                product.image = resolvedImage;
-                updated = true;
-            }
-        });
-        if (!prefersServerAuth()) {
-            const normalizedProducts =
-                normalizeLocalCatalogProducts(existingProducts);
-            if (
-                JSON.stringify(normalizedProducts) !==
-                JSON.stringify(existingProducts)
-            ) {
-                existingProducts = normalizedProducts;
-                updated = true;
+                console.log(
+                    "Hash admin non valido trovato, ripristino con hash legacy.",
+                );
+                adminUser.passwordHash = expectedLegacyHash;
+                existingUsers[String(adminUser.email).toLowerCase()] = adminUser;
+                saveData("users", existingUsers);
             }
         }
-        if (updated) {
-            saveData("products", existingProducts);
-            console.log("Immagini prodotti migrate a fallback locale");
+        if (!initialized || !adminUser || !existingProducts.length) {
+            console.log("DB non inizializzato o admin mancante, inizializzo...");
+            const users = {
+                "admin@gmail.com": {
+                    id: 1,
+                    email: "admin@gmail.com",
+                    name: "Administrator",
+                    passwordHash: simpleHash("admin"),
+                    role: "admin",
+                    createdAt: new Date().toISOString(),
+                    addresses: [],
+                    orders: [],
+                },
+            };
+            const products = normalizeLocalCatalogProducts(getDefaultProducts());
+            saveData("users", users);
+            saveData("products", products);
+            saveData("orders", []);
+            localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
+            console.log("DB locale inizializzato con dati demo");
         }
+        await syncUsersFromServer();
+        await syncProductsFromServer();
+    } catch (error) {
+        console.error("Errore critico durante inizializzazione DB locale:", error);
+    } finally {
+        window.DB_INITIALIZING = false;
     }
-    const expectedAdminShaHash =
-        "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
-    if (initialized && adminUser && adminUser.passwordHash) {
-        const expectedLegacyHash = simpleHash("admin");
-        if (
-            adminUser.passwordHash !== expectedLegacyHash &&
-            adminUser.passwordHash !== expectedAdminShaHash
-        ) {
-            console.log(
-                "Hash admin non valido trovato, ripristino con hash legacy.",
-            );
-            adminUser.passwordHash = expectedLegacyHash;
-            existingUsers[String(adminUser.email).toLowerCase()] = adminUser;
-            saveData("users", existingUsers);
-        }
-    }
-    if (!initialized || !adminUser || !existingProducts.length) {
-        console.log("DB non inizializzato o admin mancante, inizializzo...");
-        const users = {
-            "admin@gmail.com": {
-                id: 1,
-                email: "admin@gmail.com",
-                name: "Administrator",
-                passwordHash: simpleHash("admin"),
-                role: "admin",
-                createdAt: new Date().toISOString(),
-                addresses: [],
-                orders: [],
-            },
-        };
-        const products = normalizeLocalCatalogProducts(getDefaultProducts());
-        saveData("users", users);
-        saveData("products", products);
-        saveData("orders", []);
-        localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
-        console.log("DB locale inizializzato con dati demo");
-    }
-    await syncUsersFromServer();
-    await syncProductsFromServer();
-    window.DB_INITIALIZING = false;
 }
 function saveData(key, data) {
     try {

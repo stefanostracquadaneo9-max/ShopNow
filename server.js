@@ -14,6 +14,11 @@ if (!stripe) {
 const db_module = require("./db");
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+    res.status(200).send("OK");
+});
+
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const CHECKOUT_VAT_RATE = 0.22;
