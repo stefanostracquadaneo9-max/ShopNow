@@ -81,10 +81,6 @@ app.get("/health", (req, res) => {
     });
 });
 
-app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
-});
-
 function requireAuth(req, res, next) {
     const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token)

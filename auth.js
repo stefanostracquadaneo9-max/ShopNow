@@ -3,11 +3,11 @@ const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
-const SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && window.location.hostname.includes('railway.app'))
+window.SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && window.location.hostname.includes('railway.app'))
     ? "https://shopnow-production.up.railway.app"
     : "http://localhost:3000";
 
-window.SHOPNOW_API_BASE_URL = SHOPNOW_API_BASE_URL;
+const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
 
 function getDefaultProducts() {
     return [
@@ -76,7 +76,7 @@ async function refreshAuthToken() {
     if (!refreshToken) return false;
 
     try {
-        const response = await fetch(`${window.SHOPNOW_API_BASE_URL}/api/auth/refresh`, {
+        const response = await fetch(`${SHOPNOW_API_BASE_URL}/api/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refreshToken })
@@ -157,6 +157,11 @@ function normalizeLocalCatalogProducts(products) {
         ? products.map((product) => normalizeLocalCatalogProduct(product))
         : [];
 }
+
+function getServerBaseUrl() {
+    return SHOPNOW_API_BASE_URL;
+}
+
 function getBackendRequestHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
     try {
@@ -414,7 +419,7 @@ function getAuthApiUrl(path) {
     if (prefersServerAuth()) {
         return `${getServerBaseUrl()}${normalizedPath}`;
     }
-    return `${window.SHOPNOW_API_BASE_URL}${normalizedPath}`;
+    return `${SHOPNOW_API_BASE_URL}${normalizedPath}`;
 }
 async function tryServerRegister({ name, email, password }) {
     if (!prefersServerAuth()) {
