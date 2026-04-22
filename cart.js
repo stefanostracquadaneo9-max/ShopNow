@@ -257,8 +257,8 @@ function setCheckoutLoading(isLoading) {
             ? "Conferma ordine in corso..."
             : "Pagamento in corso..."
         : isStaticCheckoutMode()
-          ? "Conferma ordine"
-          : "Procedi al pagamento";
+        ? "Conferma ordine"
+        : "Procedi al pagamento";
 }
 function fetchWithTimeout(url, options = {}, timeout = 15000) {
     const controller = new AbortController();
@@ -993,10 +993,9 @@ async function prefillCheckoutForm() {
 }
 document.addEventListener("DOMContentLoaded", async () => {
     consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm
-    
     updateCartCount();
     renderCart();
-    
+
     const checkoutForm = document.getElementById("checkout-form");
     if (checkoutForm) {
         checkoutForm.addEventListener("submit", handleCheckoutSubmit);
@@ -1007,13 +1006,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             showCheckoutMessage("danger", "Stripe non disponibile. Riprova tra poco.");
         }
     }
-    
     await prefillCheckoutForm();
-
-    if (shouldFocusCheckout()) {
-        window.setTimeout(focusCheckoutPanel, 150);
-    }
-});
 window.removeFromCart = removeFromCart;
 window.updateQuantity = updateQuantity;
 window.addToCart = addToCart;
