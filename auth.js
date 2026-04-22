@@ -16,6 +16,10 @@ function getDefaultProducts() {
     ];
 }
 
+function logout() {
+    logoutUser();
+}
+
 // --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
 let isRefreshing = false;
 let refreshPromise = null;
@@ -185,120 +189,115 @@ async function initializeLocalDB() {
     if (window.DB_INITIALIZING) return;
     window.DB_INITIALIZING = true;
 
-    try {
-        // Se già inizializzato, facciamo solo una sync silente ed esciamo
-        if (window.localStorage.getItem(DB_KEY_PREFIX + "initialized") === "1" && !new URLSearchParams(window.location.search).get("reset")) {
-            syncUsersFromServer();
-            syncProductsFromServer();
-            window.DB_INITIALIZING = false;
-            return;
-        }
-
-        const currentStorageVersion = window.localStorage.getItem(
-            AUTH_STORAGE_VERSION_KEY,
-        );
-        if (currentStorageVersion !== AUTH_STORAGE_VERSION) {
-            migrateAuthStorage();
-        }
-        const forceReset =
-            typeof window !== "undefined" &&
-            window.location &&
-            new URLSearchParams(window.location.search).get("reset") === "1";
-        if (forceReset) {
-            console.log("Forzata reinizializzazione del DB locale");
-            window.localStorage.removeItem(DB_KEY_PREFIX + "initialized");
-            window.localStorage.removeItem(DB_KEY_PREFIX + "users");
-            window.localStorage.removeItem(DB_KEY_PREFIX + "products");
-            window.localStorage.removeItem(DB_KEY_PREFIX + "orders");
-            window.localStorage.removeItem("cart");
-            if (window.history && window.history.replaceState) {
-                window.history.replaceState(
-                    {},
-                    "",
-                    window.location.pathname + window.location.hash,
-                );
-            }
-        }
-        const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
-        const existingUsers = loadData("users", {});
-        const adminUser = existingUsers["admin@gmail.com"];
-        let existingProducts = loadData("products", []);
-        if (existingProducts.length > 0) {
-            let updated = false;
-            existingProducts.forEach((product) => {
-                if (
-                    product.image &&
-                    product.image.startsWith("https://via.placeholder.com")
-                ) {
-                    product.image = "";
-                    updated = true;
-                }
-                const resolvedImage = resolveProductImage(product);
-                if (product && product.image !== resolvedImage) {
-                    product.image = resolvedImage;
-                    updated = true;
-                }
-            });
-            if (!prefersServerAuth()) {
-                const normalizedProducts =
-                    normalizeLocalCatalogProducts(existingProducts);
-                if (
-                    JSON.stringify(normalizedProducts) !==
-                    JSON.stringify(existingProducts)
-                ) {
-                    existingProducts = normalizedProducts;
-                    updated = true;
-                }
-            }
-            if (updated) {
-                saveData("products", existingProducts);
-                console.log("Immagini prodotti migrate a fallback locale");
-            }
-        }
-        const expectedAdminShaHash =
-            "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
-        if (initialized && adminUser && adminUser.passwordHash) {
-            const expectedLegacyHash = simpleHash("admin");
-            if (
-                adminUser.passwordHash !== expectedLegacyHash &&
-                adminUser.passwordHash !== expectedAdminShaHash
-            ) {
-                console.log(
-                    "Hash admin non valido trovato, ripristino con hash legacy.",
-                );
-                adminUser.passwordHash = expectedLegacyHash;
-                existingUsers[String(adminUser.email).toLowerCase()] = adminUser;
-                saveData("users", existingUsers);
-            }
-        }
-        if (!initialized || !adminUser || !existingProducts.length) {
-            console.log("DB non inizializzato o admin mancante, inizializzo...");
-            const users = {
-                "admin@gmail.com": {
-                    id: 1,
-                    email: "admin@gmail.com",
-                    name: "Administrator",
-                    passwordHash: simpleHash("admin"),
-                    role: "admin",
-                    createdAt: new Date().toISOString(),
-                    addresses: [],
-                    orders: [],
-                },
-            };
-            const products = normalizeLocalCatalogProducts(getDefaultProducts());
-            saveData("users", users);
-            saveData("products", products);
-            saveData("orders", []);
-            localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
-            console.log("DB locale inizializzato con dati demo");
-        }
-        await syncUsersFromServer();
-        await syncProductsFromServer();
-    } catch (error) {
-        console.error("Errore critico durante inizializzazione DB locale:", error);
-    } finally {
+    // Se già inizializzato, facciamo solo una sync silente ed esciamo
+    if (window.localStorage.getItem(DB_KEY_PREFIX + "initialized") === "1" && !new URLSearchParams(window.location.search).get("reset")) {
+        syncUsersFromServer();
+        syncProductsFromServer();
         window.DB_INITIALIZING = false;
+        return;
     }
+
+    const currentStorageVersion = window.localStorage.getItem(
+        AUTH_STORAGE_VERSION_KEY,
+    );
+    if (currentStorageVersion !== AUTH_STORAGE_VERSION) {
+        migrateAuthStorage();
+    }
+    const forceReset =
+        typeof window !== "undefined" &&
+        window.location &&
+        new URLSearchParams(window.location.search).get("reset") === "1";
+    if (forceReset) {
+        console.log("Forzata reinizializzazione del DB locale");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "initialized");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "users");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "products");
+        window.localStorage.removeItem(DB_KEY_PREFIX + "orders");
+        window.localStorage.removeItem("cart");
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(
+                {},
+                "",
+                window.location.pathname + window.location.hash,
+            );
+        }
+    }
+    const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
+    const existingUsers = loadData("users", {});
+    const adminUser = existingUsers["admin@gmail.com"];
+    let existingProducts = loadData("products", []);
+    if (existingProducts.length > 0) {
+        let updated = false;
+        existingProducts.forEach((product) => {
+            if (
+                product.image &&
+                product.image.startsWith("https://via.placeholder.com")
+            ) {
+                product.image = "";
+                updated = true;
+            }
+            const resolvedImage = resolveProductImage(product);
+            if (product && product.image !== resolvedImage) {
+                product.image = resolvedImage;
+                updated = true;
+            }
+        });
+        if (!prefersServerAuth()) {
+            const normalizedProducts =
+                normalizeLocalCatalogProducts(existingProducts);
+            if (
+                JSON.stringify(normalizedProducts) !==
+                JSON.stringify(existingProducts)
+            ) {
+                existingProducts = normalizedProducts;
+                updated = true;
+            }
+        }
+        if (updated) {
+            saveData("products", existingProducts);
+            console.log("Immagini prodotti migrate a fallback locale");
+        }
+    }
+    const expectedAdminShaHash =
+        "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
+    if (initialized && adminUser && adminUser.passwordHash) {
+        const expectedLegacyHash = simpleHash("admin");
+        if (
+            adminUser.passwordHash !== expectedLegacyHash &&
+            adminUser.passwordHash !== expectedAdminShaHash
+        ) {
+            console.log(
+                "Hash admin non valido trovato, ripristino con hash legacy.",
+            );
+            adminUser.passwordHash = expectedLegacyHash;
+            existingUsers[String(adminUser.email).toLowerCase()] = adminUser;
+            saveData("users", existingUsers);
+        }
+    }
+    if (!initialized || !adminUser || !existingProducts.length) {
+        console.log("DB non inizializzato o admin mancante, inizializzo...");
+        const users = {
+            "admin@gmail.com": {
+                id: 1,
+                email: "admin@gmail.com",
+                name: "Administrator",
+                passwordHash: simpleHash("admin"),
+                role: "admin",
+                createdAt: new Date().toISOString(),
+                addresses: [],
+                orders: [],
+            },
+        };
+        const products = normalizeLocalCatalogProducts(getDefaultProducts());
+        saveData("users", users);
+        saveData("products", products);
+        saveData("orders", []);
+        localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
+        console.log("DB locale inizializzato con dati demo");
+    }
+    await syncUsersFromServer();
+    await syncProductsFromServer();
+    window.DB_INITIALIZING = false;
 }
 function saveData(key, data) {
     try {
@@ -1131,16 +1130,10 @@ if (typeof document !== "undefined") {
         updateAuthNav();
     });
 }
-
-function getServerBaseUrl() {
-    return window.SHOPNOW_API_BASE_URL;
-}
-
-window.logout = logoutUser; // Risolve ReferenceError: logout is not defined
+window.logout = logoutUser;
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
-window.getServerBaseUrl = getServerBaseUrl; // Esporta per altri file
+window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
-window.getDefaultProducts = getDefaultProducts; // Esporta fallback

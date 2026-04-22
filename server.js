@@ -1677,8 +1677,13 @@ app.delete("/admin/products/:id", requireAdmin, (req, res) => {
     }
 });
 
-db_module.initializeDatabase();
-db_module.seedDatabase();
+try {
+    db_module.initializeDatabase();
+    db_module.seedDatabase();
+} catch (error) {
+    console.error("⚠️ Errore critico durante l'avvio del DB (proseguo comunque per Healthcheck):", error.message);
+}
+
 app.listen(PORT, '0.0.0.0', () => {
-    console.log('Server running on port ' + PORT);
+    console.log('Server avviato con successo sulla porta ' + PORT);
 });
