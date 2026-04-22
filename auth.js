@@ -1,9 +1,12 @@
 const DB_KEY_PREFIX = "ecommerce_";
 const AUTH_SESSION_KEY = "ecommerce-session-token";
-const AUTH_SERVER_BASE_URL = "http://localhost:3000";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
-const DEFAULT_STATIC_API_BASE_URL = "https://shopnow-production.up.railway.app";
+
+const API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"))
+    ? "http://localhost:3000"
+    : "https://shopnow-production.up.railway.app";
+
 const PRODUCT_IMAGE_OVERRIDES = {
     "Laptop Pro": "uploads/Laptop_Pro.jpg",
     "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg",
@@ -68,81 +71,8 @@ function normalizeLocalCatalogProducts(products) {
         ? products.map((product) => normalizeLocalCatalogProduct(product))
         : [];
 }
-function getRuntimeOverride() {
-    if (typeof window === "undefined" || !window.location) {
-        return "";
-    }
-    return String(
-        new URLSearchParams(window.location.search).get("runtime") || "",
-    )
-        .trim()
-        .toLowerCase();
-}
-function normalizeBaseUrl(value) {
-    const normalized = String(value || "").trim();
-    if (!normalized) {
-        return "";
-    }
-    return normalized.replace(/\/+$/, "");
-}
-function getImplicitApiBaseUrl() {
-    if (typeof window === "undefined" || !window.location) {
-        return "";
-    }
-    const protocol = String(window.location.protocol || "").toLowerCase();
-    const hostname = String(window.location.hostname || "").toLowerCase();
-    const isStaticHost =
-        protocol === "file:" || hostname.endsWith(".github.io");
-    return isStaticHost ? DEFAULT_STATIC_API_BASE_URL : "";
-}
-function getConfiguredApiBaseUrl() {
-    if (typeof window === "undefined") return "";
-
-    // Supporto per variabili d'ambiente iniettate da bundler (Vite/Webpack)
-    const envVar = (typeof process !== 'undefined' && process.env?.SHOPNOW_API_BASE_URL) || 
-                   (typeof import.meta !== 'undefined' && import.meta.env?.SHOPNOW_API_BASE_URL);
-
-    const runtimeValue = normalizeBaseUrl(envVar || window.SHOPNOW_API_BASE_URL);
-    if (runtimeValue) {
-        return runtimeValue;
-    }
-    if (typeof document !== "undefined") {
-        const metaValue = normalizeBaseUrl(
-            document
-                .querySelector('meta[name="shopnow-api-base-url"]')
-                ?.getAttribute("content"),
-        );
-        if (metaValue) {
-            return metaValue;
-        }
-    }
-    const queryValue =
-        typeof window.location !== "undefined"
-            ? normalizeBaseUrl(
-                new URLSearchParams(window.location.search).get("api_base"),
-            )
-            : "";
-    if (queryValue) {
-        return queryValue;
-    }
-    return getImplicitApiBaseUrl();
-}
 function getServerBaseUrl() {
-    const configuredBaseUrl = getConfiguredApiBaseUrl();
-    if (configuredBaseUrl) {
-        return configuredBaseUrl;
-    }
-    if (typeof window !== "undefined" && window.location) {
-        const hostname = window.location.hostname;
-        const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.startsWith("192.168.");
-        
-        // Se siamo su GitHub Pages o simile, forza l'URL di Railway invece di localhost
-        if (!isLocal && (hostname.endsWith(".github.io") || window.location.protocol === "file:")) {
-            return DEFAULT_STATIC_API_BASE_URL;
-        }
-        return normalizeBaseUrl(window.location.origin);
-    }
-    return normalizeBaseUrl(AUTH_SERVER_BASE_URL);
+    return API_BASE_URL;
 }
 function getBackendRequestHeaders(extraHeaders = {}) {
     const headers = { ...extraHeaders };
@@ -160,16 +90,6 @@ function prefersServerAuth() {
     if (typeof window === "undefined" || !window.location) {
         return false;
     }
-    const runtimeOverride = getRuntimeOverride();
-    if (runtimeOverride === "server") {
-        return true;
-    }
-    if (runtimeOverride === "static" || runtimeOverride === "github") {
-        return false;
-    }
-    if (getConfiguredApiBaseUrl()) {
-        return true;
-    }
     if (window.location.protocol === "file:") {
         return false;
     }
@@ -177,7 +97,7 @@ function prefersServerAuth() {
     if (hostname.endsWith(".github.io")) {
         return false;
     }
-    return true;
+    return window.location.hostname !== "";
 }
 function isStaticHostedMode() {
     return !prefersServerAuth();
@@ -407,7 +327,7 @@ function getAuthApiUrl(path) {
     if (prefersServerAuth()) {
         return `${getServerBaseUrl()}${normalizedPath}`;
     }
-    return `${AUTH_SERVER_BASE_URL}${normalizedPath}`;
+    return `${API_BASE_URL}${normalizedPath}`;
 }
 async function tryServerRegister({ name, email, password }) {
     if (!prefersServerAuth()) {
