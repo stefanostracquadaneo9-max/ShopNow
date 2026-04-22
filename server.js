@@ -58,6 +58,12 @@ const {
 } = db_module;
 app.use(cors());
 app.use(express.json());
+
+// Rotte prioritarie per Healthcheck e UI
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
+
 app.use(
     express.static(__dirname, {
         index: "index.html",

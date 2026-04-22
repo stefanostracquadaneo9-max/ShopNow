@@ -49,7 +49,11 @@ function ensureColumn(tableName, columnName, definition) {
     const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
     const hasColumn = columns.some((column) => column.name === columnName);
     if (!hasColumn) {
-        db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+        try {
+            db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+        } catch (error) {
+            console.warn(`Nota: Impossibile aggiungere colonna ${columnName} a ${tableName}: ${error.message}`);
+        }
     }
 }
 

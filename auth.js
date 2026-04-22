@@ -3,11 +3,19 @@ const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
-const SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+
+window.SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
     ? "http://localhost:3000"
     : "https://shopnow-production.up.railway.app";
 
-window.SHOPNOW_API_BASE_URL = SHOPNOW_API_BASE_URL;
+const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
+
+function getDefaultProducts() {
+    return [
+        { id: 1, name: "Laptop Pro", price: 1299.99, image: "uploads/Laptop_Pro.jpg", category: "elettronica", stock: 10 },
+        { id: 7, name: "Pantaloni Jeans", price: 79.99, image: "uploads/Pantaloni_Jeans.jpg", category: "abbigliamento", stock: 40 }
+    ];
+}
 
 // --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
 let isRefreshing = false;
@@ -146,6 +154,7 @@ function normalizeLocalCatalogProducts(products) {
         ? products.map((product) => normalizeLocalCatalogProduct(product))
         : [];
 }
+
 function getServerBaseUrl() {
     return SHOPNOW_API_BASE_URL;
 }
@@ -1104,7 +1113,7 @@ async function updateAuthNav() {
             if (logoutLink) {
                 logoutLink.addEventListener("click", (e) => {
                     e.preventDefault();
-                    logoutUser();
+                    logout();
                     window.location.href = "index.html";
                 });
             }
