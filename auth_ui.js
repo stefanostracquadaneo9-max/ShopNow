@@ -14,7 +14,7 @@ document.addEventListener("DOMContentLoaded", async function () {
             if (currentUser.role === "admin") window.location.href = "admin.html";
             else showSiteContent();
         }
-    } else {
+    } else { // Utente non loggato
         if (authSection) showAuthSection();
     }
 
@@ -85,7 +85,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     document.addEventListener("click", function (event) {
         if (event.target.id === "logout-link") {
             event.preventDefault();
-            logout();
+            window.logout();
         }
     });
 });

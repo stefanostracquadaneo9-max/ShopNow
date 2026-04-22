@@ -9,47 +9,6 @@ const PRODUCT_IMAGE_OVERRIDES = {
     "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg",
 };
 
-// --- FUNZIONI DI FALLBACK E DATI DEMO ---
-function getDefaultProducts() {
-    return [
-        { id: 1, name: "Laptop Pro", description: "Potente laptop per professionisti", price: 1299.99, category: "elettronica", image: "uploads/Laptop_Pro.jpg", stock: 10, rating: 4.5 },
-        { id: 2, name: "Mouse Wireless", description: "Mouse senza fili ergonomico", price: 29.99, category: "elettronica", image: "", stock: 50, rating: 4.2 },
-        { id: 3, name: "Tastiera Meccanica", description: "Tastiera con switch meccanici", price: 149.99, category: "elettronica", image: "", stock: 25, rating: 4.7 },
-        { id: 4, name: "Monitor 4K", description: "Monitor 4K da 27 pollici", price: 399.99, category: "elettronica", image: "", stock: 15, rating: 4.4 },
-        { id: 5, name: "Cuffie ANC", description: "Cuffie con cancellazione rumore", price: 199.99, category: "elettronica", image: "", stock: 30, rating: 4.6 },
-        { id: 6, name: "Maglietta Premium", description: "Maglietta in cotone 100% organico", price: 34.99, category: "abbigliamento", image: "", stock: 60, rating: 4.3 },
-        { id: 7, name: "Pantaloni Jeans", description: "Jeans di qualità premium", price: 79.99, category: "abbigliamento", image: "uploads/Pantaloni_Jeans.jpg", stock: 40, rating: 4.4 },
-        { id: 8, name: "Giacca Invernale", description: "Giacca calda per l'inverno", price: 149.99, category: "abbigliamento", image: "", stock: 20, rating: 4.6 },
-        { id: 9, name: "Scarpe Sportive", description: "Scarpe comode per sport e quotidiano", price: 99.99, category: "abbigliamento", image: "", stock: 35, rating: 4.5 },
-        { id: 10, name: "Divano Moderno", description: "Divano in tessuto grigio chiaro", price: 599.99, category: "casa", image: "", stock: 8, rating: 4.7 },
-        { id: 11, name: "Tavolo da Pranzo", description: "Tavolo in legno massello", price: 349.99, category: "casa", image: "", stock: 12, rating: 4.4 },
-        { id: 12, name: "Lampada a Sospensione", description: "Lampada moderna design minimalista", price: 89.99, category: "casa", image: "", stock: 25, rating: 4.3 },
-        { id: 13, name: "Tappeto Persiano", description: "Tappeto in lana naturale", price: 199.99, category: "casa", image: "", stock: 15, rating: 4.6 },
-        { id: 14, name: "Bicicletta Mountain", description: "Bicicletta MTB 21 velocità", price: 449.99, category: "sport", image: "", stock: 10, rating: 4.5 },
-        { id: 15, name: "Zaino Trekking", description: "Zaino 50L impermeabile", price: 129.99, category: "sport", image: "", stock: 40, rating: 4.4 },
-        { id: 16, name: "Tenda da Campeggio", description: "Tenda 3 persone ultraleggera", price: 219.99, category: "sport", image: "", stock: 18, rating: 4.6 },
-        { id: 17, name: "Pallone da Calcio", description: "Pallone professionale ufficiale", price: 44.99, category: "sport", image: "", stock: 50, rating: 4.3 },
-        { id: 18, name: "Il Signore degli Anelli", description: "Trilogia completa in edizione speciale", price: 89.99, category: "libri", image: "", stock: 25, rating: 4.9 },
-        { id: 19, name: "Harry Potter Complete", description: "Collezione completa di Harry Potter", price: 79.99, category: "libri", image: "", stock: 30, rating: 4.8 },
-        { id: 20, name: "Microsservizi Professionali", description: "Guida tecnica su architetture microservizi", price: 59.99, category: "libri", image: "", stock: 15, rating: 4.4 },
-        { id: 21, name: "Sapiens - Una breve storia", description: "Una breve storia dell'umanità", price: 24.99, category: "libri", image: "", stock: 45, rating: 4.7 },
-        { id: 22, name: "Orologio Smartwatch", description: "Smartwatch con monitoraggio salute", price: 249.99, category: "altro", image: "", stock: 22, rating: 4.5 },
-        { id: 23, name: "Power Bank 65W", description: "Power bank ad alta velocità 20000mAh", price: 59.99, category: "altro", image: "", stock: 50, rating: 4.3 },
-        { id: 24, name: "Diffusore Bluetooth", description: "Altoparlante Bluetooth wireless", price: 89.99, category: "altro", image: "", stock: 35, rating: 4.4 },
-        { id: 25, name: "Portafoglio RFID", description: "Portafoglio con protezione RFID", price: 39.99, category: "altro", image: "", stock: 60, rating: 4.2 }
-    ];
-}
-
-// Esposizione globale per i componenti UI
-window.getDefaultProducts = getDefaultProducts;
-window.DEFAULT_PRODUCTS = getDefaultProducts();
-
-window.getAllProducts = () => {
-    const products = loadData("products", []);
-    return products.length > 0 ? products : getDefaultProducts();
-};
-
-
 // --- UTILITIES GLOBALI (Disponibili in tutto il sito) ---
 const currencyFormatter = new Intl.NumberFormat("it-IT", { style: "currency", currency: "EUR" });
 window.formatCurrency = (v) => currencyFormatter.format(Number(v || 0));
@@ -89,13 +48,13 @@ function normalizeLocalCatalogProduct(product) {
     const reviewCount = reviews.length;
     const rating = reviewCount
         ? Number(
-              (
-                  reviews.reduce(
-                      (sum, review) => sum + Number(review.rating || 0),
-                      0,
-                  ) / reviewCount
-              ).toFixed(1),
-          )
+            (
+                reviews.reduce(
+                    (sum, review) => sum + Number(review.rating || 0),
+                    0,
+                ) / reviewCount
+            ).toFixed(1),
+        )
         : 0;
     return {
         ...product,
@@ -157,8 +116,8 @@ function getConfiguredApiBaseUrl() {
     const queryValue =
         typeof window.location !== "undefined"
             ? normalizeBaseUrl(
-                  new URLSearchParams(window.location.search).get("api_base"),
-              )
+                new URLSearchParams(window.location.search).get("api_base"),
+            )
             : "";
     if (queryValue) {
         return queryValue;
@@ -230,11 +189,11 @@ async function initializeLocalDB() {
     if (window.DB_INITIALIZING) return;
     window.DB_INITIALIZING = true;
 
+    // Se già inizializzato, facciamo solo una sync silente ed esciamo
     if (window.localStorage.getItem(DB_KEY_PREFIX + "initialized") === "1" && !new URLSearchParams(window.location.search).get("reset")) {
-        window.DB_INITIALIZING = false;
-        // Se già inizializzato, facciamo solo una sync silente
         syncUsersFromServer();
         syncProductsFromServer();
+        window.DB_INITIALIZING = false;
         return;
     }
 
@@ -338,7 +297,6 @@ async function initializeLocalDB() {
     }
     await syncUsersFromServer();
     await syncProductsFromServer();
-    
     window.DB_INITIALIZING = false;
 }
 function saveData(key, data) {
@@ -1165,7 +1123,6 @@ function logoutUser() {
     console.log("✅ Logout eseguito");
     updateAuthNav();
 }
-
 function searchProducts() {
     const input = document.getElementById("search-input");
     const query = String(input?.value || "")
@@ -1214,11 +1171,10 @@ if (typeof document !== "undefined") {
         updateAuthNav();
     });
 }
-window.logout = () => { logoutUser(); window.location.href = "index.html"; };
+window.logout = logout;
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
 window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
-window.getProductById = getProductById; // Espongo getProductById globalmente
