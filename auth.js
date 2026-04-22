@@ -96,10 +96,13 @@ function getImplicitApiBaseUrl() {
     return isStaticHost ? DEFAULT_STATIC_API_BASE_URL : "";
 }
 function getConfiguredApiBaseUrl() {
-    if (typeof window === "undefined") {
-        return "";
-    }
-    const runtimeValue = normalizeBaseUrl(window.SHOPNOW_API_BASE_URL);
+    if (typeof window === "undefined") return "";
+
+    // Supporto per variabili d'ambiente iniettate da bundler (Vite/Webpack)
+    const envVar = (typeof process !== 'undefined' && process.env?.SHOPNOW_API_BASE_URL) || 
+                   (typeof import.meta !== 'undefined' && import.meta.env?.SHOPNOW_API_BASE_URL);
+
+    const runtimeValue = normalizeBaseUrl(envVar || window.SHOPNOW_API_BASE_URL);
     if (runtimeValue) {
         return runtimeValue;
     }
@@ -124,14 +127,19 @@ function getConfiguredApiBaseUrl() {
     }
     return getImplicitApiBaseUrl();
 }
-let hasLoggedApiBaseUrlWarning = false;
-
 function getServerBaseUrl() {
     const configuredBaseUrl = getConfiguredApiBaseUrl();
     if (configuredBaseUrl) {
         return configuredBaseUrl;
     }
     if (typeof window !== "undefined" && window.location) {
+        const hostname = window.location.hostname;
+        const isLocal = hostname === "localhost" || hostname === "127.0.0.1" || hostname.startsWith("192.168.");
+        
+        // Se siamo su GitHub Pages o simile, forza l'URL di Railway invece di localhost
+        if (!isLocal && (hostname.endsWith(".github.io") || window.location.protocol === "file:")) {
+            return DEFAULT_STATIC_API_BASE_URL;
+        }
         return normalizeBaseUrl(window.location.origin);
     }
     return normalizeBaseUrl(AUTH_SERVER_BASE_URL);

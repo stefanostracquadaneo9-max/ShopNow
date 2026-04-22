@@ -89,7 +89,7 @@ function getApiUrl(path) {
     const baseUrl =
         typeof getServerBaseUrl === "function"
             ? getServerBaseUrl()
-            : "http://localhost:3000";
+            : "https://shopnow-production.up.railway.app";
     return `${baseUrl}${normalizedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {

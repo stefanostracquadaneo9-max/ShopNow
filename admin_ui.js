@@ -1,7 +1,7 @@
 function isServerBackedAdminMode() {
     return typeof prefersServerAuth === "function" ? prefersServerAuth() : "file:" !== window.location.protocol;
 }
-let SERVER_BASE_URL = typeof getServerBaseUrl === "function" ? getServerBaseUrl() : isServerBackedAdminMode() ? window.location.origin : "http://localhost:3000",
+let SERVER_BASE_URL = typeof getServerBaseUrl === "function" ? getServerBaseUrl() : "https://shopnow-production.up.railway.app",
     ADMIN_DASHBOARD_CACHE_KEY = "admin-dashboard-cache",
     currentUser = null, users = [], products = [], orders = [], stripeSummary = null, editingProductId = null,
     imagePreviewModal = null, userDetailsModal = null, deleteUserModal = null, pendingUserDeletion = null,
