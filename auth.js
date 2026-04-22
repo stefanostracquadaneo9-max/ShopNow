@@ -1,5 +1,6 @@
 const DB_KEY_PREFIX = "ecommerce_";
 const AUTH_SESSION_KEY = "ecommerce-session-token";
+const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
 
@@ -8,14 +9,44 @@ const API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname
     : "https://shopnow-production.up.railway.app";
 
 // --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
+let isRefreshing = false;
+let refreshPromise = null;
+const MAX_REFRESH_RETRIES = 1;
+
 if (typeof window !== "undefined" && typeof window.fetch === "function") {
     const originalFetch = window.fetch;
     window.fetch = async (...args) => {
-        const response = await originalFetch(...args);
+        const options = { ...(args[1] || {}) };
+        const retryCount = options._retryCount || 0;
+
+        let response = await originalFetch(args[0], options);
+        
         if (response.status === 401) {
             const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || "");
-            const isAuthPage = window.location.pathname.includes("index.html") || window.location.pathname === "/";
-            const isAuthEndpoint = url.includes("/login") || url.includes("/register");
+            const isAuthEndpoint = url.includes("/login") || url.includes("/register") || url.includes("/refresh");
+
+            if (!isAuthEndpoint && retryCount >= MAX_REFRESH_RETRIES) {
+                console.error(`[Auth Interceptor] Limite di retry raggiunto (${MAX_REFRESH_RETRIES}) per: ${url}. Interruzione tentativi.`);
+            }
+
+            if (!isAuthEndpoint && retryCount < MAX_REFRESH_RETRIES) {
+                if (!isRefreshing) {
+                    isRefreshing = true;
+                    refreshPromise = refreshAuthToken().finally(() => {
+                        isRefreshing = false;
+                        refreshPromise = null;
+                    });
+                }
+
+                const refreshed = await refreshPromise;
+                if (refreshed) {
+                    const retryOptions = { ...options, _retryCount: retryCount + 1 };
+                    retryOptions.headers = { ...(retryOptions.headers || {}), "Authorization": `Bearer ${getSessionToken()}` };
+                    return window.fetch(args[0], retryOptions);
+                }
+            }
+
+            const isAuthPage = window.location.pathname.includes("index.html") || window.location.pathname === "/" || window.location.pathname.endsWith("index.html");
 
             // Reindirizza solo se non siamo già sulla pagina di login o chiamando endpoint di auth
             if (!isAuthPage && !isAuthEndpoint) {
@@ -28,9 +59,31 @@ if (typeof window !== "undefined" && typeof window.fetch === "function") {
     };
 }
 
+async function refreshAuthToken() {
+    const refreshToken = localStorage.getItem(AUTH_REFRESH_KEY);
+    if (!refreshToken) return false;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken })
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            setSessionToken(data.sessionToken, data.refreshToken);
+            return true;
+        }
+    } catch (e) {
+        console.error("Impossibile rinnovare il token:", e);
+    }
+    return false;
+}
+
 const PRODUCT_IMAGE_OVERRIDES = {
     "Laptop Pro": "uploads/Laptop_Pro.jpg",
-    "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg",
+    "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg"
 };
 
 // --- UTILITIES GLOBALI (Disponibili in tutto il sito) ---
@@ -277,8 +330,11 @@ function generateSessionToken() {
 function getSessionToken() {
     return localStorage.getItem(AUTH_SESSION_KEY);
 }
-function setSessionToken(token) {
+function setSessionToken(token, refreshToken = null) {
     localStorage.setItem(AUTH_SESSION_KEY, token);
+    if (refreshToken) {
+        localStorage.setItem(AUTH_REFRESH_KEY, refreshToken);
+    }
 }
 function clearSessionToken() {
     const currentToken = getSessionToken();
@@ -286,6 +342,7 @@ function clearSessionToken() {
         clearLocalSessionReferences(currentToken);
     }
     localStorage.removeItem(AUTH_SESSION_KEY);
+    localStorage.removeItem(AUTH_REFRESH_KEY);
 }
 function getAuthRequestHeaders(extraHeaders = {}) {
     const headers = getBackendRequestHeaders(extraHeaders);
@@ -606,7 +663,7 @@ async function loginUser(email, password) {
             };
             users[normalizedEmail] = serverUser;
             saveData("users", users);
-            setSessionToken(serverUser.sessionToken);
+            setSessionToken(serverUser.sessionToken, preferredServerLogin.data.refreshToken);
             return {
                 id: serverUser.id,
                 email: serverUser.email,
@@ -1064,7 +1121,7 @@ if (typeof document !== "undefined") {
         updateAuthNav();
     });
 }
-window.logout = logout;
+window.logout = logoutUser;
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;

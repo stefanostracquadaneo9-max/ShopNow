@@ -25,6 +25,7 @@ const {
     createUser,
     getUserByEmail,
     getUserBySessionToken,
+    getUserByRefreshToken,
     getUserById,
     authenticateUser,
     getAllUsers,
@@ -1119,6 +1120,7 @@ app.post("/login", async (req, res) => {
                 role: user.role,
             },
             sessionToken: user.sessionToken,
+            refreshToken: user.refreshToken,
         });
     } catch (error) {
         console.error("Errore login:", error);

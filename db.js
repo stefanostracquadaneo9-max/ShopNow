@@ -229,6 +229,7 @@ function initializeDatabase() {
         "updatedAt",
         "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
     );
+    ensureColumn("users", "refreshToken", "TEXT");
     ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
     ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
     ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
@@ -265,11 +266,12 @@ function createUser(email, name, password, role = "user") {
     const normalizedName = String(name || "").trim();
     const passwordHash = hashPassword(password);
     const sessionToken = generateSessionToken();
+    const refreshToken = generateSessionToken();
 
     try {
         const stmt = db.prepare(`
-            INSERT INTO users (email, name, passwordHash, role, sessionToken)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO users (email, name, passwordHash, role, sessionToken, refreshToken)
+            VALUES (?, ?, ?, ?, ?, ?)
         `);
         const result = stmt.run(
             normalizedEmail,
@@ -277,6 +279,7 @@ function createUser(email, name, password, role = "user") {
             passwordHash,
             role,
             sessionToken,
+            refreshToken,
         );
         return {
             id: result.lastInsertRowid,
@@ -284,6 +287,7 @@ function createUser(email, name, password, role = "user") {
             name: normalizedName,
             role: role,
             sessionToken: sessionToken,
+            refreshToken: refreshToken,
         };
     } catch (error) {
         throw new Error("Email gia in uso");
@@ -309,6 +313,15 @@ function getUserBySessionToken(token) {
     return stmt.get(token);
 }
 
+function getUserByRefreshToken(token) {
+    const stmt = db.prepare(`
+        SELECT *
+        FROM users
+        WHERE refreshToken = ?
+    `);
+    return stmt.get(token);
+}
+
 function getUserById(id) {
     const stmt = db.prepare("SELECT * FROM users WHERE id = ?");
     return stmt.get(id);
@@ -327,9 +340,10 @@ function authenticateUser(email, password) {
     }
 
     const sessionToken = generateSessionToken();
+    const refreshToken = generateSessionToken();
     db.prepare(
-        "UPDATE users SET sessionToken = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
-    ).run(sessionToken, user.id);
+        "UPDATE users SET sessionToken = ?, refreshToken = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
+    ).run(sessionToken, refreshToken, user.id);
 
     return {
         id: user.id,
@@ -337,6 +351,7 @@ function authenticateUser(email, password) {
         name: user.name,
         role: user.role,
         sessionToken: sessionToken,
+        refreshToken: refreshToken,
     };
 }
 
@@ -927,4 +942,5 @@ module.exports = {
     clearCart,
     seedDatabase,
     DEFAULT_PRODUCTS, // Espongo i prodotti di default per coerenza e per il fallback
+    getUserByRefreshToken,
 };
