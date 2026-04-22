@@ -7,6 +7,27 @@ const API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname
     ? "http://localhost:3000"
     : "https://shopnow-production.up.railway.app";
 
+// --- INTERCETTORE GLOBALE FETCH (Gestione 401 Unauthorized) ---
+if (typeof window !== "undefined" && typeof window.fetch === "function") {
+    const originalFetch = window.fetch;
+    window.fetch = async (...args) => {
+        const response = await originalFetch(...args);
+        if (response.status === 401) {
+            const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || "");
+            const isAuthPage = window.location.pathname.includes("index.html") || window.location.pathname === "/";
+            const isAuthEndpoint = url.includes("/login") || url.includes("/register");
+
+            // Reindirizza solo se non siamo già sulla pagina di login o chiamando endpoint di auth
+            if (!isAuthPage && !isAuthEndpoint) {
+                console.warn("Sessione scaduta o non valida (401). Reindirizzamento al login...");
+                if (typeof logoutUser === "function") logoutUser();
+                window.location.href = "index.html?msg=session_expired";
+            }
+        }
+        return response;
+    };
+}
+
 const PRODUCT_IMAGE_OVERRIDES = {
     "Laptop Pro": "uploads/Laptop_Pro.jpg",
     "Pantaloni Jeans": "uploads/Pantaloni_Jeans.jpg",
