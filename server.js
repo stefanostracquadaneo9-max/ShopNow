@@ -12,10 +12,8 @@ if (!stripe) {
     );
 }
 const db_module = require("./db");
-db_module.initializeDatabase();
-db_module.seedDatabase();
 const app = express();
-const PORT = process.env.PORT || 3e3;
+const PORT = process.env.PORT || 3000;
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const CHECKOUT_VAT_RATE = 0.22;
@@ -1668,6 +1666,9 @@ app.delete("/admin/products/:id", requireAdmin, (req, res) => {
         res.status(500).json({ error: "Errore interno del server" });
     }
 });
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server funzionante su http://0.0.0.0:${PORT}`);
+
+db_module.initializeDatabase();
+db_module.seedDatabase();
+app.listen(PORT, '0.0.0.0', () => {
+    console.log('Server running on port ' + PORT);
 });
