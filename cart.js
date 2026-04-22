@@ -1,4 +1,6 @@
+const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
+const VAT_RATE = 0.22;
 const BUY_NOW_CART_KEY = "shopnow-buy-now-cart";
 const CART_BRIDGE_KEYS = [
     "ecommerce_users",
@@ -514,7 +516,7 @@ function getCartDetails() {
         });
     });
     const shipping = items.length ? calculateShippingCost(subtotal) : 0;
-    const vat = subtotal * 0.22;
+    const vat = subtotal * VAT_RATE;
     const total = Number((subtotal + vat + shipping).toFixed(2));
     return {
         items: items,

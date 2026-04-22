@@ -808,12 +808,13 @@ app.post("/api/checkout", async (req, res) => {
             !customerEmail ||
             !customerName
         ) {
+            console.error("❌ Checkout fallito: Dati incompleti ricevuti dal client.");
             return res.status(400).json({ error: "Dati checkout incompleti" });
         }
         // Salta validazione completa se richiesto per test di velocità
         let checkoutSnapshot = null;
         if (skipValidation === true || skipValidation === "true") {
-            // Crea snapshot fittizio per i test
+            console.log("ℹ️ Skipping validation (Test Mode)");
             checkoutSnapshot = {
                 items: items.map(item => ({
                     id: item.id,
@@ -831,6 +832,7 @@ app.post("/api/checkout", async (req, res) => {
         } else {
             checkoutSnapshot = buildCheckoutStockSnapshot(items);
             if (Math.abs(checkoutSnapshot.total - Number(total)) > 0.01) {
+                console.error(`❌ Checkout fallito: Discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`);
                 return res.status(400).json({
                     error: "Totale ordine non coerente con i prezzi correnti",
                 });
@@ -841,6 +843,7 @@ app.post("/api/checkout", async (req, res) => {
 
         // Se skipStripe è true, salta completamente Stripe per i test
         if (skipStripe === true || skipStripe === "true") {
+            console.log("ℹ️ Stripe bypassato tramite skipStripe flag.");
             confirmedPaymentIntent = {
                 id: `pi_test_${Date.now()}`,
                 status: 'succeeded',
@@ -878,11 +881,13 @@ app.post("/api/checkout", async (req, res) => {
             const paymentIntent =
                 await stripe.paymentIntents.retrieve(paymentIntentId);
             if (!paymentIntent || paymentIntent.status !== "succeeded") {
+                console.error(`❌ Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`);
                 return res
                     .status(400)
                     .json({ error: "Pagamento non confermato da Stripe" });
             }
             if (paymentIntent.amount !== expectedAmount) {
+                console.error(`❌ Checkout fallito: L'importo Stripe (${paymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`);
                 return res.status(400).json({
                     error: "Importo pagamento non coerente con l'ordine",
                 });
@@ -945,6 +950,7 @@ app.post("/api/checkout", async (req, res) => {
                 shippingAddress: shippingAddress,
             });
         }
+        console.log(`✅ Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`);
         res.json({
             success: true,
             order: updatedOrder,
@@ -954,7 +960,7 @@ app.post("/api/checkout", async (req, res) => {
             updatedProducts: (skipStripe === true || skipStripe === "true") ? [] : getAllProducts(),
         });
     } catch (error) {
-        console.error("Errore checkout:", error);
+        console.error("🚨 Errore fatale durante il processo di checkout:", error.message, error.stack);
         const statusCode = [
             "INVALID_ORDER_ITEMS",
             "PRODUCT_NOT_FOUND",

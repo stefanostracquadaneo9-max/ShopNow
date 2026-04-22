@@ -96,15 +96,3 @@ function formatOrderDate(value) {
     if (Number.isNaN(date.getTime())) return String(value);
     return date.toLocaleString("it-IT");
 }
-
-const formatShippingAddress = (shippingAddress) => {
-    if (!shippingAddress) return "";
-    let address = typeof shippingAddress === "string" ? JSON.parse(shippingAddress) : shippingAddress;
-    if (!address || typeof address !== "object") return "";
-    return [address.line1 || address.street, address.postalCode, address.city, address.country].filter(Boolean).join(", ");
-};
-const formatOrderDate = (value) => {
-    if (!value) return "Data non disponibile";
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString("it-IT");
-};
