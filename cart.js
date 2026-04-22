@@ -1013,3 +1013,4 @@ window.addToCart = addToCart;
 window.buyNow = buyNow;
 window.proceedToCheckout = proceedToCheckout;
 window.checkoutSingleItem = checkoutSingleItem;
+});
