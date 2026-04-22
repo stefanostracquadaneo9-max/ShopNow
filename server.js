@@ -1669,6 +1669,21 @@ app.delete("/admin/products/:id", requireAdmin, (req, res) => {
     }
 });
 
+app.post("/api/auth/refresh", async (req, res) => {
+    const { refreshToken } = req.body;
+    if (!refreshToken) return res.status(400).json({ error: "Refresh token mancante" });
+    const user = getUserByRefreshToken(refreshToken);
+    if (!user) return res.status(401).json({ error: "Refresh token non valido" });
+    
+    const newSessionToken = db_module.generateSessionToken();
+    const newRefreshToken = db_module.generateSessionToken();
+    
+    db.prepare("UPDATE users SET sessionToken = ?, refreshToken = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?")
+      .run(newSessionToken, newRefreshToken, user.id);
+      
+    res.json({ sessionToken: newSessionToken, refreshToken: newRefreshToken });
+});
+
 try {
     db_module.initializeDatabase();
     db_module.seedDatabase();

@@ -6,6 +6,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     const siteHeader = document.getElementById("site-header");
     const siteFooter = document.getElementById("site-footer");
 
+    document.body.classList.remove('initially-hidden');
+
     const currentUser = await getCurrentUser();
 
     if (currentUser) {

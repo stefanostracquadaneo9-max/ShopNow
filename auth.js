@@ -3,9 +3,9 @@ const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
-const SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && window.location.hostname.includes('railway.app'))
-    ? "https://shopnow-production.up.railway.app"
-    : "http://localhost:3000";
+const SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
+    ? "http://localhost:3000"
+    : "https://shopnow-production.up.railway.app";
 
 window.SHOPNOW_API_BASE_URL = SHOPNOW_API_BASE_URL;
 
