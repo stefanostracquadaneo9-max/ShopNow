@@ -52,7 +52,7 @@ if (typeof window !== "undefined" && typeof window.fetch === "function") {
             // Reindirizza solo se non siamo già sulla pagina di login o chiamando endpoint di auth
             if (!isAuthPage && !isAuthEndpoint) {
                 console.warn("Sessione scaduta o non valida (401). Reindirizzamento al login...");
-                if (typeof logoutUser === "function") logoutUser();
+                if (typeof logout === "function") logout();
                 window.location.href = "index.html?msg=session_expired";
             }
         }
@@ -1069,10 +1069,11 @@ function getProductById(id) {
     const products = window.getAllProducts();
     return products.find((p) => p.id === parseInt(id));
 }
-function logoutUser() {
+function logout() {
+    console.log('Eseguo logout...');
     clearSessionToken();
-    console.log("✅ Logout eseguito");
     updateAuthNav();
+    window.location.href = 'index.html';
 }
 function searchProducts() {
     const input = document.getElementById("search-input");
@@ -1122,10 +1123,13 @@ if (typeof document !== "undefined") {
         updateAuthNav();
     });
 }
-window.logout = logoutUser;
+window.logout = logout;
+window.login = loginUser;
+window.register = registerUser;
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
 window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
+window.getDefaultProducts = getDefaultProducts;

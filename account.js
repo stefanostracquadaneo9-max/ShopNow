@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
     if (logoutButton) {
         logoutButton.addEventListener("click", function () {
-            logoutUser();
+            logout();
             window.location.reload();
         });
     }
