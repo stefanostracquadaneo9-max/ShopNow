@@ -93,7 +93,12 @@ async function loadDashboardDataFromServer() {
     try {
         let res = await fetch(SERVER_BASE_URL + "/api/admin/dashboard", getAdminFetchOptions());
         let data = await parseJsonResponse(res, "Dashboard non disponibile");
+
+        let stripeRes = await fetch(SERVER_BASE_URL + "/api/admin/stripe-summary", getAdminFetchOptions());
+        let stripeData = await stripeRes.json().catch(() => null);
+
         if (res.ok) {
+            if (stripeData && stripeData.success) stripeSummary = stripeData;
             users = data.users || []; products = data.products || []; orders = data.orders || [];
             saveDashboardCache(); return !0;
         }
@@ -128,7 +133,14 @@ function updateDashboardStats() {
     document.getElementById("total-products").textContent = products.length;
     document.getElementById("total-orders").textContent = orders.length;
     let rev = orders.reduce((s, o) => s + parseFloat(o.total || 0), 0);
-    document.getElementById("total-revenue").textContent = "€" + rev.toFixed(2);
+    
+    // Usa i ricavi Stripe se disponibili
+    const finalRevenue = (stripeSummary && stripeSummary.revenue) ? stripeSummary.revenue : rev;
+    const revenueLabel = (stripeSummary && stripeSummary.revenue) ? "Ricavi Stripe" : "Ricavi Totali";
+    
+    document.getElementById("total-revenue").textContent = "€" + finalRevenue.toFixed(2);
+    const revTitle = document.querySelector("#total-revenue + .stats-title");
+    if (revTitle) revTitle.textContent = revenueLabel;
 }
 
 window.showSection = function(e, t) {

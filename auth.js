@@ -1137,9 +1137,16 @@ async function updateAuthNav() {
 }
 if (typeof document !== "undefined") {
     document.addEventListener("DOMContentLoaded", async function () {
-        await initializeLocalDB();
-        if (typeof window.updateCartCount === "function") window.updateCartCount(); // Chiamata a funzione globale
-        updateAuthNav();
+        try {
+            await initializeLocalDB();
+        } catch (e) {
+            console.warn("Errore durante l'inizializzazione del DB:", e);
+        } finally {
+            if (typeof window.updateCartCount === "function") window.updateCartCount();
+            updateAuthNav();
+            // Rimuove la protezione "schermo bianco"
+            document.body.classList.remove('initially-hidden');
+        }
     });
 }
 window.logout = logout;
