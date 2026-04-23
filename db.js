@@ -872,12 +872,14 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
 }
 
 function seedDatabase() {
-    // Conta gli utenti per decidere se eseguire il seed
-    const userCount = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
-    
-    if (userCount === 0) {
-        console.log(`[SEED] Database vuoto. Creazione admin ${ADMIN_EMAIL}...`);
+    // Assicurati sempre che l'utente admin esista
+    const adminUser = getUserByEmail(ADMIN_EMAIL);
+    if (!adminUser) {
+        console.log(`[SEED] Admin ${ADMIN_EMAIL} non trovato. Creazione forzata in corso...`);
         createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
+        console.log("[SEED] Admin creato con successo.");
+    } else {
+        console.log(`[SEED] Admin ${ADMIN_EMAIL} già presente nel database.`);
     }
 
     const existingRows = db.prepare("SELECT name FROM products").all();
