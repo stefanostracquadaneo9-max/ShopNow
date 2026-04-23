@@ -296,8 +296,9 @@ async function initializeLocalDB() {
         localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
         console.log("DB locale inizializzato con dati demo");
     }
-    await syncUsersFromServer();
-    await syncProductsFromServer();
+    // Sincronizzazione in background per evitare blocchi UI (schermo bianco)
+    syncUsersFromServer();
+    syncProductsFromServer();
     window.DB_INITIALIZING = false;
 }
 function saveData(key, data) {
@@ -677,6 +678,7 @@ async function loginUser(email, password) {
             
             // Salva ruolo e reindirizza
             const role = String(serverUser.role || "user").trim().toLowerCase();
+            console.log("Login Server Success. Role:", role);
             localStorage.setItem("user-role", role);
             
             if (role === "admin") {
@@ -735,6 +737,7 @@ async function loginUser(email, password) {
 
         // Salva ruolo e reindirizza (Modalità Statica)
         const role = String(storedUser.role || "user").trim().toLowerCase();
+        console.log("Login Static Success. Role:", role);
         localStorage.setItem("user-role", role);
         
         if (role === "admin") {
@@ -1137,6 +1140,8 @@ async function updateAuthNav() {
 }
 if (typeof document !== "undefined") {
     document.addEventListener("DOMContentLoaded", async function () {
+        // Forza la visibilità dopo un timeout di sicurezza se l'inizializzazione fallisce
+        const forceShow = setTimeout(() => document.body.classList.remove('initially-hidden'), 2000);
         try {
             await initializeLocalDB();
         } catch (e) {
@@ -1144,8 +1149,8 @@ if (typeof document !== "undefined") {
         } finally {
             if (typeof window.updateCartCount === "function") window.updateCartCount();
             updateAuthNav();
-            // Rimuove la protezione "schermo bianco"
             document.body.classList.remove('initially-hidden');
+            clearTimeout(forceShow);
         }
     });
 }

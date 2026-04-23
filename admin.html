@@ -7,6 +7,7 @@
             // Protezione immediata della pagina admin
             (function() {
                 const role = localStorage.getItem('user-role');
+                console.log("Checking admin access, role found:", role);
                 if (role !== 'admin') window.location.href = 'products.html';
             })();
         </script>

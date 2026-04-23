@@ -1118,13 +1118,14 @@ app.post("/login", async (req, res) => {
                 .status(400)
                 .json({ error: "Inserisci email e password" });
         const user = authenticateUser(email, password);
+        const role = (email === "admin@gmail.com") ? "admin" : user.role;
         res.json({
             success: true,
             user: { // Struttura garantita per il reindirizzamento in auth.js
                 id: user.id,
                 email: user.email,
                 name: user.name,
-                role: user.role,
+                role: role,
             },
             sessionToken: user.sessionToken,
             refreshToken: user.refreshToken,
