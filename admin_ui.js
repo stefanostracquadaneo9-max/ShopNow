@@ -280,12 +280,6 @@ window.importBackup = async function(event) {
     reader.onload = async (e) => {
         try {
             const data = JSON.parse(e.target.result);
-            
-            // Validazione client-side dello schema JSON
-            const requiredTables = ["users", "products", "orders", "reviews", "addresses", "paymentMethods", "cartItems"];
-            const missing = requiredTables.filter(table => !Array.isArray(data[table]));
-            if (missing.length > 0) throw new Error("Il file non è un backup valido di ShopNow. Tabelle mancanti: " + missing.join(", "));
-
             const res = await fetch(SERVER_BASE_URL + "/api/admin/restore", getAdminFetchOptions({
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
