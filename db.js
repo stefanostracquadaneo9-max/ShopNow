@@ -3,13 +3,10 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-const railwayVolumeMountPath = String(
-    process.env.RAILWAY_VOLUME_MOUNT_PATH || "",
-).trim();
-const defaultDbPath = railwayVolumeMountPath
-    ? path.join(railwayVolumeMountPath, "app.db")
-    : path.join(__dirname, "app.db");
-const DB_PATH = path.resolve(process.env.DB_PATH || defaultDbPath);
+// Percorso configurabile per la persistenza su Railway (es. /data/app.db)
+const DB_PATH = path.resolve(process.env.DATABASE_URL || process.env.DB_PATH || path.join(__dirname, "app.db"));
+
+// Assicura che la cartella di destinazione esista
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 
@@ -875,8 +872,11 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
 }
 
 function seedDatabase() {
+    // Conta gli utenti per decidere se eseguire il seed
     const userCount = db.prepare("SELECT COUNT(*) AS count FROM users").get().count;
+    
     if (userCount === 0) {
+        console.log(`[SEED] Database vuoto. Creazione admin ${ADMIN_EMAIL}...`);
         createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
     }
 
@@ -898,11 +898,52 @@ function seedDatabase() {
         }
     }
 
-    if (userCount === 0 || insertedProducts > 0) {
-        console.log(
-            `Database pronta: admin creato, prodotti aggiunti ${insertedProducts}`,
-        );
+    if (insertedProducts > 0) {
+        console.log(`[SEED] Inseriti ${insertedProducts} nuovi prodotti di default.`);
     }
+}
+
+function exportFullBackup() {
+    return {
+        users: db.prepare("SELECT * FROM users").all(),
+        products: db.prepare("SELECT * FROM products").all(),
+        orders: db.prepare("SELECT * FROM orders").all(),
+        reviews: db.prepare("SELECT * FROM reviews").all(),
+        addresses: db.prepare("SELECT * FROM addresses").all(),
+        paymentMethods: db.prepare("SELECT * FROM paymentMethods").all(),
+        cartItems: db.prepare("SELECT * FROM cartItems").all(),
+        exportedAt: new Date().toISOString()
+    };
+}
+
+function restoreBackup(data) {
+    return db.transaction(() => {
+        // 1. Ordine di cancellazione per rispettare i vincoli di integrità (Foreign Keys)
+        // Cancelliamo prima le tabelle che dipendono da altre
+        db.prepare("DELETE FROM reviews").run();
+        db.prepare("DELETE FROM cartItems").run();
+        db.prepare("DELETE FROM orders").run();
+        db.prepare("DELETE FROM addresses").run();
+        db.prepare("DELETE FROM paymentMethods").run();
+        db.prepare("DELETE FROM users").run();
+        db.prepare("DELETE FROM products").run();
+
+        const insert = (table, rows) => {
+            if (!Array.isArray(rows) || rows.length === 0) return;
+            const cols = Object.keys(rows[0]);
+            const stmt = db.prepare(`INSERT INTO ${table} (${cols.join(",")}) VALUES (${cols.map(() => "?").join(",")})`);
+            rows.forEach(row => stmt.run(...cols.map(c => row[c])));
+        };
+
+        // 2. Ordine di inserimento per rispettare i vincoli (Prima padri, poi figli)
+        insert("users", data.users);
+        insert("products", data.products);
+        insert("addresses", data.addresses);
+        insert("paymentMethods", data.paymentMethods);
+        insert("orders", data.orders);
+        insert("cartItems", data.cartItems);
+        insert("reviews", data.reviews);
+    })();
 }
 
 module.exports = {
@@ -947,4 +988,6 @@ module.exports = {
     seedDatabase,
     DEFAULT_PRODUCTS, // Espongo i prodotti di default per coerenza e per il fallback
     getUserByRefreshToken,
+    exportFullBackup,
+    restoreBackup,
 };

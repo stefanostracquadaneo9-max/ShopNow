@@ -249,6 +249,59 @@ window.deleteProduct = async function(id) {
     } catch (e) { alert("Errore"); }
 };
 
+window.downloadBackup = async function() {
+    try {
+        const res = await fetch(SERVER_BASE_URL + "/api/admin/backup", getAdminFetchOptions());
+        if (!res.ok) throw new Error("Errore durante il download del backup");
+        
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `shopnow_backup_${new Date().getTime()}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        a.remove();
+    } catch (e) { alert(e.message); }
+};
+
+window.importBackup = async function(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const confirmMsg = "ATTENZIONE: Questa operazione cancellerà TUTTI i dati attuali (utenti, ordini, prodotti) e li sostituirà con quelli del file selezionato.\n\nVuoi procedere?";
+    if (!confirm(confirmMsg)) {
+        event.target.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            
+            // Validazione client-side dello schema JSON
+            const requiredTables = ["users", "products", "orders", "reviews", "addresses", "paymentMethods", "cartItems"];
+            const missing = requiredTables.filter(table => !Array.isArray(data[table]));
+            if (missing.length > 0) throw new Error("Il file non è un backup valido di ShopNow. Tabelle mancanti: " + missing.join(", "));
+
+            const res = await fetch(SERVER_BASE_URL + "/api/admin/restore", getAdminFetchOptions({
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            }));
+            const result = await res.json();
+            if (res.ok) {
+                alert("Database ripristinato con successo! La pagina verrà ricaricata.");
+                window.location.reload();
+            } else { throw new Error(result.error || "Errore durante il ripristino"); }
+        } catch (err) { alert("Errore: " + err.message); }
+        finally { event.target.value = ""; }
+    };
+    reader.readAsText(file);
+};
+
 function renderCharts() {
     if (typeof Chart === "undefined") return;
     if (ordersChartInstance) ordersChartInstance.destroy();

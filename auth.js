@@ -475,7 +475,7 @@ async function syncUsersFromServer() {
     }
     try {
         const response = await fetch(getAuthApiUrl("/api/auth/users"), {
-            headers: getBackendRequestHeaders(),
+            headers: getAuthRequestHeaders(),
         });
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.users || !Array.isArray(data.users)) {
@@ -674,13 +674,16 @@ async function loginUser(email, password) {
             users[normalizedEmail] = serverUser;
             saveData("users", users);
             setSessionToken(serverUser.sessionToken, preferredServerLogin.data.refreshToken);
-            return {
-                id: serverUser.id,
-                email: serverUser.email,
-                name: serverUser.name,
-                role: serverUser.role,
-                sessionToken: serverUser.sessionToken,
-            };
+            
+            // Salva ruolo e reindirizza
+            localStorage.setItem("user-role", serverUser.role);
+            if (serverUser.role === "admin") {
+                window.location.href = "admin.html";
+            } else {
+                window.location.href = "products.html";
+            }
+            
+            return serverUser;
         }
         if (prefersServerAuth()) {
             throw new Error(
@@ -727,13 +730,16 @@ async function loginUser(email, password) {
         users[normalizedEmail] = storedUser;
         saveData("users", users);
         setSessionToken(sessionToken);
-        return {
-            id: storedUser.id,
-            email: storedUser.email,
-            name: storedUser.name,
-            role: storedUser.role,
-            sessionToken: sessionToken,
-        };
+
+        // Salva ruolo e reindirizza (Modalità Statica)
+        localStorage.setItem("user-role", storedUser.role);
+        if (storedUser.role === "admin") {
+            window.location.href = "admin.html";
+        } else {
+            window.location.href = "products.html";
+        }
+
+        return storedUser;
     } catch (error) {
         console.error("Errore login:", error.message);
         throw error;

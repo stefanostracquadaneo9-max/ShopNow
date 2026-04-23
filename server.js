@@ -1111,6 +1111,7 @@ app.post("/login", async (req, res) => {
         const email = String(req.body.email || "")
             .trim()
             .toLowerCase();
+        console.log('Login attempt:', email);
         const password = String(req.body.password || "").trim();
         if (!email || !password)
             return res
@@ -1119,7 +1120,7 @@ app.post("/login", async (req, res) => {
         const user = authenticateUser(email, password);
         res.json({
             success: true,
-            user: {
+            user: { // Struttura garantita per il reindirizzamento in auth.js
                 id: user.id,
                 email: user.email,
                 name: user.name,
@@ -1147,12 +1148,12 @@ app.post("/api/admin/users/mass-delete", requireAdmin, (req, res) => {
     }
 });
 
-app.get("/api/auth/users", (req, res) => {
+app.get("/api/auth/users", requireAdmin, (req, res) => {
     try {
         const users = db
             .prepare(
                 `
-            SELECT id, email, name, role, createdAt, passwordHash
+            SELECT id, email, name, role, createdAt
             FROM users
         `,
             )
@@ -1474,6 +1475,29 @@ app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
         res.status(500).json({ error: "Errore interno del server" });
     }
 });
+
+app.post("/api/admin/restore", requireAdmin, (req, res) => {
+    try {
+        const backupData = req.body;
+        const requiredTables = ["users", "products", "orders", "reviews", "addresses", "paymentMethods", "cartItems"];
+
+        if (!backupData || typeof backupData !== 'object' || Array.isArray(backupData)) {
+            return res.status(400).json({ error: "Formato backup non valido. Caricare un oggetto JSON." });
+        }
+
+        const missing = requiredTables.filter(table => !Array.isArray(backupData[table]));
+        if (missing.length > 0) {
+            return res.status(400).json({ error: `Il file di backup non è integro o compatibile. Tabelle mancanti: ${missing.join(", ")}` });
+        }
+
+        db_module.restoreBackup(backupData);
+        res.json({ success: true, message: "Database ripristinato con successo" });
+    } catch (error) {
+        console.error("Errore ripristino backup:", error);
+        res.status(500).json({ error: "Errore durante il ripristino del database" });
+    }
+});
+
 app.get("/api/admin/stripe-summary", requireAdmin, async (req, res) => {
     try {
         const summary = await getStripeDashboardSummary(100);
@@ -1696,6 +1720,21 @@ try {
 } catch (error) {
     console.error("⚠️ Errore critico durante l'avvio del DB (proseguo comunque per Healthcheck):", error.message);
 }
+
+// Gestione chiusura pulita per evitare corruzione dati
+const gracefulShutdown = () => {
+    console.log("Ricevuto segnale di interruzione. Chiusura database...");
+    try {
+        db.close();
+        console.log("Database chiuso correttamente.");
+    } catch (err) {
+        console.error("Errore durante la chiusura del database:", err);
+    }
+    process.exit(0);
+};
+
+process.on("SIGINT", gracefulShutdown);
+process.on("SIGTERM", gracefulShutdown);
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log('Server avviato con successo sulla porta ' + PORT);
