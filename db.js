@@ -3,11 +3,13 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 
-// Percorso configurabile per la persistenza su Railway (es. /data/app.db)
-const DB_PATH = path.resolve(process.env.DATABASE_URL || process.env.DB_PATH || path.join(__dirname, "app.db"));
+// Configurazione percorso database (evita conflitti con DATABASE_URL di Railway se è Postgres)
+const rawDbPath = process.env.DB_PATH || "app.db";
+const DB_PATH = path.isAbsolute(rawDbPath) ? rawDbPath : path.resolve(__dirname, rawDbPath);
 
 // Assicura che la cartella di destinazione esista
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+console.log(`[DB] Inizializzazione database in: ${DB_PATH}`);
 const db = new Database(DB_PATH);
 
 const ADMIN_EMAIL = "admin@gmail.com";
@@ -136,6 +138,8 @@ function initializeDatabase() {
             passwordHash TEXT NOT NULL,
             role TEXT DEFAULT 'user',
             sessionToken TEXT UNIQUE,
+            refreshToken TEXT,
+            updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
@@ -331,10 +335,11 @@ function getUserById(id) {
 function authenticateUser(email, password) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
     const user = getUserByEmail(normalizedEmail);
+    
     if (!user) {
+        console.warn(`[AUTH] Login fallito: Utente ${normalizedEmail} non trovato nel database.`);
         throw new Error("Utente non trovato");
     }
-
     const passwordHash = hashPassword(password);
     if (user.passwordHash !== passwordHash) {
         throw new Error("Password errata");
@@ -872,14 +877,19 @@ function addOrUpdateProductReview(productId, userId, rating, comment) {
 }
 
 function seedDatabase() {
+    console.log("[SEED] Verifica presenza account amministratore...");
     // Assicurati sempre che l'utente admin esista
     const adminUser = getUserByEmail(ADMIN_EMAIL);
     if (!adminUser) {
-        console.log(`[SEED] Admin ${ADMIN_EMAIL} non trovato. Creazione forzata in corso...`);
-        createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
-        console.log("[SEED] Admin creato con successo.");
+        console.log(`[SEED] Admin ${ADMIN_EMAIL} non trovato. Creazione in corso...`);
+        try {
+            createUser(ADMIN_EMAIL, "Administrator", "admin", "admin");
+            console.log("[SEED] Admin creato con successo. Password: admin");
+        } catch (e) {
+            console.error("[SEED] Errore critico durante la creazione dell'admin:", e.message);
+        }
     } else {
-        console.log(`[SEED] Admin ${ADMIN_EMAIL} già presente nel database.`);
+        console.log(`[SEED] Admin ${ADMIN_EMAIL} già presente (Ruolo: ${adminUser.role}).`);
     }
 
     const existingRows = db.prepare("SELECT name FROM products").all();
