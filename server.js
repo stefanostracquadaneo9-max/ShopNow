@@ -30,6 +30,7 @@ const {
     getAllUsers,
     updateUser,
     deleteUser,
+    deleteUsersByDomain,
     createProduct,
     getProductById,
     getAllProducts,
@@ -43,6 +44,7 @@ const {
     getOrderByStripePaymentIntentId,
     getOrdersByUserId,
     getAllOrders,
+    getAllOrdersWithUsers,
     updateOrderStatus,
     addAddress,
     getAddressById,
@@ -1137,6 +1139,42 @@ app.post("/login", async (req, res) => {
         });
     }
 });
+app.post("/api/admin/users", requireAdmin, (req, res) => {
+    try {
+        const name = String(req.body.name || "").trim();
+        const email = String(req.body.email || "")
+            .trim()
+            .toLowerCase();
+        const password = String(req.body.password || "").trim();
+        const role =
+            String(req.body.role || "user").trim().toLowerCase() === "admin"
+                ? "admin"
+                : "user";
+
+        if (!name || !email || !password) {
+            return res.status(400).json({ error: "Compila tutti i campi" });
+        }
+
+        const createdUser = createUser(email, name, password, role);
+
+        res.json({
+            success: true,
+            message: "Utente creato con successo",
+            user:
+                buildAdminUserPayload(createdUser.id) || {
+                    id: createdUser.id,
+                    email: createdUser.email,
+                    name: createdUser.name,
+                    role: createdUser.role,
+                },
+        });
+    } catch (error) {
+        console.error("Errore creazione utente admin:", error);
+        res.status(400).json({
+            error: error.message || "Errore creazione utente",
+        });
+    }
+});
 app.post("/api/admin/users/mass-delete", requireAdmin, (req, res) => {
     try {
         const { domain } = req.body;
@@ -1447,15 +1485,7 @@ app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
     try {
         const users = getAllUsers();
         const products = getAllProducts();
-        const allOrders = getAllOrders().map((order) => {
-            const orderUser = getUserById(order.userId);
-            return {
-                ...order,
-                userEmail: orderUser?.email || "",
-                userName: orderUser?.name || "Cliente",
-            };
-        });
-        const orders = allOrders;
+        const orders = getAllOrdersWithUsers();
         const totalRevenue = orders.reduce(
             (sum, order) => sum + Number(order.total || 0),
             0,
@@ -1587,6 +1617,28 @@ app.put("/admin/products/:id", requireAdmin, (req, res) => {
         const existingProduct = getProductById(productId);
         if (!existingProduct)
             return res.status(404).json({ error: "Prodotto non trovato" });
+        if (Object.prototype.hasOwnProperty.call(updates, "image")) {
+            const previousImageAbsolutePath = getProductImageAbsolutePath(
+                existingProduct.image,
+            );
+            const nextImageAbsolutePath = getProductImageAbsolutePath(
+                updates.image,
+            );
+            if (
+                previousImageAbsolutePath &&
+                fs.existsSync(previousImageAbsolutePath) &&
+                previousImageAbsolutePath !== nextImageAbsolutePath
+            ) {
+                try {
+                    fs.unlinkSync(previousImageAbsolutePath);
+                } catch (error) {
+                    console.warn(
+                        "Impossibile eliminare immagine precedente:",
+                        error.message,
+                    );
+                }
+            }
+        }
         const product = updateProduct(productId, updates);
         console.log("Prodotto aggiornato:", product);
         res.json({

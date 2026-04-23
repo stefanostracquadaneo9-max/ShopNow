@@ -11,6 +11,7 @@ const DB_PATH = path.isAbsolute(rawDbPath) ? rawDbPath : path.resolve(__dirname,
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 console.log(`[DB] Inizializzazione database in: ${DB_PATH}`);
 const db = new Database(DB_PATH);
+const tableColumnsCache = new Map();
 
 const ADMIN_EMAIL = "admin@gmail.com";
 
@@ -45,19 +46,26 @@ const DEFAULT_PRODUCTS = [
 db.pragma("foreign_keys = ON");
 
 function ensureColumn(tableName, columnName, definition) {
-    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    const columns = getTableColumns(tableName, { refresh: true });
     const hasColumn = columns.some((column) => column.name === columnName);
     if (!hasColumn) {
         try {
             db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
+            getTableColumns(tableName, { refresh: true });
         } catch (error) {
             console.warn(`Nota: Impossibile aggiungere colonna ${columnName} a ${tableName}: ${error.message}`);
         }
     }
 }
 
-function getTableColumns(tableName) {
-    return db.prepare(`PRAGMA table_info(${tableName})`).all();
+function getTableColumns(tableName, options = {}) {
+    const refresh = options.refresh === true;
+    if (!refresh && tableColumnsCache.has(tableName)) {
+        return tableColumnsCache.get(tableName);
+    }
+    const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+    tableColumnsCache.set(tableName, columns);
+    return columns;
 }
 
 function tableHasColumn(tableName, columnName) {
@@ -234,7 +242,7 @@ function initializeDatabase() {
         "updatedAt",
         "updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP",
     );
-    ensureColumn("users", "refreshToken", "TEXT");
+    ensureColumn("users", "refreshToken", "refreshToken TEXT");
     ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
     ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
     ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
@@ -250,6 +258,25 @@ function initializeDatabase() {
     ensureColumn("paymentMethods", "cardNumber", "cardNumber TEXT");
     ensureColumn("paymentMethods", "cardHolder", "cardHolder TEXT");
     ensureColumn("paymentMethods", "expiryDate", "expiryDate TEXT");
+    db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_users_refresh_token
+        ON users(refreshToken);
+
+        CREATE INDEX IF NOT EXISTS idx_orders_user_created
+        ON orders(userId, createdAt DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_orders_stripe_payment_intent
+        ON orders(stripePaymentIntentId);
+
+        CREATE INDEX IF NOT EXISTS idx_reviews_product_updated
+        ON reviews(productId, updatedAt DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_addresses_user_default
+        ON addresses(userId, isDefault DESC, createdAt DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_payment_methods_user_default
+        ON paymentMethods(userId, isDefault DESC, createdAt DESC, id DESC);
+    `);
     refreshProductReviewStats();
 
     console.log("SQLite Database Inizializzato");
@@ -264,6 +291,29 @@ function hashPassword(password) {
 
 function generateSessionToken() {
     return crypto.randomBytes(32).toString("hex");
+}
+
+function parseOrderItems(itemsValue) {
+    if (typeof itemsValue !== "string") {
+        return Array.isArray(itemsValue) ? itemsValue : [];
+    }
+    try {
+        const parsed = JSON.parse(itemsValue);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+        console.warn("Impossibile leggere gli item ordine:", error.message);
+        return [];
+    }
+}
+
+function normalizeOrderRow(order) {
+    if (!order) {
+        return order;
+    }
+    return {
+        ...order,
+        items: parseOrderItems(order.items),
+    };
 }
 
 function createUser(email, name, password, role = "user") {
@@ -580,33 +630,32 @@ function createOrder(
 
 function getOrderById(orderId) {
     const stmt = db.prepare("SELECT * FROM orders WHERE id = ?");
-    const order = stmt.get(orderId);
-    if (order && typeof order.items === "string") {
-        order.items = JSON.parse(order.items);
-    }
-    return order;
+    return normalizeOrderRow(stmt.get(orderId));
 }
 
 function getOrdersByUserId(userId) {
     const stmt = db.prepare(
         "SELECT * FROM orders WHERE userId = ? ORDER BY createdAt DESC, id DESC",
     );
-    const orders = stmt.all(userId);
-    return orders.map((order) => ({
-        ...order,
-        items:
-            typeof order.items === "string" ? JSON.parse(order.items) : order.items,
-    }));
+    return stmt.all(userId).map(normalizeOrderRow);
 }
 
 function getAllOrders() {
     const stmt = db.prepare("SELECT * FROM orders ORDER BY createdAt DESC, id DESC");
-    const orders = stmt.all();
-    return orders.map((order) => ({
-        ...order,
-        items:
-            typeof order.items === "string" ? JSON.parse(order.items) : order.items,
-    }));
+    return stmt.all().map(normalizeOrderRow);
+}
+
+function getAllOrdersWithUsers() {
+    const stmt = db.prepare(`
+        SELECT
+            o.*,
+            COALESCE(u.email, '') AS userEmail,
+            COALESCE(u.name, 'Cliente') AS userName
+        FROM orders o
+        LEFT JOIN users u ON u.id = o.userId
+        ORDER BY o.createdAt DESC, o.id DESC
+    `);
+    return stmt.all().map(normalizeOrderRow);
 }
 
 function updateOrderStatus(orderId, status) {
@@ -621,11 +670,7 @@ function getOrderByStripePaymentIntentId(stripePaymentIntentId) {
     const stmt = db.prepare(
         "SELECT * FROM orders WHERE stripePaymentIntentId = ?",
     );
-    const order = stmt.get(stripePaymentIntentId);
-    if (order && typeof order.items === "string") {
-        order.items = JSON.parse(order.items);
-    }
-    return order;
+    return normalizeOrderRow(stmt.get(stripePaymentIntentId));
 }
 
 function getAddressById(addressId) {
@@ -753,25 +798,29 @@ function addPaymentMethod(userId, method, isDefault = false) {
             isDefault: shouldBeDefault ? 1 : 0,
         };
 
-        if (tableHasColumn("paymentMethods", "alias")) {
+        const paymentMethodsColumns = new Set(
+            getTableColumns("paymentMethods").map((column) => column.name),
+        );
+
+        if (paymentMethodsColumns.has("alias")) {
             payload.alias = alias;
         }
-        if (tableHasColumn("paymentMethods", "brand")) {
+        if (paymentMethodsColumns.has("brand")) {
             payload.brand = brand;
         }
-        if (tableHasColumn("paymentMethods", "last4")) {
+        if (paymentMethodsColumns.has("last4")) {
             payload.last4 = last4;
         }
-        if (tableHasColumn("paymentMethods", "expiry")) {
+        if (paymentMethodsColumns.has("expiry")) {
             payload.expiry = expiry;
         }
-        if (tableHasColumn("paymentMethods", "cardNumber")) {
+        if (paymentMethodsColumns.has("cardNumber")) {
             payload.cardNumber = last4;
         }
-        if (tableHasColumn("paymentMethods", "cardHolder")) {
+        if (paymentMethodsColumns.has("cardHolder")) {
             payload.cardHolder = alias;
         }
-        if (tableHasColumn("paymentMethods", "expiryDate")) {
+        if (paymentMethodsColumns.has("expiryDate")) {
             payload.expiryDate = expiry;
         }
 
@@ -986,6 +1035,7 @@ module.exports = {
     getOrderById,
     getOrdersByUserId,
     getAllOrders,
+    getAllOrdersWithUsers,
     updateOrderStatus,
     getOrderByStripePaymentIntentId,
     addAddress,

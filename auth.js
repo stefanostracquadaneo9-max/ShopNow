@@ -3,12 +3,20 @@ const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
 const AUTH_STORAGE_VERSION_KEY = "ecommerce-auth-version";
 const AUTH_STORAGE_VERSION = "20260405c";
+const localDataRawCache = new Map();
+const localDataValueCache = new Map();
+let usersSyncPromise = null;
+let productsSyncPromise = null;
 
 window.SHOPNOW_API_BASE_URL = (typeof window !== "undefined" && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'))
     ? "http://localhost:3000"
     : "https://shopnow-production.up.railway.app";
 
 const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
+
+function getDataStorageKey(key) {
+    return `${DB_KEY_PREFIX}${key}`;
+}
 
 function getDefaultProducts() {
     return [
@@ -195,7 +203,7 @@ async function initializeLocalDB() {
         syncUsersFromServer();
         syncProductsFromServer();
         window.DB_INITIALIZING = false;
-        return;
+        return false;
     }
 
     const currentStorageVersion = window.localStorage.getItem(
@@ -303,16 +311,45 @@ async function initializeLocalDB() {
 }
 function saveData(key, data) {
     try {
-        localStorage.setItem(DB_KEY_PREFIX + key, JSON.stringify(data));
+        const storageKey = getDataStorageKey(key);
+        const serializedData = JSON.stringify(data);
+        const cachedRaw = localDataRawCache.has(storageKey)
+            ? localDataRawCache.get(storageKey)
+            : localStorage.getItem(storageKey);
+        if (cachedRaw === serializedData) {
+            localDataRawCache.set(storageKey, serializedData);
+            localDataValueCache.set(storageKey, data);
+            return false;
+        }
+        localStorage.setItem(storageKey, serializedData);
+        localDataRawCache.set(storageKey, serializedData);
+        localDataValueCache.set(storageKey, data);
         console.log(`💾 Dati salvati: ${key}`);
+        return true;
     } catch (error) {
         console.error("Errore salvataggio dati:", error);
+        return false;
     }
 }
 function loadData(key, defaultValue = {}) {
     try {
-        const data = localStorage.getItem(DB_KEY_PREFIX + key);
-        return data ? JSON.parse(data) : defaultValue;
+        const storageKey = getDataStorageKey(key);
+        const rawData = localStorage.getItem(storageKey);
+        if (rawData == null) {
+            localDataRawCache.delete(storageKey);
+            localDataValueCache.delete(storageKey);
+            return defaultValue;
+        }
+        if (
+            localDataRawCache.get(storageKey) === rawData &&
+            localDataValueCache.has(storageKey)
+        ) {
+            return localDataValueCache.get(storageKey);
+        }
+        const parsedData = JSON.parse(rawData);
+        localDataRawCache.set(storageKey, rawData);
+        localDataValueCache.set(storageKey, parsedData);
+        return parsedData;
     } catch (error) {
         console.error("Errore caricamento dati:", error);
         return defaultValue;
@@ -472,15 +509,19 @@ async function tryServerLogin(email, password) {
 }
 async function syncUsersFromServer() {
     if (!prefersServerAuth()) {
-        return;
+        return false;
     }
-    try {
+    if (usersSyncPromise) {
+        return usersSyncPromise;
+    }
+    usersSyncPromise = (async () => {
+        try {
         const response = await fetch(getAuthApiUrl("/api/auth/users"), {
             headers: getAuthRequestHeaders(),
         });
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.users || !Array.isArray(data.users)) {
-            return;
+            return false;
         }
         let localUsers = loadData("users", {});
         let changed = false;
@@ -521,28 +562,40 @@ async function syncUsersFromServer() {
         if (changed) {
             saveData("users", localUsers);
         }
-    } catch (error) {
-        console.warn("Sync utenti server non disponibile:", error.message);
-    }
+        } catch (error) {
+            console.warn("Sync utenti server non disponibile:", error.message);
+            return false;
+        } finally {
+            usersSyncPromise = null;
+        }
+    })();
+    return usersSyncPromise;
 }
 async function syncProductsFromServer() {
     if (!prefersServerAuth()) {
-        return;
+        return false;
     }
-    try {
+    if (productsSyncPromise) {
+        return productsSyncPromise;
+    }
+    productsSyncPromise = (async () => {
+        try {
         const response = await fetch(getAuthApiUrl("/api/products"), {
             headers: getBackendRequestHeaders(),
         });
         const data = await response.json().catch(() => null);
         if (!response.ok || !Array.isArray(data)) {
             console.warn("Risposta server prodotti non valida");
-            return;
+            return false;
         }
         const normalizedProducts = data.map((product) => ({
             ...product,
             image: resolveProductImage(product),
         }));
-        saveData("products", normalizedProducts);
+        const didWrite = saveData("products", normalizedProducts);
+        if (!didWrite) {
+            return false;
+        }
         console.log(`✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`);
     } catch (error) {
         console.warn("❌ Sync prodotti server fallito:", error.message);
@@ -550,7 +603,12 @@ async function syncProductsFromServer() {
         if (window.location.hostname.includes('github.io')) {
             ensureFallbackProducts();
         }
-    }
+        return false;
+        } finally {
+            productsSyncPromise = null;
+        }
+    })();
+    return productsSyncPromise;
 }
 function ensureFallbackProducts() {
     const existingProducts = getAllProducts();
@@ -1076,13 +1134,11 @@ async function getCurrentUserOrders() {
 }
 function getAllProducts() {
     let products = loadData("products", []);
-    console.log("getAllProducts loaded:", products.length, "products");
 
     // Se non ci sono prodotti e siamo su GitHub Pages, assicuriamoci di averne di fallback
     if ((!products || products.length === 0) && window.location.hostname.includes('github.io')) {
         ensureFallbackProducts();
         products = loadData("products", []);
-        console.log("getAllProducts fallback loaded:", products.length, "products");
     }
 
     return products;

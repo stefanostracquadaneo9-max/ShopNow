@@ -7,8 +7,9 @@
             // Protezione immediata della pagina admin
             (function() {
                 const role = localStorage.getItem('user-role');
+                const hasSession = !!localStorage.getItem('ecommerce-session-token');
                 console.log("Checking admin access, role found:", role);
-                if (role !== 'admin') window.location.href = 'products.html';
+                if (role !== 'admin' && !hasSession) window.location.href = 'products.html';
             })();
         </script>
         <title>🛒 ShopNow - Admin Dashboard</title>
@@ -444,7 +445,8 @@
                             </div>
                             <div
                                 class="mb-3"
-                                id="product-image-preview-wrapper" class="d-none">
+                                id="product-image-preview-wrapper"
+                                style="display: none">
                                 <label class="form-label"
                                     >Anteprima immagine</label
                                 >
@@ -475,7 +477,7 @@
                             class="btn btn-outline-danger me-auto"
                             id="product-remove-image-button"
                             onclick="window.removeProductImageSelection()"
-                            class="d-none"
+                            style="display: none"
                         >
                             Rimuovi Immagine
                         </button>
@@ -592,6 +594,80 @@
                             onclick="confirmDeleteUser()"
                         >
                             Elimina Utente
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div
+            class="modal fade"
+            id="addUserModal"
+            tabindex="-1"
+            aria-hidden="true"
+        >
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Aggiungi Utente</h5>
+                        <button
+                            type="button"
+                            class="btn-close"
+                            data-bs-dismiss="modal"
+                            aria-label="Chiudi"
+                        ></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-user-form">
+                            <div class="mb-3">
+                                <label class="form-label">Nome</label>
+                                <input
+                                    type="text"
+                                    class="form-control"
+                                    id="user-name"
+                                    required
+                                />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Email</label>
+                                <input
+                                    type="email"
+                                    class="form-control"
+                                    id="user-email"
+                                    required
+                                />
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <input
+                                    type="password"
+                                    class="form-control"
+                                    id="user-password"
+                                    required
+                                />
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label">Ruolo</label>
+                                <select class="form-select" id="user-role">
+                                    <option value="user" selected>Utente</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button
+                            type="button"
+                            class="btn btn-secondary"
+                            data-bs-dismiss="modal"
+                        >
+                            Annulla
+                        </button>
+                        <button
+                            type="button"
+                            class="btn btn-primary"
+                            onclick="saveUser()"
+                        >
+                            Salva Utente
                         </button>
                     </div>
                 </div>
