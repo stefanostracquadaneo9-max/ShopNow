@@ -1498,6 +1498,19 @@ app.post("/api/admin/restore", requireAdmin, (req, res) => {
     }
 });
 
+app.get("/api/admin/backup", requireAdmin, (req, res) => {
+    try {
+        const backupData = db_module.exportFullBackup();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        res.setHeader('Content-disposition', `attachment; filename=shopnow_backup_${timestamp}.json`);
+        res.setHeader('Content-type', 'application/json');
+        res.send(JSON.stringify(backupData, null, 2));
+    } catch (error) {
+        console.error("Errore generazione backup:", error);
+        res.status(500).json({ error: "Errore durante la creazione del backup" });
+    }
+});
+
 app.get("/api/admin/stripe-summary", requireAdmin, async (req, res) => {
     try {
         const summary = await getStripeDashboardSummary(100);
