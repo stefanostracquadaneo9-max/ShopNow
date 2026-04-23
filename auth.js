@@ -676,8 +676,10 @@ async function loginUser(email, password) {
             setSessionToken(serverUser.sessionToken, preferredServerLogin.data.refreshToken);
             
             // Salva ruolo e reindirizza
-            localStorage.setItem("user-role", serverUser.role);
-            if (serverUser.role === "admin") {
+            const role = String(serverUser.role || "user").trim().toLowerCase();
+            localStorage.setItem("user-role", role);
+            
+            if (role === "admin") {
                 window.location.href = "admin.html";
             } else {
                 window.location.href = "products.html";
@@ -732,8 +734,10 @@ async function loginUser(email, password) {
         setSessionToken(sessionToken);
 
         // Salva ruolo e reindirizza (Modalità Statica)
-        localStorage.setItem("user-role", storedUser.role);
-        if (storedUser.role === "admin") {
+        const role = String(storedUser.role || "user").trim().toLowerCase();
+        localStorage.setItem("user-role", role);
+        
+        if (role === "admin") {
             window.location.href = "admin.html";
         } else {
             window.location.href = "products.html";

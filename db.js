@@ -889,7 +889,11 @@ function seedDatabase() {
             console.error("[SEED] Errore critico durante la creazione dell'admin:", e.message);
         }
     } else {
-        console.log(`[SEED] Admin ${ADMIN_EMAIL} già presente (Ruolo: ${adminUser.role}).`);
+        if (adminUser.role !== "admin") {
+            console.log(`[SEED] Aggiornamento ruolo admin forzato per ${ADMIN_EMAIL}...`);
+            db.prepare("UPDATE users SET role = 'admin' WHERE email = ?").run(ADMIN_EMAIL);
+        }
+        console.log(`[SEED] Admin ${ADMIN_EMAIL} pronto (Ruolo: admin).`);
     }
 
     const existingRows = db.prepare("SELECT name FROM products").all();
