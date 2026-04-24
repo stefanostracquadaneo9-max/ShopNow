@@ -7,9 +7,9 @@ const path = require("path");
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
 const stripe = stripeSecretKey ? require("stripe")(stripeSecretKey) : null;
 if (!stripe) {
-    console.error(
-        "⚠️ Stripe non configurato: STRIPE_SECRET_KEY non trovato in .env o nelle variabili d'ambiente.",
-    );
+  console.error(
+    "⚠️ Stripe non configurato: STRIPE_SECRET_KEY non trovato in .env o nelle variabili d'ambiente.",
+  );
 }
 const db_module = require("./db");
 const app = express();
@@ -20,506 +20,511 @@ const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const CHECKOUT_VAT_RATE = 0.22;
 let sentEmails = [];
 const {
-    db,
-    createUser,
-    getUserByEmail,
-    getUserBySessionToken,
-    getUserByRefreshToken,
-    getUserById,
-    authenticateUser,
-    getAllUsers,
-    updateUser,
-    deleteUser,
-    deleteUsersByDomain,
-    createProduct,
-    getProductById,
-    getAllProducts,
-    updateProduct,
-    deleteProduct,
-    getReviewsByProductId,
-    addOrUpdateProductReview,
-    consumeProductStock,
-    createOrder,
-    getOrderById,
-    getOrderByStripePaymentIntentId,
-    getOrdersByUserId,
-    getAllOrders,
-    getAllOrdersWithUsers,
-    updateOrderStatus,
-    addAddress,
-    getAddressById,
-    getAddressesByUserId,
-    deleteAddress,
-    addPaymentMethod,
-    getPaymentMethodById,
-    getPaymentMethodsByUserId,
-    deletePaymentMethod,
-    getCart,
-    updateCart,
-    clearCart,
+  db,
+  createUser,
+  getUserByEmail,
+  getUserBySessionToken,
+  getUserByRefreshToken,
+  getUserById,
+  authenticateUser,
+  verifyPassword,
+  validatePasswordStrength,
+  issueSessionTokens,
+  clearUserSession,
+  updateUserPassword,
+  getAllUsers,
+  updateUser,
+  deleteUser,
+  deleteUsersByDomain,
+  createProduct,
+  getProductById,
+  getAllProducts,
+  updateProduct,
+  deleteProduct,
+  getReviewsByProductId,
+  addOrUpdateProductReview,
+  consumeProductStock,
+  createOrder,
+  getOrderById,
+  getOrderByStripePaymentIntentId,
+  getOrdersByUserId,
+  getAllOrders,
+  getAllOrdersWithUsers,
+  updateOrderStatus,
+  addAddress,
+  getAddressById,
+  getAddressesByUserId,
+  deleteAddress,
+  addPaymentMethod,
+  getPaymentMethodById,
+  getPaymentMethodsByUserId,
+  deletePaymentMethod,
+  getCart,
+  updateCart,
+  clearCart,
 } = db_module;
 app.use(cors());
 app.use(express.json());
 
 // Rotte prioritarie per Healthcheck e UI
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 app.use(
-    express.static(__dirname, {
-        index: "index.html",
-        maxAge: "1d",
-        etag: true,
-        lastModified: true,
-    }),
+  express.static(__dirname, {
+    index: "index.html",
+    maxAge: "1d",
+    etag: true,
+    lastModified: true,
+  }),
 );
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 app.get("/health", (req, res) => {
-    res.status(200).json({
-        ok: true,
-        status: "healthy",
-        uptime: process.uptime(),
-        databasePath: process.env.DB_PATH || path.join(__dirname, "app.db"),
-    });
+  res.status(200).json({
+    ok: true,
+    status: "healthy",
+    uptime: process.uptime(),
+    databasePath: process.env.DB_PATH || path.join(__dirname, "app.db"),
+  });
 });
 
 function requireAuth(req, res, next) {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (!token)
-        return res.status(401).json({ error: "Token di sessione mancante" });
-    const user = getUserBySessionToken(token);
-    if (!user) return res.status(401).json({ error: "Sessione non valida" });
-    req.user = user;
-    next();
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token)
+    return res.status(401).json({ error: "Token di sessione mancante" });
+  const user = getUserBySessionToken(token);
+  if (!user) return res.status(401).json({ error: "Sessione non valida" });
+  req.user = user;
+  next();
 }
 function requireAdmin(req, res, next) {
-    requireAuth(req, res, () => {
-        if (req.user.role !== "admin")
-            return res.status(403).json({
-                error: "Accesso negato - Richiesto ruolo amministratore",
-            });
-        next();
-    });
+  requireAuth(req, res, () => {
+    if (req.user.role !== "admin")
+      return res.status(403).json({
+        error: "Accesso negato - Richiesto ruolo amministratore",
+      });
+    next();
+  });
 }
 let transporter = null;
 let isEmailConfigured = Boolean(
-    process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
+  process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
 );
 if (isEmailConfigured) {
-    const transporterOptions = {
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD,
-        },
-    };
-    if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
-        transporterOptions.tls = { rejectUnauthorized: false };
+  const transporterOptions = {
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  };
+  if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+    transporterOptions.tls = { rejectUnauthorized: false };
+  }
+  transporter = nodemailer.createTransport(transporterOptions);
+  transporter.verify((error, success) => {
+    if (error) {
+      console.log("⚠️ Email non configurato:", error.message);
+    } else {
+      console.log("✅ Email configurato e pronto");
     }
-    transporter = nodemailer.createTransport(transporterOptions);
-    transporter.verify((error, success) => {
-        if (error) {
-            console.log("⚠️ Email non configurato:", error.message);
-        } else {
-            console.log("✅ Email configurato e pronto");
-        }
-    });
+  });
 }
 function getOptionalAuthUser(req) {
-    const token = req.headers.authorization?.replace("Bearer ", "");
-    if (!token) return null;
-    return getUserBySessionToken(token) || null;
+  const token = req.headers.authorization?.replace("Bearer ", "");
+  if (!token) return null;
+  return getUserBySessionToken(token) || null;
 }
 function normalizeProfileAddress(address) {
-    if (!address) return null;
-    return {
-        id: address.id,
-        line1: address.street || address.line1 || "",
-        street: address.street || address.line1 || "",
-        city: address.city || "",
-        postalCode: address.postalCode || "",
-        country: address.country || "",
-        phone: address.phone || "",
-        isDefault: Boolean(address.isDefault),
-        createdAt: address.createdAt,
-    };
+  if (!address) return null;
+  return {
+    id: address.id,
+    line1: address.street || address.line1 || "",
+    street: address.street || address.line1 || "",
+    city: address.city || "",
+    postalCode: address.postalCode || "",
+    country: address.country || "",
+    phone: address.phone || "",
+    isDefault: Boolean(address.isDefault),
+    createdAt: address.createdAt,
+  };
 }
 function normalizeProfilePaymentMethod(method) {
-    if (!method) return null;
-    return {
-        id: method.id,
-        alias: method.alias || method.cardHolder || "",
-        brand: method.brand || "",
-        last4: method.last4 || method.cardNumber || "",
-        expiry: method.expiry || method.expiryDate || "",
-        isDefault: Boolean(method.isDefault),
-        createdAt: method.createdAt,
-    };
+  if (!method) return null;
+  return {
+    id: method.id,
+    alias: method.alias || method.cardHolder || "",
+    brand: method.brand || "",
+    last4: method.last4 || method.cardNumber || "",
+    expiry: method.expiry || method.expiryDate || "",
+    isDefault: Boolean(method.isDefault),
+    createdAt: method.createdAt,
+  };
 }
 function buildProfilePayload(userId) {
-    const user = getUserById(userId);
-    const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
-    const paymentMethods = getPaymentMethodsByUserId(userId).map(
-        normalizeProfilePaymentMethod,
-    );
-    const orders = getOrdersByUserId(userId);
-    return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        addresses: addresses,
-        paymentMethods: paymentMethods,
-        orders: orders,
-        createdAt: user.createdAt,
-    };
+  const user = getUserById(userId);
+  const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
+  const paymentMethods = getPaymentMethodsByUserId(userId).map(
+    normalizeProfilePaymentMethod,
+  );
+  const orders = getOrdersByUserId(userId);
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    addresses: addresses,
+    paymentMethods: paymentMethods,
+    orders: orders,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastLoginAt: user.lastLoginAt || null,
+    passwordUpdatedAt: user.passwordUpdatedAt || null,
+  };
 }
 function normalizeAdminShippingAddress(shippingAddress) {
-    if (!shippingAddress) return null;
-    if (typeof shippingAddress === "string") {
-        try {
-            return JSON.parse(shippingAddress);
-        } catch (error) {
-            return {
-                line1: shippingAddress,
-                city: "",
-                postalCode: "",
-                country: "",
-            };
-        }
+  if (!shippingAddress) return null;
+  if (typeof shippingAddress === "string") {
+    try {
+      return JSON.parse(shippingAddress);
+    } catch (error) {
+      return {
+        line1: shippingAddress,
+        city: "",
+        postalCode: "",
+        country: "",
+      };
     }
-    return shippingAddress;
+  }
+  return shippingAddress;
 }
 function buildAdminUserPayload(userId) {
-    const user = getUserById(userId);
-    if (!user) return null;
-    const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
-    const paymentMethods = getPaymentMethodsByUserId(userId).map(
-        normalizeProfilePaymentMethod,
-    );
-    const orders = getOrdersByUserId(userId).map((order) => ({
-        ...order,
-        shippingAddress: normalizeAdminShippingAddress(order.shippingAddress),
-    }));
-    const totalSpent = orders.reduce(
-        (sum, order) => sum + Number(order.total || 0),
-        0,
-    );
-    return {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-        sessionActive: Boolean(user.sessionToken),
-        addresses: addresses,
-        paymentMethods: paymentMethods,
-        orders: orders,
-        stats: {
-            ordersCount: orders.length,
-            addressesCount: addresses.length,
-            paymentMethodsCount: paymentMethods.length,
-            totalSpent: Number(totalSpent.toFixed(2)),
-        },
-    };
+  const user = getUserById(userId);
+  if (!user) return null;
+  const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
+  const paymentMethods = getPaymentMethodsByUserId(userId).map(
+    normalizeProfilePaymentMethod,
+  );
+  const orders = getOrdersByUserId(userId).map((order) => ({
+    ...order,
+    shippingAddress: normalizeAdminShippingAddress(order.shippingAddress),
+  }));
+  const totalSpent = orders.reduce(
+    (sum, order) => sum + Number(order.total || 0),
+    0,
+  );
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    lastLoginAt: user.lastLoginAt || null,
+    passwordUpdatedAt: user.passwordUpdatedAt || null,
+    sessionActive: Boolean(user.sessionToken),
+    addresses: addresses,
+    paymentMethods: paymentMethods,
+    orders: orders,
+    stats: {
+      ordersCount: orders.length,
+      addressesCount: addresses.length,
+      paymentMethodsCount: paymentMethods.length,
+      totalSpent: Number(totalSpent.toFixed(2)),
+    },
+  };
 }
 function sanitizeFileSegment(value) {
-    return (
-        String(value || "")
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-zA-Z0-9_-]+/g, "_")
-            .replace(/^_+|_+$/g, "")
-            .slice(0, 80) || "product"
-    );
+  return (
+    String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80) || "product"
+  );
 }
 function getProductImageAbsolutePath(imagePath) {
-    if (!imagePath || !String(imagePath).startsWith("uploads/")) return null;
-    const relativePath = String(imagePath).replace(/^uploads[\\/]/, "");
-    return path.join(__dirname, "uploads", relativePath);
+  if (!imagePath || !String(imagePath).startsWith("uploads/")) return null;
+  const relativePath = String(imagePath).replace(/^uploads[\\/]/, "");
+  return path.join(__dirname, "uploads", relativePath);
 }
 function ensureCheckoutUser(customerEmail, customerName) {
-    let user = getUserByEmail(customerEmail);
-    if (user) return user;
-    const randomPassword = `checkout_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-    createUser(
-        customerEmail,
-        customerName || customerEmail.split("@")[0],
-        randomPassword,
-        "user",
-    );
-    return getUserByEmail(customerEmail);
+  let user = getUserByEmail(customerEmail);
+  if (user) return user;
+  const randomPassword = `checkout_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  createUser(
+    customerEmail,
+    customerName || customerEmail.split("@")[0],
+    randomPassword,
+    "user",
+  );
+  return getUserByEmail(customerEmail);
 }
 function getStripeCustomerEmail(paymentIntent) {
-    return (
-        paymentIntent.receipt_email ||
-        paymentIntent.metadata?.customer_email ||
-        paymentIntent.latest_charge?.billing_details?.email ||
-        paymentIntent.charges?.data?.[0]?.billing_details?.email ||
-        ""
-    );
+  return (
+    paymentIntent.receipt_email ||
+    paymentIntent.metadata?.customer_email ||
+    paymentIntent.latest_charge?.billing_details?.email ||
+    paymentIntent.charges?.data?.[0]?.billing_details?.email ||
+    ""
+  );
 }
 function getStripeCustomerName(paymentIntent, customerEmail) {
-    return (
-        paymentIntent.metadata?.customer_name ||
-        paymentIntent.latest_charge?.billing_details?.name ||
-        paymentIntent.charges?.data?.[0]?.billing_details?.name ||
-        customerEmail.split("@")[0] ||
-        "Cliente"
-    );
+  return (
+    paymentIntent.metadata?.customer_name ||
+    paymentIntent.latest_charge?.billing_details?.name ||
+    paymentIntent.charges?.data?.[0]?.billing_details?.name ||
+    customerEmail.split("@")[0] ||
+    "Cliente"
+  );
 }
 function getStripeClient() {
-    if (!stripe) {
-        const error = new Error(
-            "Stripe non configurato. Imposta STRIPE_SECRET_KEY nel file .env o nelle variabili ambiente.",
-        );
-        error.code = "STRIPE_CONFIG_ERROR";
-        throw error;
-    }
-    return stripe;
+  if (!stripe) {
+    const error = new Error(
+      "Stripe non configurato. Imposta STRIPE_SECRET_KEY nel file .env o nelle variabili ambiente.",
+    );
+    error.code = "STRIPE_CONFIG_ERROR";
+    throw error;
+  }
+  return stripe;
 }
 function buildImportedItems(paymentIntent) {
-    const metadataItems = paymentIntent.metadata?.items;
-    if (metadataItems) {
-        try {
-            const parsed = JSON.parse(metadataItems);
-            if (Array.isArray(parsed) && parsed.length) return parsed;
-        } catch (error) {
-            console.warn("Metadata items Stripe non validi:", error.message);
-        }
+  const metadataItems = paymentIntent.metadata?.items;
+  if (metadataItems) {
+    try {
+      const parsed = JSON.parse(metadataItems);
+      if (Array.isArray(parsed) && parsed.length) return parsed;
+    } catch (error) {
+      console.warn("Metadata items Stripe non validi:", error.message);
     }
-    return [
-        {
-            id: 0,
-            name: paymentIntent.description || "Ordine importato da Stripe",
-            quantity: 1,
-            price:
-                Number(
-                    paymentIntent.amount_received || paymentIntent.amount || 0,
-                ) / 100,
-        },
-    ];
+  }
+  return [
+    {
+      id: 0,
+      name: paymentIntent.description || "Ordine importato da Stripe",
+      quantity: 1,
+      price:
+        Number(paymentIntent.amount_received || paymentIntent.amount || 0) /
+        100,
+    },
+  ];
 }
 function buildImportedShippingAddress(paymentIntent) {
-    const metadataShipping = paymentIntent.metadata?.shipping_address;
-    if (metadataShipping) {
-        try {
-            return JSON.parse(metadataShipping);
-        } catch (error) {
-            console.warn("Shipping address Stripe non valido:", error.message);
-        }
+  const metadataShipping = paymentIntent.metadata?.shipping_address;
+  if (metadataShipping) {
+    try {
+      return JSON.parse(metadataShipping);
+    } catch (error) {
+      console.warn("Shipping address Stripe non valido:", error.message);
     }
-    const shipping = paymentIntent.shipping?.address;
-    if (shipping) {
-        return {
-            line1: shipping.line1 || "",
-            city: shipping.city || "",
-            postalCode: shipping.postal_code || "",
-            country: shipping.country || "",
-        };
-    }
-    return { line1: "Non disponibile", city: "", postalCode: "", country: "" };
+  }
+  const shipping = paymentIntent.shipping?.address;
+  if (shipping) {
+    return {
+      line1: shipping.line1 || "",
+      city: shipping.city || "",
+      postalCode: shipping.postal_code || "",
+      country: shipping.country || "",
+    };
+  }
+  return { line1: "Non disponibile", city: "", postalCode: "", country: "" };
 }
 function calculateShippingCost(subtotal) {
-    const normalizedSubtotal = Number(subtotal || 0);
-    if (
-        normalizedSubtotal <= 0 ||
-        normalizedSubtotal >= FREE_SHIPPING_THRESHOLD
-    )
-        return 0;
-    return Number(
-        (normalizedSubtotal * SHIPPING_RATE_UNDER_THRESHOLD).toFixed(2),
-    );
+  const normalizedSubtotal = Number(subtotal || 0);
+  if (normalizedSubtotal <= 0 || normalizedSubtotal >= FREE_SHIPPING_THRESHOLD)
+    return 0;
+  return Number(
+    (normalizedSubtotal * SHIPPING_RATE_UNDER_THRESHOLD).toFixed(2),
+  );
 }
 function buildCheckoutStockSnapshot(items) {
-    if (!Array.isArray(items) || !items.length) {
-        const error = new Error("Il carrello e vuoto");
-        error.code = "INVALID_ORDER_ITEMS";
-        throw error;
+  if (!Array.isArray(items) || !items.length) {
+    const error = new Error("Il carrello e vuoto");
+    error.code = "INVALID_ORDER_ITEMS";
+    throw error;
+  }
+
+  // Ottieni tutti gli ID dei prodotti necessari
+  const productIds = [
+    ...new Set(
+      items
+        .map((item) => Number(item?.id))
+        .filter((id) => Number.isInteger(id) && id > 0),
+    ),
+  ];
+
+  if (productIds.length === 0) {
+    const error = new Error("Nessun prodotto valido nel carrello");
+    error.code = "INVALID_ORDER_ITEMS";
+    throw error;
+  }
+
+  // Carica tutti i prodotti necessari in una sola query
+  const placeholders = productIds.map(() => "?").join(",");
+  const productsStmt = db.prepare(
+    `SELECT * FROM products WHERE id IN (${placeholders})`,
+  );
+  const products = productsStmt.all(...productIds);
+
+  // Crea una mappa per accesso rapido
+  const productsMap = new Map(products.map((p) => [p.id, p]));
+
+  const aggregatedItems = new Map();
+  items.forEach((item) => {
+    const productId = Number(item?.id);
+    const quantity = Math.floor(Number(item?.quantity || 0));
+    if (
+      !Number.isInteger(productId) ||
+      productId <= 0 ||
+      !Number.isInteger(quantity) ||
+      quantity <= 0
+    ) {
+      const error = new Error("Articoli ordine non validi");
+      error.code = "INVALID_ORDER_ITEMS";
+      throw error;
     }
+    aggregatedItems.set(
+      productId,
+      (aggregatedItems.get(productId) || 0) + quantity,
+    );
+  });
 
-    // Ottieni tutti gli ID dei prodotti necessari
-    const productIds = [...new Set(items.map(item => Number(item?.id)).filter(id => Number.isInteger(id) && id > 0))];
-
-    if (productIds.length === 0) {
-        const error = new Error("Nessun prodotto valido nel carrello");
-        error.code = "INVALID_ORDER_ITEMS";
-        throw error;
+  const normalizedItems = [];
+  let subtotal = 0;
+  aggregatedItems.forEach((quantity, productId) => {
+    const product = productsMap.get(productId);
+    if (!product) {
+      const error = new Error(`Prodotto con ID ${productId} non trovato`);
+      error.code = "PRODUCT_NOT_FOUND";
+      error.productId = productId;
+      throw error;
     }
-
-    // Carica tutti i prodotti necessari in una sola query
-    const placeholders = productIds.map(() => '?').join(',');
-    const productsStmt = db.prepare(`SELECT * FROM products WHERE id IN (${placeholders})`);
-    const products = productsStmt.all(...productIds);
-
-    // Crea una mappa per accesso rapido
-    const productsMap = new Map(products.map(p => [p.id, p]));
-
-    const aggregatedItems = new Map();
-    items.forEach((item) => {
-        const productId = Number(item?.id);
-        const quantity = Math.floor(Number(item?.quantity || 0));
-        if (
-            !Number.isInteger(productId) ||
-            productId <= 0 ||
-            !Number.isInteger(quantity) ||
-            quantity <= 0
-        ) {
-            const error = new Error("Articoli ordine non validi");
-            error.code = "INVALID_ORDER_ITEMS";
-            throw error;
-        }
-        aggregatedItems.set(
-            productId,
-            (aggregatedItems.get(productId) || 0) + quantity,
-        );
+    const availableStock = Math.max(0, Math.floor(Number(product.stock || 0)));
+    if (availableStock < quantity) {
+      const error = new Error(
+        `Stock insufficiente per ${product.name}. Disponibili: ${availableStock}.`,
+      );
+      error.code = "INSUFFICIENT_STOCK";
+      error.productId = product.id;
+      error.productName = product.name;
+      error.availableStock = availableStock;
+      throw error;
+    }
+    const price = Number(product.price || 0);
+    subtotal += price * quantity;
+    normalizedItems.push({
+      id: product.id,
+      name: product.name,
+      price: price,
+      quantity: quantity,
+      image: product.image || "",
+      stock: availableStock,
     });
-
-    const normalizedItems = [];
-    let subtotal = 0;
-    aggregatedItems.forEach((quantity, productId) => {
-        const product = productsMap.get(productId);
-        if (!product) {
-            const error = new Error(`Prodotto con ID ${productId} non trovato`);
-            error.code = "PRODUCT_NOT_FOUND";
-            error.productId = productId;
-            throw error;
-        }
-        const availableStock = Math.max(
-            0,
-            Math.floor(Number(product.stock || 0)),
-        );
-        if (availableStock < quantity) {
-            const error = new Error(
-                `Stock insufficiente per ${product.name}. Disponibili: ${availableStock}.`,
-            );
-            error.code = "INSUFFICIENT_STOCK";
-            error.productId = product.id;
-            error.productName = product.name;
-            error.availableStock = availableStock;
-            throw error;
-        }
-        const price = Number(product.price || 0);
-        subtotal += price * quantity;
-        normalizedItems.push({
-            id: product.id,
-            name: product.name,
-            price: price,
-            quantity: quantity,
-            image: product.image || "",
-            stock: availableStock,
-        });
-    });
-    const shipping = normalizedItems.length
-        ? calculateShippingCost(subtotal)
-        : 0;
-    const vat = subtotal * CHECKOUT_VAT_RATE;
-    const total = Number((subtotal + vat + shipping).toFixed(2));
-    return {
-        items: normalizedItems,
-        subtotal: Number(subtotal.toFixed(2)),
-        vat: Number(vat.toFixed(2)),
-        shipping: Number(shipping.toFixed(2)),
-        total: total,
-    };
+  });
+  const shipping = normalizedItems.length ? calculateShippingCost(subtotal) : 0;
+  const vat = subtotal * CHECKOUT_VAT_RATE;
+  const total = Number((subtotal + vat + shipping).toFixed(2));
+  return {
+    items: normalizedItems,
+    subtotal: Number(subtotal.toFixed(2)),
+    vat: Number(vat.toFixed(2)),
+    shipping: Number(shipping.toFixed(2)),
+    total: total,
+  };
 }
 async function syncStripeHistory(limit = 100) {
-    const stripeClient = getStripeClient();
-    const paymentIntents = await stripeClient.paymentIntents.list({
-        limit: limit,
-        expand: ["data.latest_charge"],
-    });
-    let imported = 0;
-    let skipped = 0;
-    for (const paymentIntent of paymentIntents.data) {
-        if (paymentIntent.status !== "succeeded") {
-            skipped += 1;
-            continue;
-        }
-        if (getOrderByStripePaymentIntentId(paymentIntent.id)) {
-            skipped += 1;
-            continue;
-        }
-        const customerEmail = getStripeCustomerEmail(paymentIntent);
-        if (!customerEmail) {
-            skipped += 1;
-            continue;
-        }
-        const customerName = getStripeCustomerName(
-            paymentIntent,
-            customerEmail,
-        );
-        const checkoutUser = ensureCheckoutUser(customerEmail, customerName);
-        const items = buildImportedItems(paymentIntent);
-        const shippingAddress = buildImportedShippingAddress(paymentIntent);
-        const createdAt = new Date(paymentIntent.created * 1e3).toISOString();
-        const order = createOrder(
-            checkoutUser.id,
-            Number(paymentIntent.amount_received || paymentIntent.amount || 0) /
-                100,
-            items,
-            JSON.stringify(shippingAddress),
-            paymentIntent.id,
-            createdAt,
-        );
-        updateOrderStatus(order.id, "paid");
-        imported += 1;
+  const stripeClient = getStripeClient();
+  const paymentIntents = await stripeClient.paymentIntents.list({
+    limit: limit,
+    expand: ["data.latest_charge"],
+  });
+  let imported = 0;
+  let skipped = 0;
+  for (const paymentIntent of paymentIntents.data) {
+    if (paymentIntent.status !== "succeeded") {
+      skipped += 1;
+      continue;
     }
-    return {
-        imported: imported,
-        skipped: skipped,
-        fetched: paymentIntents.data.length,
-    };
+    if (getOrderByStripePaymentIntentId(paymentIntent.id)) {
+      skipped += 1;
+      continue;
+    }
+    const customerEmail = getStripeCustomerEmail(paymentIntent);
+    if (!customerEmail) {
+      skipped += 1;
+      continue;
+    }
+    const customerName = getStripeCustomerName(paymentIntent, customerEmail);
+    const checkoutUser = ensureCheckoutUser(customerEmail, customerName);
+    const items = buildImportedItems(paymentIntent);
+    const shippingAddress = buildImportedShippingAddress(paymentIntent);
+    const createdAt = new Date(paymentIntent.created * 1e3).toISOString();
+    const order = createOrder(
+      checkoutUser.id,
+      Number(paymentIntent.amount_received || paymentIntent.amount || 0) / 100,
+      items,
+      JSON.stringify(shippingAddress),
+      paymentIntent.id,
+      createdAt,
+    );
+    updateOrderStatus(order.id, "paid");
+    imported += 1;
+  }
+  return {
+    imported: imported,
+    skipped: skipped,
+    fetched: paymentIntents.data.length,
+  };
 }
 async function getStripeDashboardSummary(limit = 100) {
-    try {
-        const stripeClient = getStripeClient();
-        const paymentIntents = await stripeClient.paymentIntents.list({
-            limit: limit,
-            expand: ["data.latest_charge"],
-        });
-        const succeededPaymentIntents = paymentIntents.data.filter(
-            (paymentIntent) => paymentIntent.status === "succeeded",
+  try {
+    const stripeClient = getStripeClient();
+    const paymentIntents = await stripeClient.paymentIntents.list({
+      limit: limit,
+      expand: ["data.latest_charge"],
+    });
+    const succeededPaymentIntents = paymentIntents.data.filter(
+      (paymentIntent) => paymentIntent.status === "succeeded",
+    );
+    const stripeRevenue = succeededPaymentIntents.reduce(
+      (sum, paymentIntent) => {
+        return (
+          sum +
+          Number(paymentIntent.amount_received || paymentIntent.amount || 0) /
+            100
         );
-        const stripeRevenue = succeededPaymentIntents.reduce(
-            (sum, paymentIntent) => {
-                return (
-                    sum +
-                    Number(
-                        paymentIntent.amount_received || paymentIntent.amount || 0,
-                    ) /
-                        100
-                );
-            },
-            0,
-        );
-        console.log(`Stripe: ${succeededPaymentIntents.length} ordini, €${stripeRevenue.toFixed(2)} di ricavi`);
-        return {
-            ordersCount: succeededPaymentIntents.length,
-            revenue: stripeRevenue,
-            paymentIntents: succeededPaymentIntents,
-        };
-    } catch (error) {
-        console.error("Errore caricamento Stripe:", error.message);
-        throw error;
-    }
+      },
+      0,
+    );
+    console.log(
+      `Stripe: ${succeededPaymentIntents.length} ordini, €${stripeRevenue.toFixed(2)} di ricavi`,
+    );
+    return {
+      ordersCount: succeededPaymentIntents.length,
+      revenue: stripeRevenue,
+      paymentIntents: succeededPaymentIntents,
+    };
+  } catch (error) {
+    console.error("Errore caricamento Stripe:", error.message);
+    throw error;
+  }
 }
 async function sendOrderConfirmationEmail({
-    customerName,
-    customerEmail,
-    orderId,
-    amount,
-    items,
-    orderDate,
-    shippingAddress,
+  customerName,
+  customerEmail,
+  orderId,
+  amount,
+  items,
+  orderDate,
+  shippingAddress,
 }) {
-    // Crea tabella HTML per gli articoli
-    let itemsHTML = `
+  // Crea tabella HTML per gli articoli
+  let itemsHTML = `
         <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
             <thead>
                 <tr style="background-color: #f8f9fa; border-bottom: 2px solid #ddd;">
@@ -530,40 +535,40 @@ async function sendOrderConfirmationEmail({
             </thead>
             <tbody>
     `;
-    let subtotal = 0;
-    for (const item of items) {
-        const itemTotal = item.price * item.quantity;
-        subtotal += itemTotal;
-        itemsHTML += `
+  let subtotal = 0;
+  for (const item of items) {
+    const itemTotal = item.price * item.quantity;
+    subtotal += itemTotal;
+    itemsHTML += `
                 <tr style="border-bottom: 1px solid #eee;">
                     <td style="padding: 12px; color: #131921;">${item.name}</td>
                     <td style="padding: 12px; text-align: center; color: #131921;">${item.quantity}</td>
                     <td style="padding: 12px; text-align: right; color: #131921;">€${itemTotal.toFixed(2)}</td>
                 </tr>
         `;
-    }
-    itemsHTML += `
+  }
+  itemsHTML += `
             </tbody>
         </table>
     `;
-    const shippingText = shippingAddress
-        ? `${shippingAddress.line1}, ${shippingAddress.postalCode} ${shippingAddress.city}, ${shippingAddress.country}`
-        : "Non specificato";
-    if (!isEmailConfigured || !transporter) {
-        console.warn(
-            "⚠️ Email non configurato (mancano credenziali), ordine salvato normalmente",
-        );
-        return {
-            success: true,
-            emailSent: false,
-            message: "Ordine confermato (email non configurata)",
-        };
-    }
-    const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: customerEmail,
-        subject: `Ordine Confermato #${orderId} - ShopNow`,
-        html: `
+  const shippingText = shippingAddress
+    ? `${shippingAddress.line1}, ${shippingAddress.postalCode} ${shippingAddress.city}, ${shippingAddress.country}`
+    : "Non specificato";
+  if (!isEmailConfigured || !transporter) {
+    console.warn(
+      "⚠️ Email non configurato (mancano credenziali), ordine salvato normalmente",
+    );
+    return {
+      success: true,
+      emailSent: false,
+      message: "Ordine confermato (email non configurata)",
+    };
+  }
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: customerEmail,
+    subject: `Ordine Confermato #${orderId} - ShopNow`,
+    html: `
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -688,10 +693,10 @@ async function sendOrderConfirmationEmail({
         <div class="footer">
             <p><strong>ShopNow - Il tuo marketplace di fiducia</strong></p>
             <div class="footer-links">
-                <a href="${process.env.SHOP_URL || 'http://localhost:3000'}">Shop</a> |
-                <a href="${process.env.SHOP_URL || 'http://localhost:3000'}/account">Account</a> |
-                <a href="${process.env.SHOP_URL || 'http://localhost:3000'}/about">Chi Siamo</a> |
-                <a href="${process.env.SHOP_URL || 'http://localhost:3000'}/privacy">Privacy</a>
+                <a href="${process.env.SHOP_URL || "http://localhost:3000"}">Shop</a> |
+                <a href="${process.env.SHOP_URL || "http://localhost:3000"}/account">Account</a> |
+                <a href="${process.env.SHOP_URL || "http://localhost:3000"}/about">Chi Siamo</a> |
+                <a href="${process.env.SHOP_URL || "http://localhost:3000"}/privacy">Privacy</a>
             </div>
             <p>&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
             <p style="margin-top: 15px; opacity: 0.8;">
@@ -702,355 +707,366 @@ async function sendOrderConfirmationEmail({
 </body>
 </html>
         `,
-    };
-    await transporter.sendMail(mailOptions);
-    sentEmails.push({
-        subject: mailOptions.subject,
-        to: customerEmail,
-        text: `Ordine #${orderId} confermato - Totale €${amount.toFixed(2)}`,
-        timestamp: new Date().toLocaleString("it-IT"),
-        orderId: orderId,
-    });
-    console.log(`✅ Email inviata a ${customerEmail}`);
-    return {
-        success: true,
-        emailSent: true,
-        message: "Email inviata con successo",
-    };
+  };
+  await transporter.sendMail(mailOptions);
+  sentEmails.push({
+    subject: mailOptions.subject,
+    to: customerEmail,
+    text: `Ordine #${orderId} confermato - Totale €${amount.toFixed(2)}`,
+    timestamp: new Date().toLocaleString("it-IT"),
+    orderId: orderId,
+  });
+  console.log(`✅ Email inviata a ${customerEmail}`);
+  return {
+    success: true,
+    emailSent: true,
+    message: "Email inviata con successo",
+  };
 }
 app.post("/create-payment-intent", async (req, res) => {
-    try {
-        const { amount, customerName, customerEmail, items } = req.body;
-        const stripeClient = getStripeClient();
-        let payableAmount = Number(amount || 0);
-        if (Array.isArray(items) && items.length) {
-            const checkoutSnapshot = buildCheckoutStockSnapshot(items);
-            payableAmount = checkoutSnapshot.total;
-            if (amount && Math.abs(Number(amount) - payableAmount) > 0.01) {
-                return res.status(400).json({
-                    error: "Totale ordine non coerente con i prezzi correnti",
-                });
-            }
-        }
-        if (!payableAmount || payableAmount <= 0) {
-            return res.status(400).json({ error: "Amount non valido" });
-        }
-        const paymentIntent = await stripeClient.paymentIntents.create({
-            amount: Math.round(payableAmount * 100),
-            currency: "eur",
-            description: `Ordine da ${customerName}`,
-            receipt_email: customerEmail,
-            metadata: {
-                customer_name: customerName,
-                customer_email: customerEmail,
-            },
+  try {
+    const { amount, customerName, customerEmail, items } = req.body;
+    const stripeClient = getStripeClient();
+    let payableAmount = Number(amount || 0);
+    if (Array.isArray(items) && items.length) {
+      const checkoutSnapshot = buildCheckoutStockSnapshot(items);
+      payableAmount = checkoutSnapshot.total;
+      if (amount && Math.abs(Number(amount) - payableAmount) > 0.01) {
+        return res.status(400).json({
+          error: "Totale ordine non coerente con i prezzi correnti",
         });
-        res.json({
-            clientSecret: paymentIntent.client_secret,
-            amount: payableAmount,
-        });
-    } catch (error) {
-        console.error("Errore Payment Intent:", error);
-        const statusCode = [
-            "INVALID_ORDER_ITEMS",
-            "PRODUCT_NOT_FOUND",
-        ].includes(error.code)
-            ? 400
-            : error.code === "INSUFFICIENT_STOCK"
-              ? 409
-              : 500;
-        res.status(statusCode).json({
-            error: error.message,
-            productId: error.productId,
-            availableStock: error.availableStock,
-        });
+      }
     }
+    if (!payableAmount || payableAmount <= 0) {
+      return res.status(400).json({ error: "Amount non valido" });
+    }
+    const paymentIntent = await stripeClient.paymentIntents.create({
+      amount: Math.round(payableAmount * 100),
+      currency: "eur",
+      description: `Ordine da ${customerName}`,
+      receipt_email: customerEmail,
+      metadata: {
+        customer_name: customerName,
+        customer_email: customerEmail,
+      },
+    });
+    res.json({
+      clientSecret: paymentIntent.client_secret,
+      amount: payableAmount,
+    });
+  } catch (error) {
+    console.error("Errore Payment Intent:", error);
+    const statusCode = ["INVALID_ORDER_ITEMS", "PRODUCT_NOT_FOUND"].includes(
+      error.code,
+    )
+      ? 400
+      : error.code === "INSUFFICIENT_STOCK"
+        ? 409
+        : 500;
+    res.status(statusCode).json({
+      error: error.message,
+      productId: error.productId,
+      availableStock: error.availableStock,
+    });
+  }
 });
 app.post("/confirm-payment", async (req, res) => {
-    try {
-        const { paymentIntentId } = req.body;
-        const stripeClient = getStripeClient();
-        const paymentIntent =
-            await stripeClient.paymentIntents.retrieve(paymentIntentId);
-        if (paymentIntent.status === "succeeded") {
-            res.json({
-                success: true,
-                orderId: paymentIntent.id,
-                amount: paymentIntent.amount / 100,
-                message: "Pagamento completato con successo!",
-            });
-        } else {
-            res.status(400).json({
-                success: false,
-                message: "Pagamento non completato",
-            });
-        }
-    } catch (error) {
-        console.error("Errore conferma pagamento:", error);
-        res.status(500).json({ error: error.message });
+  try {
+    const { paymentIntentId } = req.body;
+    const stripeClient = getStripeClient();
+    const paymentIntent =
+      await stripeClient.paymentIntents.retrieve(paymentIntentId);
+    if (paymentIntent.status === "succeeded") {
+      res.json({
+        success: true,
+        orderId: paymentIntent.id,
+        amount: paymentIntent.amount / 100,
+        message: "Pagamento completato con successo!",
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: "Pagamento non completato",
+      });
     }
+  } catch (error) {
+    console.error("Errore conferma pagamento:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 app.post("/api/checkout", async (req, res) => {
-    try {
-        const {
-            paymentIntentId,
-            items,
-            total,
-            shippingAddress,
-            customerName,
-            customerEmail,
-            fileModeCheckout,
-            cardSummary,
-            skipStripe, // Nuovo parametro per saltare Stripe nei test
-            skipEmail, // Nuovo parametro per saltare l'invio email nei test
-            skipValidation, // Nuovo parametro per saltare la validazione completa nei test
-        } = req.body;
-        const isFileModeCheckout =
-            fileModeCheckout === true ||
-            fileModeCheckout === "true" ||
-            !paymentIntentId;
-        if (
-            !Array.isArray(items) ||
-            !items.length ||
-            !total ||
-            !shippingAddress ||
-            !customerEmail ||
-            !customerName
-        ) {
-            console.error("❌ Checkout fallito: Dati incompleti ricevuti dal client.");
-            return res.status(400).json({ error: "Dati checkout incompleti" });
-        }
-        // Salta validazione completa se richiesto per test di velocità
-        let checkoutSnapshot = null;
-        if (skipValidation === true || skipValidation === "true") {
-            console.log("ℹ️ Skipping validation (Test Mode)");
-            checkoutSnapshot = {
-                items: items.map(item => ({
-                    id: item.id,
-                    name: `Product ${item.id}`,
-                    price: 100,
-                    quantity: item.quantity,
-                    image: "",
-                    stock: 100
-                })),
-                subtotal: 200,
-                vat: 44,
-                shipping: 0,
-                total: total || 244
-            };
-        } else {
-            checkoutSnapshot = buildCheckoutStockSnapshot(items);
-            if (Math.abs(checkoutSnapshot.total - Number(total)) > 0.01) {
-                console.error(`❌ Checkout fallito: Discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`);
-                return res.status(400).json({
-                    error: "Totale ordine non coerente con i prezzi correnti",
-                });
-            }
-        }
-        const expectedAmount = Math.round(checkoutSnapshot.total * 100);
-        let confirmedPaymentIntent = null;
-
-        // Se skipStripe è true, salta completamente Stripe per i test
-        if (skipStripe === true || skipStripe === "true") {
-            console.log("ℹ️ Stripe bypassato tramite skipStripe flag.");
-            confirmedPaymentIntent = {
-                id: `pi_test_${Date.now()}`,
-                status: 'succeeded',
-                amount: expectedAmount,
-                currency: 'eur',
-                client_secret: 'test_secret',
-                metadata: {
-                    customer_name: customerName,
-                    customer_email: customerEmail,
-                    checkout_mode: "test_skip_stripe",
-                }
-            };
-        } else if (isFileModeCheckout) {
-            const stripeClient = getStripeClient();
-            confirmedPaymentIntent = await stripeClient.paymentIntents.create({
-                amount: expectedAmount,
-                currency: "eur",
-                payment_method: "pm_card_visa",
-                confirm: true,
-                automatic_payment_methods: {
-                    enabled: true,
-                    allow_redirects: "never",
-                },
-                receipt_email: customerEmail,
-                description: `Ordine file mode - ${customerName}`,
-                metadata: {
-                    customer_name: customerName,
-                    customer_email: customerEmail,
-                    card_brand: cardSummary?.brand || "Carta",
-                    card_last4: cardSummary?.last4 || "0000",
-                    checkout_mode: "file",
-                },
-            });
-        } else {
-            const paymentIntent =
-                await stripe.paymentIntents.retrieve(paymentIntentId);
-            if (!paymentIntent || paymentIntent.status !== "succeeded") {
-                console.error(`❌ Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`);
-                return res
-                    .status(400)
-                    .json({ error: "Pagamento non confermato da Stripe" });
-            }
-            if (paymentIntent.amount !== expectedAmount) {
-                console.error(`❌ Checkout fallito: L'importo Stripe (${paymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`);
-                return res.status(400).json({
-                    error: "Importo pagamento non coerente con l'ordine",
-                });
-            }
-            confirmedPaymentIntent = paymentIntent;
-        }
-        const authUser = getOptionalAuthUser(req);
-        const checkoutUser =
-            authUser || ensureCheckoutUser(customerEmail, customerName);
-        const purchasedItems = checkoutSnapshot.items.map(
-            (item) => ({
-                id: item.id,
-                name: item.name,
-                price: item.price,
-                quantity: item.quantity,
-                image: item.image,
-            }),
-        );
-        // Consuma lo stock dei prodotti acquistati (salta se richiesto per i test)
-        if (skipStripe !== true && skipStripe !== "true") {
-            consumeProductStock(checkoutSnapshot.items);
-        }
-        // Crea e aggiorna ordine (salta se richiesto per i test)
-        let updatedOrder = null;
-        if (skipStripe !== true && skipStripe !== "true") {
-            const order = createOrder(
-                checkoutUser.id,
-                checkoutSnapshot.total,
-                purchasedItems,
-                JSON.stringify(shippingAddress),
-                confirmedPaymentIntent.id,
-            );
-            updatedOrder = updateOrderStatus(order.id, "paid");
-            if (authUser) {
-                clearCart(authUser.id);
-            }
-        } else {
-            // Crea ordine fittizio per i test
-            updatedOrder = {
-                id: Date.now(),
-                userId: checkoutUser.id,
-                total: checkoutSnapshot.total,
-                status: "paid",
-                items: purchasedItems,
-                shippingAddress: JSON.stringify(shippingAddress),
-                createdAt: new Date().toISOString(),
-                stripePaymentIntentId: confirmedPaymentIntent.id
-            };
-        }
-        // Invia email di conferma ordine (salta se richiesto per i test)
-        let emailResult = { emailSent: false };
-        if (skipEmail !== true && skipEmail !== "true") {
-            emailResult = await sendOrderConfirmationEmail({
-                customerName: customerName,
-                customerEmail: customerEmail,
-                orderId: updatedOrder.id,
-                amount: checkoutSnapshot.total,
-                items: purchasedItems,
-                orderDate: new Date(updatedOrder.createdAt).toLocaleString("it-IT"),
-                shippingAddress: shippingAddress,
-            });
-        }
-        console.log(`✅ Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`);
-        res.json({
-            success: true,
-            order: updatedOrder,
-            emailSent: emailResult.emailSent,
-            paymentIntentId: confirmedPaymentIntent.id,
-            // Salta l'aggiornamento prodotti se richiesto per i test
-            updatedProducts: (skipStripe === true || skipStripe === "true") ? [] : getAllProducts(),
-        });
-    } catch (error) {
-        console.error("🚨 Errore fatale durante il processo di checkout:", error.message, error.stack);
-        const statusCode = [
-            "INVALID_ORDER_ITEMS",
-            "PRODUCT_NOT_FOUND",
-        ].includes(error.code)
-            ? 400
-            : error.code === "INSUFFICIENT_STOCK"
-              ? 409
-              : 500;
-        res.status(statusCode).json({
-            error: error.message || "Errore interno del server",
-            productId: error.productId,
-            availableStock: error.availableStock,
-        });
+  try {
+    const {
+      paymentIntentId,
+      items,
+      total,
+      shippingAddress,
+      customerName,
+      customerEmail,
+      fileModeCheckout,
+      cardSummary,
+      skipStripe, // Nuovo parametro per saltare Stripe nei test
+      skipEmail, // Nuovo parametro per saltare l'invio email nei test
+      skipValidation, // Nuovo parametro per saltare la validazione completa nei test
+    } = req.body;
+    const isFileModeCheckout =
+      fileModeCheckout === true ||
+      fileModeCheckout === "true" ||
+      !paymentIntentId;
+    if (
+      !Array.isArray(items) ||
+      !items.length ||
+      !total ||
+      !shippingAddress ||
+      !customerEmail ||
+      !customerName
+    ) {
+      console.error(
+        "❌ Checkout fallito: Dati incompleti ricevuti dal client.",
+      );
+      return res.status(400).json({ error: "Dati checkout incompleti" });
     }
+    // Salta validazione completa se richiesto per test di velocità
+    let checkoutSnapshot = null;
+    if (skipValidation === true || skipValidation === "true") {
+      console.log("ℹ️ Skipping validation (Test Mode)");
+      checkoutSnapshot = {
+        items: items.map((item) => ({
+          id: item.id,
+          name: `Product ${item.id}`,
+          price: 100,
+          quantity: item.quantity,
+          image: "",
+          stock: 100,
+        })),
+        subtotal: 200,
+        vat: 44,
+        shipping: 0,
+        total: total || 244,
+      };
+    } else {
+      checkoutSnapshot = buildCheckoutStockSnapshot(items);
+      if (Math.abs(checkoutSnapshot.total - Number(total)) > 0.01) {
+        console.error(
+          `❌ Checkout fallito: Discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`,
+        );
+        return res.status(400).json({
+          error: "Totale ordine non coerente con i prezzi correnti",
+        });
+      }
+    }
+    const expectedAmount = Math.round(checkoutSnapshot.total * 100);
+    let confirmedPaymentIntent = null;
+
+    // Se skipStripe è true, salta completamente Stripe per i test
+    if (skipStripe === true || skipStripe === "true") {
+      console.log("ℹ️ Stripe bypassato tramite skipStripe flag.");
+      confirmedPaymentIntent = {
+        id: `pi_test_${Date.now()}`,
+        status: "succeeded",
+        amount: expectedAmount,
+        currency: "eur",
+        client_secret: "test_secret",
+        metadata: {
+          customer_name: customerName,
+          customer_email: customerEmail,
+          checkout_mode: "test_skip_stripe",
+        },
+      };
+    } else if (isFileModeCheckout) {
+      const stripeClient = getStripeClient();
+      confirmedPaymentIntent = await stripeClient.paymentIntents.create({
+        amount: expectedAmount,
+        currency: "eur",
+        payment_method: "pm_card_visa",
+        confirm: true,
+        automatic_payment_methods: {
+          enabled: true,
+          allow_redirects: "never",
+        },
+        receipt_email: customerEmail,
+        description: `Ordine file mode - ${customerName}`,
+        metadata: {
+          customer_name: customerName,
+          customer_email: customerEmail,
+          card_brand: cardSummary?.brand || "Carta",
+          card_last4: cardSummary?.last4 || "0000",
+          checkout_mode: "file",
+        },
+      });
+    } else {
+      const paymentIntent =
+        await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (!paymentIntent || paymentIntent.status !== "succeeded") {
+        console.error(
+          `❌ Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`,
+        );
+        return res
+          .status(400)
+          .json({ error: "Pagamento non confermato da Stripe" });
+      }
+      if (paymentIntent.amount !== expectedAmount) {
+        console.error(
+          `❌ Checkout fallito: L'importo Stripe (${paymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`,
+        );
+        return res.status(400).json({
+          error: "Importo pagamento non coerente con l'ordine",
+        });
+      }
+      confirmedPaymentIntent = paymentIntent;
+    }
+    const authUser = getOptionalAuthUser(req);
+    const checkoutUser =
+      authUser || ensureCheckoutUser(customerEmail, customerName);
+    const purchasedItems = checkoutSnapshot.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image,
+    }));
+    // Consuma lo stock dei prodotti acquistati (salta se richiesto per i test)
+    if (skipStripe !== true && skipStripe !== "true") {
+      consumeProductStock(checkoutSnapshot.items);
+    }
+    // Crea e aggiorna ordine (salta se richiesto per i test)
+    let updatedOrder = null;
+    if (skipStripe !== true && skipStripe !== "true") {
+      const order = createOrder(
+        checkoutUser.id,
+        checkoutSnapshot.total,
+        purchasedItems,
+        JSON.stringify(shippingAddress),
+        confirmedPaymentIntent.id,
+      );
+      updatedOrder = updateOrderStatus(order.id, "paid");
+      if (authUser) {
+        clearCart(authUser.id);
+      }
+    } else {
+      // Crea ordine fittizio per i test
+      updatedOrder = {
+        id: Date.now(),
+        userId: checkoutUser.id,
+        total: checkoutSnapshot.total,
+        status: "paid",
+        items: purchasedItems,
+        shippingAddress: JSON.stringify(shippingAddress),
+        createdAt: new Date().toISOString(),
+        stripePaymentIntentId: confirmedPaymentIntent.id,
+      };
+    }
+    // Invia email di conferma ordine (salta se richiesto per i test)
+    let emailResult = { emailSent: false };
+    if (skipEmail !== true && skipEmail !== "true") {
+      emailResult = await sendOrderConfirmationEmail({
+        customerName: customerName,
+        customerEmail: customerEmail,
+        orderId: updatedOrder.id,
+        amount: checkoutSnapshot.total,
+        items: purchasedItems,
+        orderDate: new Date(updatedOrder.createdAt).toLocaleString("it-IT"),
+        shippingAddress: shippingAddress,
+      });
+    }
+    console.log(
+      `✅ Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
+    );
+    res.json({
+      success: true,
+      order: updatedOrder,
+      emailSent: emailResult.emailSent,
+      paymentIntentId: confirmedPaymentIntent.id,
+      // Salta l'aggiornamento prodotti se richiesto per i test
+      updatedProducts:
+        skipStripe === true || skipStripe === "true" ? [] : getAllProducts(),
+    });
+  } catch (error) {
+    console.error(
+      "🚨 Errore fatale durante il processo di checkout:",
+      error.message,
+      error.stack,
+    );
+    const statusCode = ["INVALID_ORDER_ITEMS", "PRODUCT_NOT_FOUND"].includes(
+      error.code,
+    )
+      ? 400
+      : error.code === "INSUFFICIENT_STOCK"
+        ? 409
+        : 500;
+    res.status(statusCode).json({
+      error: error.message || "Errore interno del server",
+      productId: error.productId,
+      availableStock: error.availableStock,
+    });
+  }
 });
 app.post("/send-order-email", async (req, res) => {
-    try {
-        const {
-            customerName,
-            customerEmail,
-            orderId,
-            amount,
-            items,
-            orderDate,
-            shippingAddress,
-        } = req.body;
-        const result = await sendOrderConfirmationEmail({
-            customerName: customerName,
-            customerEmail: customerEmail,
-            orderId: orderId,
-            amount: amount,
-            items: items,
-            orderDate: orderDate,
-            shippingAddress: shippingAddress,
-        });
-        res.json(result);
-    } catch (error) {
-        console.error("Errore invio email:", error);
-        res.status(500).json({
-            success: false,
-            error: error.message,
-            emailSent: false,
-        });
-    }
+  try {
+    const {
+      customerName,
+      customerEmail,
+      orderId,
+      amount,
+      items,
+      orderDate,
+      shippingAddress,
+    } = req.body;
+    const result = await sendOrderConfirmationEmail({
+      customerName: customerName,
+      customerEmail: customerEmail,
+      orderId: orderId,
+      amount: amount,
+      items: items,
+      orderDate: orderDate,
+      shippingAddress: shippingAddress,
+    });
+    res.json(result);
+  } catch (error) {
+    console.error("Errore invio email:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      emailSent: false,
+    });
+  }
 });
 app.get("/config", (req, res) =>
-    res.json({
-        stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "pk_test_placeholder",
-        emailConfigured: Boolean(
-            process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
-        ),
-    }),
+  res.json({
+    stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "pk_test_placeholder",
+    emailConfigured: Boolean(
+      process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
+    ),
+  }),
 );
 app.get("/login", (req, res) => {
-    res.sendFile(path.join(__dirname, "index.html"));
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 app.get("/register", (req, res) => {
-    res.sendFile(path.join(__dirname, "register.html"));
+  res.sendFile(path.join(__dirname, "register.html"));
 });
 app.get("/products", requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, "products.html"));
+  res.sendFile(path.join(__dirname, "products.html"));
 });
 app.get("/cart", requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, "cart.html"));
+  res.sendFile(path.join(__dirname, "cart.html"));
 });
 app.get("/checkout", requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, "checkout.html"));
+  res.sendFile(path.join(__dirname, "checkout.html"));
 });
 app.get("/orders", requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, "orders.html"));
+  res.sendFile(path.join(__dirname, "orders.html"));
 });
 app.get("/profile", requireAuth, (req, res) => {
-    res.sendFile(path.join(__dirname, "account.html"));
+  res.sendFile(path.join(__dirname, "account.html"));
 });
 app.get("/admin", requireAdmin, (req, res) => {
-    res.sendFile(path.join(__dirname, "admin.html"));
+  res.sendFile(path.join(__dirname, "admin.html"));
 });
 app.get("/emails-view", (req, res) => {
-    const emailsHtml = sentEmails
-        .map(
-            (email) => `
+  const emailsHtml = sentEmails
+    .map(
+      (email) => `
             <div class="card mb-3">
                 <div class="card-body">
                     <h5 class="card-title">${email.subject}</h5>
@@ -1060,9 +1076,9 @@ app.get("/emails-view", (req, res) => {
                 </div>
             </div>
         `,
-        )
-        .join("");
-    res.send(`
+    )
+    .join("");
+  res.send(`
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -1082,726 +1098,834 @@ app.get("/emails-view", (req, res) => {
         `);
 });
 app.post("/register", async (req, res) => {
-    try {
-        const name = String(req.body.name || "").trim();
-        const email = String(req.body.email || "")
-            .trim()
-            .toLowerCase();
-        const password = String(req.body.password || "").trim();
-        if (!name || !email || !password)
-            return res.status(400).json({ error: "Compila tutti i campi" });
-        const user = createUser(email, name, password, "user");
-        res.json({
-            success: true,
-            message: "Account creato con successo",
-            user: {
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                role: user.role,
-            },
-        });
-    } catch (error) {
-        console.error("Errore registrazione:", error);
-        res.status(400).json({
-            error: error.message || "Errore registrazione",
-        });
-    }
+  try {
+    const name = String(req.body.name || "").trim();
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const password = String(req.body.password || "").trim();
+    if (!name || !email || !password)
+      return res.status(400).json({ error: "Compila tutti i campi" });
+    const user = createUser(email, name, password, "user");
+    res.json({
+      success: true,
+      message: "Account creato con successo",
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    console.error("Errore registrazione:", error);
+    res.status(400).json({
+      error: error.message || "Errore registrazione",
+    });
+  }
 });
 app.post("/login", async (req, res) => {
-    try {
-        const email = String(req.body.email || "")
-            .trim()
-            .toLowerCase();
-        console.log('Login attempt:', email);
-        const password = String(req.body.password || "").trim();
-        if (!email || !password)
-            return res
-                .status(400)
-                .json({ error: "Inserisci email e password" });
-        const user = authenticateUser(email, password);
-        const role = (email === "admin@gmail.com") ? "admin" : user.role;
-        res.json({
-            success: true,
-            user: { // Struttura garantita per il reindirizzamento in auth.js
-                id: user.id,
-                email: user.email,
-                name: user.name,
-                role: role,
-            },
-            sessionToken: user.sessionToken,
-            refreshToken: user.refreshToken,
-        });
-    } catch (error) {
-        console.error("Errore login:", error);
-        res.status(401).json({
-            error: error.message || "Email o password errati",
-        });
-    }
+  try {
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    console.log("Login attempt:", email);
+    const password = String(req.body.password || "").trim();
+    if (!email || !password)
+      return res.status(400).json({ error: "Inserisci email e password" });
+    const user = authenticateUser(email, password);
+    res.json({
+      success: true,
+      user: {
+        // Struttura garantita per il reindirizzamento in auth.js
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      },
+      sessionToken: user.sessionToken,
+      refreshToken: user.refreshToken,
+    });
+  } catch (error) {
+    console.error("Errore login:", error);
+    res.status(401).json({
+      error: error.message || "Email o password errati",
+    });
+  }
+});
+app.post("/api/auth/logout", requireAuth, (req, res) => {
+  try {
+    clearUserSession(req.user.id);
+    res.json({ success: true, message: "Logout completato" });
+  } catch (error) {
+    console.error("Errore logout:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/api/admin/users", requireAdmin, (req, res) => {
-    try {
-        const name = String(req.body.name || "").trim();
-        const email = String(req.body.email || "")
-            .trim()
-            .toLowerCase();
-        const password = String(req.body.password || "").trim();
-        const role =
-            String(req.body.role || "user").trim().toLowerCase() === "admin"
-                ? "admin"
-                : "user";
+  try {
+    const name = String(req.body.name || "").trim();
+    const email = String(req.body.email || "")
+      .trim()
+      .toLowerCase();
+    const password = String(req.body.password || "").trim();
+    const role =
+      String(req.body.role || "user")
+        .trim()
+        .toLowerCase() === "admin"
+        ? "admin"
+        : "user";
 
-        if (!name || !email || !password) {
-            return res.status(400).json({ error: "Compila tutti i campi" });
-        }
-
-        const createdUser = createUser(email, name, password, role);
-
-        res.json({
-            success: true,
-            message: "Utente creato con successo",
-            user:
-                buildAdminUserPayload(createdUser.id) || {
-                    id: createdUser.id,
-                    email: createdUser.email,
-                    name: createdUser.name,
-                    role: createdUser.role,
-                },
-        });
-    } catch (error) {
-        console.error("Errore creazione utente admin:", error);
-        res.status(400).json({
-            error: error.message || "Errore creazione utente",
-        });
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: "Compila tutti i campi" });
     }
+
+    const createdUser = createUser(email, name, password, role);
+
+    res.json({
+      success: true,
+      message: "Utente creato con successo",
+      user: buildAdminUserPayload(createdUser.id) || {
+        id: createdUser.id,
+        email: createdUser.email,
+        name: createdUser.name,
+        role: createdUser.role,
+      },
+    });
+  } catch (error) {
+    console.error("Errore creazione utente admin:", error);
+    res.status(400).json({
+      error: error.message || "Errore creazione utente",
+    });
+  }
 });
 app.post("/api/admin/users/mass-delete", requireAdmin, (req, res) => {
-    try {
-        const { domain } = req.body;
-        if (!domain) return res.status(400).json({ error: "Dominio richiesto" });
-        const count = deleteUsersByDomain(domain);
-        res.json({ success: true, message: `Eliminati ${count} utenti con dominio ${domain}` });
-    } catch (error) {
-        console.error("Errore mass delete:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const { domain } = req.body;
+    if (!domain) return res.status(400).json({ error: "Dominio richiesto" });
+    const count = deleteUsersByDomain(domain);
+    res.json({
+      success: true,
+      message: `Eliminati ${count} utenti con dominio ${domain}`,
+    });
+  } catch (error) {
+    console.error("Errore mass delete:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 
 app.get("/api/auth/users", requireAdmin, (req, res) => {
-    try {
-        const users = db
-            .prepare(
-                `
+  try {
+    const users = db
+      .prepare(
+        `
             SELECT id, email, name, role, createdAt
             FROM users
         `,
-            )
-            .all();
-        res.json({ success: true, users: users });
-    } catch (error) {
-        console.error("Errore elenco utenti auth:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+      )
+      .all();
+    res.json({ success: true, users: users });
+  } catch (error) {
+    console.error("Errore elenco utenti auth:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
+});
+app.post("/api/admin/users/:id/password", requireAdmin, (req, res) => {
+  try {
+    const userId = Number(req.params.id);
+    const password = String(req.body.password || "").trim();
+    const targetUser = getUserById(userId);
+
+    if (!targetUser) {
+      return res.status(404).json({ error: "Utente non trovato" });
     }
+
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    updateUserPassword(userId, password);
+    res.json({
+      success: true,
+      message: "Password aggiornata con successo",
+      user: buildAdminUserPayload(userId),
+    });
+  } catch (error) {
+    console.error("Errore aggiornamento password admin:", error);
+    res.status(400).json({
+      error: error.message || "Errore aggiornamento password",
+    });
+  }
 });
 app.get("/api/profile", requireAuth, (req, res) => {
-    try {
-        res.json(buildProfilePayload(req.user.id));
-    } catch (error) {
-        console.error("Errore profilo:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    res.json(buildProfilePayload(req.user.id));
+  } catch (error) {
+    console.error("Errore profilo:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.put("/api/profile", requireAuth, (req, res) => {
-    try {
-        const { name } = req.body;
-        updateUser(req.user.id, { name: name });
-        res.json({
-            success: true,
-            message: "Profilo aggiornato",
-            user: buildProfilePayload(req.user.id),
-        });
-    } catch (error) {
-        console.error("Errore aggiornamento profilo:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+  try {
+    const { name } = req.body;
+    updateUser(req.user.id, { name: name });
+    res.json({
+      success: true,
+      message: "Profilo aggiornato",
+      user: buildProfilePayload(req.user.id),
+    });
+  } catch (error) {
+    console.error("Errore aggiornamento profilo:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
+});
+app.post("/api/profile/password", requireAuth, (req, res) => {
+  try {
+    const currentPassword = String(req.body.currentPassword || "").trim();
+    const newPassword = String(req.body.newPassword || "").trim();
+    const confirmPassword = String(req.body.confirmPassword || "").trim();
+    const currentUser = getUserById(req.user.id);
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({
+        error: "Compila tutti i campi password",
+      });
     }
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({
+        error: "Le nuove password non coincidono",
+      });
+    }
+    if (!currentUser) {
+      return res.status(404).json({ error: "Utente non trovato" });
+    }
+
+    const currentPasswordCheck = verifyPassword(
+      currentPassword,
+      currentUser.passwordHash,
+    );
+    if (!currentPasswordCheck.valid) {
+      return res.status(401).json({
+        error: "Password attuale non valida",
+      });
+    }
+
+    const passwordError = validatePasswordStrength(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
+    updateUserPassword(req.user.id, newPassword);
+    const session = issueSessionTokens(req.user.id);
+
+    res.json({
+      success: true,
+      message: "Password aggiornata con successo",
+      sessionToken: session.sessionToken,
+      refreshToken: session.refreshToken,
+      user: buildProfilePayload(req.user.id),
+    });
+  } catch (error) {
+    console.error("Errore aggiornamento password profilo:", error);
+    res.status(400).json({
+      error: error.message || "Errore aggiornamento password",
+    });
+  }
 });
 app.get("/api/orders", requireAuth, (req, res) => {
-    try {
-        const orders = getOrdersByUserId(req.user.id);
-        res.json({ success: true, orders: orders });
-    } catch (error) {
-        console.error("Errore recupero ordini utente:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const orders = getOrdersByUserId(req.user.id);
+    res.json({ success: true, orders: orders });
+  } catch (error) {
+    console.error("Errore recupero ordini utente:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/api/profile/addresses", requireAuth, (req, res) => {
-    try {
-        const line1 = String(req.body.line1 || req.body.street || "").trim();
-        const city = String(req.body.city || "").trim();
-        const postalCode = String(req.body.postalCode || "").trim();
-        const country = String(req.body.country || "").trim();
-        const phone = String(req.body.phone || "").trim();
-        const isDefault = Boolean(req.body.isDefault);
-        if (!line1 || !city || !postalCode || !country)
-            return res
-                .status(400)
-                .json({ error: "Compila tutti i campi dell'indirizzo" });
-        const address = normalizeProfileAddress(
-            addAddress(
-                req.user.id,
-                line1,
-                city,
-                postalCode,
-                country,
-                phone,
-                isDefault,
-            ),
-        );
-        res.json({
-            success: true,
-            message: "Indirizzo aggiunto",
-            address: address,
-        });
-    } catch (error) {
-        console.error("Errore aggiunta indirizzo:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const line1 = String(req.body.line1 || req.body.street || "").trim();
+    const city = String(req.body.city || "").trim();
+    const postalCode = String(req.body.postalCode || "").trim();
+    const country = String(req.body.country || "").trim();
+    const phone = String(req.body.phone || "").trim();
+    const isDefault = Boolean(req.body.isDefault);
+    if (!line1 || !city || !postalCode || !country)
+      return res
+        .status(400)
+        .json({ error: "Compila tutti i campi dell'indirizzo" });
+    const address = normalizeProfileAddress(
+      addAddress(
+        req.user.id,
+        line1,
+        city,
+        postalCode,
+        country,
+        phone,
+        isDefault,
+      ),
+    );
+    res.json({
+      success: true,
+      message: "Indirizzo aggiunto",
+      address: address,
+    });
+  } catch (error) {
+    console.error("Errore aggiunta indirizzo:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.delete("/api/profile/addresses/:addressId", requireAuth, (req, res) => {
-    try {
-        const addressId = Number(req.params.addressId);
-        const address = getAddressById(addressId);
-        if (!address || address.userId !== req.user.id)
-            return res.status(404).json({ error: "Indirizzo non trovato" });
-        deleteAddress(addressId);
-        res.json({ success: true, message: "Indirizzo eliminato" });
-    } catch (error) {
-        console.error("Errore eliminazione indirizzo:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const addressId = Number(req.params.addressId);
+    const address = getAddressById(addressId);
+    if (!address || address.userId !== req.user.id)
+      return res.status(404).json({ error: "Indirizzo non trovato" });
+    deleteAddress(addressId);
+    res.json({ success: true, message: "Indirizzo eliminato" });
+  } catch (error) {
+    console.error("Errore eliminazione indirizzo:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
-    try {
-        const alias = String(req.body.alias || "").trim();
-        const brand = String(req.body.brand || "").trim();
-        const last4 = String(req.body.last4 || "").trim();
-        const expiry = String(req.body.expiry || "").trim();
-        const isDefault = Boolean(req.body.isDefault);
-        if (!alias || !brand || !last4 || !expiry)
-            return res.status(400).json({
-                error: "Compila tutti i campi del metodo di pagamento",
-            });
-        const paymentMethod = normalizeProfilePaymentMethod(
-            addPaymentMethod(
-                req.user.id,
-                { alias: alias, brand: brand, last4: last4, expiry: expiry },
-                isDefault,
-            ),
-        );
-        res.json({
-            success: true,
-            message: "Metodo di pagamento aggiunto",
-            paymentMethod: paymentMethod,
-        });
-    } catch (error) {
-        console.error("Errore aggiunta metodo pagamento:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const alias = String(req.body.alias || "").trim();
+    const brand = String(req.body.brand || "").trim();
+    const last4 = String(req.body.last4 || "").trim();
+    const expiry = String(req.body.expiry || "").trim();
+    const isDefault = Boolean(req.body.isDefault);
+    if (!alias || !brand || !last4 || !expiry)
+      return res.status(400).json({
+        error: "Compila tutti i campi del metodo di pagamento",
+      });
+    const paymentMethod = normalizeProfilePaymentMethod(
+      addPaymentMethod(
+        req.user.id,
+        { alias: alias, brand: brand, last4: last4, expiry: expiry },
+        isDefault,
+      ),
+    );
+    res.json({
+      success: true,
+      message: "Metodo di pagamento aggiunto",
+      paymentMethod: paymentMethod,
+    });
+  } catch (error) {
+    console.error("Errore aggiunta metodo pagamento:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.delete(
-    "/api/profile/payment-methods/:paymentMethodId",
-    requireAuth,
-    (req, res) => {
-        try {
-            const paymentMethodId = Number(req.params.paymentMethodId);
-            const paymentMethod = getPaymentMethodById(paymentMethodId);
-            if (!paymentMethod || paymentMethod.userId !== req.user.id)
-                return res
-                    .status(404)
-                    .json({ error: "Metodo di pagamento non trovato" });
-            deletePaymentMethod(paymentMethodId);
-            res.json({
-                success: true,
-                message: "Metodo di pagamento eliminato",
-            });
-        } catch (error) {
-            console.error("Errore eliminazione metodo pagamento:", error);
-            res.status(500).json({ error: "Errore interno del server" });
-        }
-    },
+  "/api/profile/payment-methods/:paymentMethodId",
+  requireAuth,
+  (req, res) => {
+    try {
+      const paymentMethodId = Number(req.params.paymentMethodId);
+      const paymentMethod = getPaymentMethodById(paymentMethodId);
+      if (!paymentMethod || paymentMethod.userId !== req.user.id)
+        return res
+          .status(404)
+          .json({ error: "Metodo di pagamento non trovato" });
+      deletePaymentMethod(paymentMethodId);
+      res.json({
+        success: true,
+        message: "Metodo di pagamento eliminato",
+      });
+    } catch (error) {
+      console.error("Errore eliminazione metodo pagamento:", error);
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  },
 );
 app.get("/api/products", (req, res) => {
-    try {
-        const products = getAllProducts();
-        res.json(products);
-    } catch (error) {
-        console.error("Errore recupero prodotti:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const products = getAllProducts();
+    res.json(products);
+  } catch (error) {
+    console.error("Errore recupero prodotti:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/api/products/:id", (req, res) => {
-    try {
-        const product = getProductById(req.params.id);
-        if (!product)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        res.json(product);
-    } catch (error) {
-        console.error("Errore recupero prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const product = getProductById(req.params.id);
+    if (!product)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    res.json(product);
+  } catch (error) {
+    console.error("Errore recupero prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/api/products/:id/reviews", (req, res) => {
-    try {
-        const productId = Number(req.params.id);
-        const product = getProductById(productId);
-        if (!product)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        const reviews = getReviewsByProductId(productId);
-        res.json({ success: true, product: product, reviews: reviews });
-    } catch (error) {
-        console.error("Errore recupero recensioni prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const productId = Number(req.params.id);
+    const product = getProductById(productId);
+    if (!product)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    const reviews = getReviewsByProductId(productId);
+    res.json({ success: true, product: product, reviews: reviews });
+  } catch (error) {
+    console.error("Errore recupero recensioni prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/api/products/:id/reviews", requireAuth, (req, res) => {
-    try {
-        const productId = Number(req.params.id);
-        const product = getProductById(productId);
-        if (!product)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        const rating = Number(req.body.rating);
-        const comment = String(req.body.comment || "").trim();
-        if (!Number.isFinite(rating) || rating < 1 || rating > 5)
-            return res.status(400).json({ error: "Valutazione non valida" });
-        if (comment.length < 5)
-            return res.status(400).json({
-                error: "La recensione deve contenere almeno 5 caratteri",
-            });
-        const reviewResult = addOrUpdateProductReview(
-            productId,
-            req.user.id,
-            rating,
-            comment,
-        );
-        res.json({
-            success: true,
-            product: reviewResult.product,
-            reviews: reviewResult.reviews,
-        });
-    } catch (error) {
-        console.error("Errore salvataggio recensione prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const productId = Number(req.params.id);
+    const product = getProductById(productId);
+    if (!product)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    const rating = Number(req.body.rating);
+    const comment = String(req.body.comment || "").trim();
+    if (!Number.isFinite(rating) || rating < 1 || rating > 5)
+      return res.status(400).json({ error: "Valutazione non valida" });
+    if (comment.length < 5)
+      return res.status(400).json({
+        error: "La recensione deve contenere almeno 5 caratteri",
+      });
+    const reviewResult = addOrUpdateProductReview(
+      productId,
+      req.user.id,
+      rating,
+      comment,
+    );
+    res.json({
+      success: true,
+      product: reviewResult.product,
+      reviews: reviewResult.reviews,
+    });
+  } catch (error) {
+    console.error("Errore salvataggio recensione prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/api/cart", requireAuth, (req, res) => {
-    try {
-        const cart = getCart(req.user.id);
-        res.json(cart || { userId: req.user.id, items: [] });
-    } catch (error) {
-        console.error("Errore recupero carrello:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const cart = getCart(req.user.id);
+    res.json(cart || { userId: req.user.id, items: [] });
+  } catch (error) {
+    console.error("Errore recupero carrello:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/api/cart", requireAuth, (req, res) => {
-    try {
-        const { items } = req.body;
-        const cart = updateCart(req.user.id, items);
-        res.json(cart);
-    } catch (error) {
-        console.error("Errore aggiornamento carrello:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const { items } = req.body;
+    const cart = updateCart(req.user.id, items);
+    res.json(cart);
+  } catch (error) {
+    console.error("Errore aggiornamento carrello:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.delete("/api/cart", requireAuth, (req, res) => {
-    try {
-        clearCart(req.user.id);
-        res.json({ success: true, message: "Carrello svuotato" });
-    } catch (error) {
-        console.error("Errore svuotamento carrello:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    clearCart(req.user.id);
+    res.json({ success: true, message: "Carrello svuotato" });
+  } catch (error) {
+    console.error("Errore svuotamento carrello:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/admin/users", requireAdmin, (req, res) => {
-    try {
-        const users = getAllUsers();
-        res.json(users);
-    } catch (error) {
-        console.error("Errore recupero utenti admin:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const users = getAllUsers();
+    res.json(users);
+  } catch (error) {
+    console.error("Errore recupero utenti admin:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/admin/users/:id", requireAdmin, (req, res) => {
-    try {
-        const userId = Number(req.params.id);
-        const user = buildAdminUserPayload(userId);
-        if (!user) return res.status(404).json({ error: "Utente non trovato" });
-        res.json({ success: true, user: user });
-    } catch (error) {
-        console.error("Errore dettaglio utente admin:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const userId = Number(req.params.id);
+    const user = buildAdminUserPayload(userId);
+    if (!user) return res.status(404).json({ error: "Utente non trovato" });
+    res.json({ success: true, user: user });
+  } catch (error) {
+    console.error("Errore dettaglio utente admin:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/admin/orders", requireAdmin, (req, res) => {
-    try {
-        const allOrders = getAllOrders();
-        res.json(allOrders);
-    } catch (error) {
-        console.error("Errore recupero ordini admin:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const allOrders = getAllOrders();
+    res.json(allOrders);
+  } catch (error) {
+    console.error("Errore recupero ordini admin:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
-    try {
-        const userId = Number(req.params.id);
-        if (userId === req.user.id) {
-            return res.status(400).json({ error: "Non puoi eliminare il tuo stesso account amministratore" });
-        }
-        const targetUser = getUserById(userId);
-        if (!targetUser)
-            return res.status(404).json({ error: "Utente non trovato" });
-        if (targetUser.role === "admin")
-            return res
-                .status(400)
-                .json({ error: "Non puoi eliminare un amministratore" });
-        deleteUser(userId);
-        res.json({ success: true, message: "Utente eliminato" });
-    } catch (error) {
-        console.error("Errore eliminazione utente API:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+  try {
+    const userId = Number(req.params.id);
+    if (userId === req.user.id) {
+      return res
+        .status(400)
+        .json({
+          error: "Non puoi eliminare il tuo stesso account amministratore",
+        });
     }
+    const targetUser = getUserById(userId);
+    if (!targetUser)
+      return res.status(404).json({ error: "Utente non trovato" });
+    if (targetUser.role === "admin")
+      return res
+        .status(400)
+        .json({ error: "Non puoi eliminare un amministratore" });
+    deleteUser(userId);
+    res.json({ success: true, message: "Utente eliminato" });
+  } catch (error) {
+    console.error("Errore eliminazione utente API:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/api/admin/users/:id", requireAdmin, (req, res) => {
-    try {
-        const userId = Number(req.params.id);
-        const user = buildAdminUserPayload(userId);
-        if (!user) return res.status(404).json({ error: "Utente non trovato" });
-        res.json({ success: true, user: user });
-    } catch (error) {
-        console.error("Errore dettaglio utente API:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const userId = Number(req.params.id);
+    const user = buildAdminUserPayload(userId);
+    if (!user) return res.status(404).json({ error: "Utente non trovato" });
+    res.json({ success: true, user: user });
+  } catch (error) {
+    console.error("Errore dettaglio utente API:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.get("/api/admin/dashboard", requireAdmin, (req, res) => {
-    try {
-        const users = getAllUsers();
-        const products = getAllProducts();
-        const orders = getAllOrdersWithUsers();
-        const totalRevenue = orders.reduce(
-            (sum, order) => sum + Number(order.total || 0),
-            0,
-        );
-        res.json({
-            users: users,
-            products: products,
-            orders: orders,
-            stats: {
-                totalUsers: users.length,
-                totalProducts: products.length,
-                totalOrders: orders.length,
-                totalRevenue: totalRevenue,
-            },
-        });
-    } catch (error) {
-        console.error("Errore dashboard admin:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const users = getAllUsers();
+    const products = getAllProducts();
+    const orders = getAllOrdersWithUsers();
+    const totalRevenue = orders.reduce(
+      (sum, order) => sum + Number(order.total || 0),
+      0,
+    );
+    res.json({
+      users: users,
+      products: products,
+      orders: orders,
+      stats: {
+        totalUsers: users.length,
+        totalProducts: products.length,
+        totalOrders: orders.length,
+        totalRevenue: totalRevenue,
+      },
+    });
+  } catch (error) {
+    console.error("Errore dashboard admin:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 
 app.post("/api/admin/restore", requireAdmin, (req, res) => {
-    try {
-        const backupData = req.body;
-        const requiredTables = ["users", "products", "orders", "reviews", "addresses", "paymentMethods", "cartItems"];
+  try {
+    const backupData = req.body;
+    const requiredTables = [
+      "users",
+      "products",
+      "orders",
+      "reviews",
+      "addresses",
+      "paymentMethods",
+      "cartItems",
+    ];
 
-        if (!backupData || typeof backupData !== 'object' || Array.isArray(backupData)) {
-            return res.status(400).json({ error: "Formato backup non valido. Caricare un oggetto JSON." });
-        }
-
-        const missing = requiredTables.filter(table => !Array.isArray(backupData[table]));
-        if (missing.length > 0) {
-            return res.status(400).json({ error: `Il file di backup non è integro o compatibile. Tabelle mancanti: ${missing.join(", ")}` });
-        }
-
-        db_module.restoreBackup(backupData);
-        res.json({ success: true, message: "Database ripristinato con successo" });
-    } catch (error) {
-        console.error("Errore ripristino backup:", error);
-        res.status(500).json({ error: "Errore durante il ripristino del database" });
+    if (
+      !backupData ||
+      typeof backupData !== "object" ||
+      Array.isArray(backupData)
+    ) {
+      return res
+        .status(400)
+        .json({
+          error: "Formato backup non valido. Caricare un oggetto JSON.",
+        });
     }
+
+    const missing = requiredTables.filter(
+      (table) => !Array.isArray(backupData[table]),
+    );
+    if (missing.length > 0) {
+      return res
+        .status(400)
+        .json({
+          error: `Il file di backup non è integro o compatibile. Tabelle mancanti: ${missing.join(", ")}`,
+        });
+    }
+
+    db_module.restoreBackup(backupData);
+    res.json({ success: true, message: "Database ripristinato con successo" });
+  } catch (error) {
+    console.error("Errore ripristino backup:", error);
+    res
+      .status(500)
+      .json({ error: "Errore durante il ripristino del database" });
+  }
 });
 
 app.get("/api/admin/backup", requireAdmin, (req, res) => {
-    try {
-        const backupData = db_module.exportFullBackup();
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        res.setHeader('Content-disposition', `attachment; filename=shopnow_backup_${timestamp}.json`);
-        res.setHeader('Content-type', 'application/json');
-        res.send(JSON.stringify(backupData, null, 2));
-    } catch (error) {
-        console.error("Errore generazione backup:", error);
-        res.status(500).json({ error: "Errore durante la creazione del backup" });
-    }
+  try {
+    const backupData = db_module.exportFullBackup();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    res.setHeader(
+      "Content-disposition",
+      `attachment; filename=shopnow_backup_${timestamp}.json`,
+    );
+    res.setHeader("Content-type", "application/json");
+    res.send(JSON.stringify(backupData, null, 2));
+  } catch (error) {
+    console.error("Errore generazione backup:", error);
+    res.status(500).json({ error: "Errore durante la creazione del backup" });
+  }
 });
 
 app.get("/api/admin/stripe-summary", requireAdmin, async (req, res) => {
-    try {
-        const summary = await getStripeDashboardSummary(100);
-        console.log("Stripe summary result:", summary);
-        res.json({
-            success: true,
-            ordersCount: summary.ordersCount,
-            revenue: summary.revenue,
-        });
-    } catch (error) {
-        console.error("Errore riepilogo Stripe:", error.message || error);
-        res.status(500).json({
-            error: error.message || "Errore riepilogo Stripe",
-        });
-    }
+  try {
+    const summary = await getStripeDashboardSummary(100);
+    console.log("Stripe summary result:", summary);
+    res.json({
+      success: true,
+      ordersCount: summary.ordersCount,
+      revenue: summary.revenue,
+    });
+  } catch (error) {
+    console.error("Errore riepilogo Stripe:", error.message || error);
+    res.status(500).json({
+      error: error.message || "Errore riepilogo Stripe",
+    });
+  }
 });
 app.post("/api/admin/sync-stripe-history", requireAdmin, async (req, res) => {
-    try {
-        console.log("Avvio sincronizzazione Stripe...");
-        const result = await syncStripeHistory(100);
-        console.log(`Sincronizzazione completata: ${result.imported} importati, ${result.skipped} saltati`);
-        res.json({ success: true, ...result });
-    } catch (error) {
-        console.error("Errore sync Stripe:", error.message || error);
-        res.status(500).json({
-            error: error.message || "Errore sincronizzazione Stripe",
-        });
-    }
+  try {
+    console.log("Avvio sincronizzazione Stripe...");
+    const result = await syncStripeHistory(100);
+    console.log(
+      `Sincronizzazione completata: ${result.imported} importati, ${result.skipped} saltati`,
+    );
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("Errore sync Stripe:", error.message || error);
+    res.status(500).json({
+      error: error.message || "Errore sincronizzazione Stripe",
+    });
+  }
 });
 app.get("/admin/products", requireAdmin, (req, res) => {
-    try {
-        const products = getAllProducts();
-        res.json(products);
-    } catch (error) {
-        console.error("Errore recupero prodotti admin:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const products = getAllProducts();
+    res.json(products);
+  } catch (error) {
+    console.error("Errore recupero prodotti admin:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/admin/products", requireAdmin, (req, res) => {
-    try {
-        const { name, price, category, description, image, stock } = req.body;
-        if (!String(name || "").trim())
-            return res
-                .status(400)
-                .json({ error: "Nome prodotto obbligatorio" });
-        if (!Number.isFinite(Number(price)) || Number(price) < 0)
-            return res
-                .status(400)
-                .json({ error: "Prezzo prodotto non valido" });
-        const product = createProduct(
-            name,
-            price,
-            category,
-            description,
-            image,
-            stock,
-        );
-        res.json({
-            success: true,
-            message: "Prodotto aggiunto",
-            product: product,
-        });
-    } catch (error) {
-        console.error("Errore aggiunta prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
-    }
+  try {
+    const { name, price, category, description, image, stock } = req.body;
+    if (!String(name || "").trim())
+      return res.status(400).json({ error: "Nome prodotto obbligatorio" });
+    if (!Number.isFinite(Number(price)) || Number(price) < 0)
+      return res.status(400).json({ error: "Prezzo prodotto non valido" });
+    const product = createProduct(
+      name,
+      price,
+      category,
+      description,
+      image,
+      stock,
+    );
+    res.json({
+      success: true,
+      message: "Prodotto aggiunto",
+      product: product,
+    });
+  } catch (error) {
+    console.error("Errore aggiunta prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.put("/admin/products/:id", requireAdmin, (req, res) => {
-    try {
-        const productId = req.params.id;
-        const updates = req.body;
-        console.log("PUT /admin/products/" + productId, "updates:", updates);
-        const existingProduct = getProductById(productId);
-        if (!existingProduct)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        if (Object.prototype.hasOwnProperty.call(updates, "image")) {
-            const previousImageAbsolutePath = getProductImageAbsolutePath(
-                existingProduct.image,
-            );
-            const nextImageAbsolutePath = getProductImageAbsolutePath(
-                updates.image,
-            );
-            if (
-                previousImageAbsolutePath &&
-                fs.existsSync(previousImageAbsolutePath) &&
-                previousImageAbsolutePath !== nextImageAbsolutePath
-            ) {
-                try {
-                    fs.unlinkSync(previousImageAbsolutePath);
-                } catch (error) {
-                    console.warn(
-                        "Impossibile eliminare immagine precedente:",
-                        error.message,
-                    );
-                }
-            }
+  try {
+    const productId = req.params.id;
+    const updates = req.body;
+    console.log("PUT /admin/products/" + productId, "updates:", updates);
+    const existingProduct = getProductById(productId);
+    if (!existingProduct)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    if (Object.prototype.hasOwnProperty.call(updates, "image")) {
+      const previousImageAbsolutePath = getProductImageAbsolutePath(
+        existingProduct.image,
+      );
+      const nextImageAbsolutePath = getProductImageAbsolutePath(updates.image);
+      if (
+        previousImageAbsolutePath &&
+        fs.existsSync(previousImageAbsolutePath) &&
+        previousImageAbsolutePath !== nextImageAbsolutePath
+      ) {
+        try {
+          fs.unlinkSync(previousImageAbsolutePath);
+        } catch (error) {
+          console.warn(
+            "Impossibile eliminare immagine precedente:",
+            error.message,
+          );
         }
-        const product = updateProduct(productId, updates);
-        console.log("Prodotto aggiornato:", product);
-        res.json({
-            success: true,
-            message: "Prodotto aggiornato",
-            product: product,
-        });
-    } catch (error) {
-        console.error("Errore aggiornamento prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+      }
     }
+    const product = updateProduct(productId, updates);
+    console.log("Prodotto aggiornato:", product);
+    res.json({
+      success: true,
+      message: "Prodotto aggiornato",
+      product: product,
+    });
+  } catch (error) {
+    console.error("Errore aggiornamento prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.post("/admin/products/:id/image", requireAdmin, (req, res) => {
-    try {
-        const productId = Number(req.params.id);
-        const existingProduct = getProductById(productId);
-        if (!existingProduct)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        const fileName = String(req.body.fileName || "").trim();
-        const fileDataBase64 = String(req.body.fileDataBase64 || "").trim();
-        if (!fileName || !fileDataBase64)
-            return res.status(400).json({ error: "Immagine non valida" });
-        const extension = path.extname(fileName).toLowerCase();
-        const allowedExtensions = new Set([
-            ".jpg",
-            ".jpeg",
-            ".png",
-            ".webp",
-            ".gif",
-        ]);
-        if (!allowedExtensions.has(extension))
-            return res
-                .status(400)
-                .json({ error: "Formato immagine non supportato" });
-        const uploadsDirectory = path.join(__dirname, "uploads");
-        if (!fs.existsSync(uploadsDirectory))
-            fs.mkdirSync(uploadsDirectory, { recursive: true });
-        const safeFileName = `${sanitizeFileSegment(existingProduct.name)}_${Date.now()}${extension}`;
-        const targetAbsolutePath = path.join(uploadsDirectory, safeFileName);
-        const fileBuffer = Buffer.from(fileDataBase64, "base64");
-        fs.writeFileSync(targetAbsolutePath, fileBuffer);
-        const previousImageAbsolutePath = getProductImageAbsolutePath(
-            existingProduct.image,
+  try {
+    const productId = Number(req.params.id);
+    const existingProduct = getProductById(productId);
+    if (!existingProduct)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    const fileName = String(req.body.fileName || "").trim();
+    const fileDataBase64 = String(req.body.fileDataBase64 || "").trim();
+    if (!fileName || !fileDataBase64)
+      return res.status(400).json({ error: "Immagine non valida" });
+    const extension = path.extname(fileName).toLowerCase();
+    const allowedExtensions = new Set([
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".gif",
+    ]);
+    if (!allowedExtensions.has(extension))
+      return res.status(400).json({ error: "Formato immagine non supportato" });
+    const uploadsDirectory = path.join(__dirname, "uploads");
+    if (!fs.existsSync(uploadsDirectory))
+      fs.mkdirSync(uploadsDirectory, { recursive: true });
+    const safeFileName = `${sanitizeFileSegment(existingProduct.name)}_${Date.now()}${extension}`;
+    const targetAbsolutePath = path.join(uploadsDirectory, safeFileName);
+    const fileBuffer = Buffer.from(fileDataBase64, "base64");
+    fs.writeFileSync(targetAbsolutePath, fileBuffer);
+    const previousImageAbsolutePath = getProductImageAbsolutePath(
+      existingProduct.image,
+    );
+    if (
+      previousImageAbsolutePath &&
+      fs.existsSync(previousImageAbsolutePath) &&
+      previousImageAbsolutePath !== targetAbsolutePath
+    ) {
+      try {
+        fs.unlinkSync(previousImageAbsolutePath);
+      } catch (error) {
+        console.warn(
+          "Impossibile eliminare immagine precedente:",
+          error.message,
         );
-        if (
-            previousImageAbsolutePath &&
-            fs.existsSync(previousImageAbsolutePath) &&
-            previousImageAbsolutePath !== targetAbsolutePath
-        ) {
-            try {
-                fs.unlinkSync(previousImageAbsolutePath);
-            } catch (error) {
-                console.warn(
-                    "Impossibile eliminare immagine precedente:",
-                    error.message,
-                );
-            }
-        }
-        const product = updateProduct(productId, {
-            image: `uploads/${safeFileName}`,
-        });
-        res.json({ success: true, product: product });
-    } catch (error) {
-        console.error("Errore upload immagine prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+      }
     }
+    const product = updateProduct(productId, {
+      image: `uploads/${safeFileName}`,
+    });
+    res.json({ success: true, product: product });
+  } catch (error) {
+    console.error("Errore upload immagine prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.delete("/admin/products/:id/image", requireAdmin, (req, res) => {
-    try {
-        const productId = Number(req.params.id);
-        const existingProduct = getProductById(productId);
-        if (!existingProduct)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        const previousImageAbsolutePath = getProductImageAbsolutePath(
-            existingProduct.image,
-        );
-        if (
-            previousImageAbsolutePath &&
-            fs.existsSync(previousImageAbsolutePath)
-        ) {
-            try {
-                fs.unlinkSync(previousImageAbsolutePath);
-            } catch (error) {
-                console.warn(
-                    "Impossibile eliminare file immagine:",
-                    error.message,
-                );
-            }
-        }
-        const product = updateProduct(productId, { image: "" });
-        res.json({ success: true, product: product });
-    } catch (error) {
-        console.error("Errore rimozione immagine prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+  try {
+    const productId = Number(req.params.id);
+    const existingProduct = getProductById(productId);
+    if (!existingProduct)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    const previousImageAbsolutePath = getProductImageAbsolutePath(
+      existingProduct.image,
+    );
+    if (previousImageAbsolutePath && fs.existsSync(previousImageAbsolutePath)) {
+      try {
+        fs.unlinkSync(previousImageAbsolutePath);
+      } catch (error) {
+        console.warn("Impossibile eliminare file immagine:", error.message);
+      }
     }
+    const product = updateProduct(productId, { image: "" });
+    res.json({ success: true, product: product });
+  } catch (error) {
+    console.error("Errore rimozione immagine prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 app.delete("/admin/products/:id", requireAdmin, (req, res) => {
-    try {
-        const productId = req.params.id;
-        const existingProduct = getProductById(productId);
-        if (!existingProduct)
-            return res.status(404).json({ error: "Prodotto non trovato" });
-        const previousImageAbsolutePath = getProductImageAbsolutePath(
-            existingProduct.image,
-        );
-        if (
-            previousImageAbsolutePath &&
-            fs.existsSync(previousImageAbsolutePath)
-        ) {
-            try {
-                fs.unlinkSync(previousImageAbsolutePath);
-            } catch (error) {
-                console.warn(
-                    "Impossibile eliminare immagine prodotto:",
-                    error.message,
-                );
-            }
-        }
-        deleteProduct(productId);
-        res.json({ success: true, message: "Prodotto eliminato" });
-    } catch (error) {
-        console.error("Errore eliminazione prodotto:", error);
-        res.status(500).json({ error: "Errore interno del server" });
+  try {
+    const productId = req.params.id;
+    const existingProduct = getProductById(productId);
+    if (!existingProduct)
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    const previousImageAbsolutePath = getProductImageAbsolutePath(
+      existingProduct.image,
+    );
+    if (previousImageAbsolutePath && fs.existsSync(previousImageAbsolutePath)) {
+      try {
+        fs.unlinkSync(previousImageAbsolutePath);
+      } catch (error) {
+        console.warn("Impossibile eliminare immagine prodotto:", error.message);
+      }
     }
+    deleteProduct(productId);
+    res.json({ success: true, message: "Prodotto eliminato" });
+  } catch (error) {
+    console.error("Errore eliminazione prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
 });
 
 app.post("/api/auth/refresh", async (req, res) => {
-    const { refreshToken } = req.body;
-    if (!refreshToken) return res.status(400).json({ error: "Refresh token mancante" });
-    const user = getUserByRefreshToken(refreshToken);
-    if (!user) return res.status(401).json({ error: "Refresh token non valido" });
-    
-    const newSessionToken = db_module.generateSessionToken();
-    const newRefreshToken = db_module.generateSessionToken();
-    
-    db.prepare("UPDATE users SET sessionToken = ?, refreshToken = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(newSessionToken, newRefreshToken, user.id);
-      
-    res.json({ sessionToken: newSessionToken, refreshToken: newRefreshToken });
+  const { refreshToken } = req.body;
+  if (!refreshToken)
+    return res.status(400).json({ error: "Refresh token mancante" });
+  const user = getUserByRefreshToken(refreshToken);
+  if (!user) return res.status(401).json({ error: "Refresh token non valido" });
+
+  const session = issueSessionTokens(user.id);
+
+  res.json({
+    sessionToken: session.sessionToken,
+    refreshToken: session.refreshToken,
+  });
 });
 
 try {
-    db_module.initializeDatabase();
-    db_module.seedDatabase();
+  db_module.initializeDatabase();
+  db_module.seedDatabase();
 } catch (error) {
-    console.error("⚠️ Errore critico durante l'avvio del DB (proseguo comunque per Healthcheck):", error.message);
+  console.error(
+    "⚠️ Errore critico durante l'avvio del DB (proseguo comunque per Healthcheck):",
+    error.message,
+  );
 }
 
 // Gestione chiusura pulita per evitare corruzione dati
 const gracefulShutdown = () => {
-    console.log("Ricevuto segnale di interruzione. Chiusura database...");
-    try {
-        db.close();
-        console.log("Database chiuso correttamente.");
-    } catch (err) {
-        console.error("Errore durante la chiusura del database:", err);
-    }
-    process.exit(0);
+  console.log("Ricevuto segnale di interruzione. Chiusura database...");
+  try {
+    db.close();
+    console.log("Database chiuso correttamente.");
+  } catch (err) {
+    console.error("Errore durante la chiusura del database:", err);
+  }
+  process.exit(0);
 };
 
 process.on("SIGINT", gracefulShutdown);
 process.on("SIGTERM", gracefulShutdown);
 
-app.listen(PORT, '0.0.0.0', () => {
-    console.log('Server avviato con successo sulla porta ' + PORT);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log("Server avviato con successo sulla porta " + PORT);
 });
