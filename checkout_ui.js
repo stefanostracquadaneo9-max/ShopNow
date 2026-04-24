@@ -170,4 +170,17 @@ async function initializeStripeCheckout() {
                     colorDanger: '#ba000d',
                     fontFamily: '"Amazon Ember", Arial, sans-serif',
                     fontSizeBase: '15px',
-                    spacingUnit: '4px',
+                    spacingUnit: '4px'
+                }
+            }
+        });
+        stripeCardElement = elements.create("card", { 
+            hidePostalCode: true,
+            style: { base: { fontSize: '16px', color: '#111' } }
+        });
+        
+        stripeCardElement.mount(cardElementContainer);
+        stripeCardElement.on("focus", () => cardElementContainer.classList.add('stripe-card-element--focus'));
+        stripeCardElement.on("blur", () => cardElementContainer.classList.remove('stripe-card-element--focus'));
+    }
+    }
