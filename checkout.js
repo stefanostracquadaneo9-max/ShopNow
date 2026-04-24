@@ -55,10 +55,12 @@ function validatePostalCode() {
   if (pattern.test(value)) {
     postalInput.classList.remove("is-invalid");
     postalInput.classList.add("is-valid");
+    if (feedback) feedback.textContent = "";
     return true;
   } else {
     postalInput.classList.remove("is-valid");
     postalInput.classList.add("is-invalid");
+    if (feedback) feedback.textContent = "Formato CAP non valido per questo paese.";
     return false;
   }
 }
@@ -87,6 +89,11 @@ async function initializeStripeCheckout() {
       !config.stripePublicKey ||
       config.stripePublicKey.includes("placeholder")
     ) {
+      const submitBtn = document.getElementById("checkout-btn");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Pagamento non disponibile";
+      }
       throw new Error("Stripe non configurato correttamente sul server.");
     }
 
@@ -136,6 +143,13 @@ async function initializeStripeCheckout() {
 async function handleCheckoutSubmit(event) {
   event.preventDefault();
 
+  // Verifica carrello vuoto subito
+  const { items, total } = window.getCartDetails();
+  if (!items || !items.length) {
+    window.showCheckoutMessage("warning", "Il carrello è vuoto.");
+    return;
+  }
+
   if (!validatePostalCode()) {
     window.showCheckoutMessage(
       "danger",
@@ -154,13 +168,6 @@ async function handleCheckoutSubmit(event) {
 
   if (!name || !email || !street || !city || !postalCode || !country) {
     window.showCheckoutMessage("danger", "Tutti i campi sono obbligatori.");
-    return;
-  }
-
-  // Procedi con la logica di pagamento originale (ora chiamando le funzioni globali di cart.js)
-  const { items, total } = window.getCartDetails();
-  if (!items.length) {
-    window.showCheckoutMessage("warning", "Il carrello è vuoto.");
     return;
   }
 
