@@ -17,7 +17,8 @@ window.SHOPNOW_API_BASE_URL =
 const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
 
 // Helper per determinare se siamo in ambiente browser
-const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
+const isBrowser =
+  typeof window !== "undefined" && typeof document !== "undefined";
 
 function getDataStorageKey(key) {
   return `${DB_KEY_PREFIX}${key}`;
@@ -59,7 +60,7 @@ if (isBrowser && typeof window.fetch === "function") {
 
     if (response.status === 401) {
       const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
-      const isAuthEndpoint = 
+      const isAuthEndpoint =
         url.includes("/login") ||
         url.includes("/register") ||
         url.includes("/refresh");
@@ -87,7 +88,7 @@ if (isBrowser && typeof window.fetch === "function") {
             Authorization: `Bearer ${getSessionToken()}`,
           };
           // Rimuoviamo il vecchio segnaposto se presente
-          delete retryOptions.headers["Authorization"]; 
+          delete retryOptions.headers["Authorization"];
           retryOptions.headers["Authorization"] = `Bearer ${getSessionToken()}`;
           return window.fetch(args[0], retryOptions);
         }
@@ -244,7 +245,8 @@ function getServerBaseUrl() {
 function getBackendRequestHeaders(extraHeaders = {}) {
   const headers = { ...extraHeaders };
   try {
-    if (!headers["Content-Type"] && !(extraHeaders instanceof FormData)) headers["Content-Type"] = "application/json";
+    if (!headers["Content-Type"] && !(extraHeaders instanceof FormData))
+      headers["Content-Type"] = "application/json";
     const hostname = new URL(getServerBaseUrl()).hostname.toLowerCase();
     if (hostname.includes("ngrok-free")) {
       headers["ngrok-skip-browser-warning"] = "true";
@@ -258,7 +260,10 @@ function prefersServerAuth() {
   if (!isBrowser || !window.location) {
     return false;
   }
-  if (window.location.protocol === "file:" || window.location.hostname.includes("github.io")) {
+  if (
+    window.location.protocol === "file:" ||
+    window.location.hostname.includes("github.io")
+  ) {
     return false;
   }
   return Boolean(getServerBaseUrl());
@@ -293,7 +298,7 @@ async function initializeLocalDB() {
     migrateAuthStorage();
   }
   const forceReset =
-    window.location && 
+    window.location &&
     new URLSearchParams(window.location.search).get("reset") === "1";
   if (forceReset) {
     console.log("Forzata reinizializzazione del DB locale");
@@ -376,7 +381,10 @@ async function initializeLocalDB() {
       saveData("users", existingUsers);
     }
   }
-  if ((!initialized || !adminUser || !existingProducts.length) && !shouldUseServerAuth) {
+  if (
+    (!initialized || !adminUser || !existingProducts.length) &&
+    !shouldUseServerAuth
+  ) {
     console.log("DB non inizializzato o admin mancante, inizializzo...");
     const users = {
       "admin@gmail.com": {
@@ -643,7 +651,9 @@ async function syncUsersFromServer() {
         if (!normalizedEmail) return;
         const existing =
           findUserEntryByEmail(localUsers, normalizedEmail)?.user || {};
-        localUsers[normalizedEmail] = { ...existing, ...serverUser, 
+        localUsers[normalizedEmail] = {
+          ...existing,
+          ...serverUser,
           name: serverUser.name,
           role: serverUser.role,
           createdAt:
@@ -693,7 +703,9 @@ async function syncProductsFromServer() {
       if (!didWrite) {
         return false;
       }
-      console.log(`✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`);
+      console.log(
+        `✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`,
+      );
       return true;
     } catch (error) {
       console.warn("❌ Sync prodotti server fallito:", error.message);
@@ -1122,7 +1134,7 @@ async function addPaymentMethod(method) {
     const response = await fetch(
       getAuthApiUrl("/api/profile/payment-methods"),
       {
-        method: "POST", 
+        method: "POST",
         headers: getAuthRequestHeaders(),
         body: JSON.stringify(method),
       },

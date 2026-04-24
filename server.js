@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
@@ -8,8 +8,8 @@ const crypto = require("crypto");
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
 const stripe = stripeSecretKey ? require("stripe")(stripeSecretKey) : null;
 if (!stripe) {
-  console.error(
-    "⚠️ Stripe non configurato: STRIPE_SECRET_KEY non trovato in .env o nelle variabili d'ambiente.",
+  console.log(
+    "[WARN] Stripe non configurato: STRIPE_SECRET_KEY non trovato in .env o nelle variabili d'ambiente.",
   );
 }
 const db_module = require("./db");
@@ -131,9 +131,9 @@ if (isEmailConfigured) {
   transporter = nodemailer.createTransport(transporterOptions);
   transporter.verify((error, success) => {
     if (error) {
-      console.log("⚠️ Email non configurato:", error.message);
+      console.log("[WARN] Email non configurato:", error.message);
     } else {
-      console.log("✅ Email configurato e pronto");
+      console.log("[OK] Email configurato e pronto");
     }
   });
 }
@@ -505,7 +505,7 @@ async function getStripeDashboardSummary(limit = 100) {
       0,
     );
     console.log(
-      `Stripe: ${succeededPaymentIntents.length} ordini, €${stripeRevenue.toFixed(2)} di ricavi`,
+      `Stripe: ${succeededPaymentIntents.length} ordini, EUR ${stripeRevenue.toFixed(2)} di ricavi`,
     );
     return {
       ordersCount: succeededPaymentIntents.length,
@@ -532,7 +532,7 @@ async function sendOrderConfirmationEmail({
             <thead>
                 <tr style="background-color: #f8f9fa; border-bottom: 2px solid #ddd;">
                     <th style="padding: 12px; text-align: left; font-weight: bold; color: #131921;">Articolo</th>
-                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #131921;">Quantità</th>
+                    <th style="padding: 12px; text-align: center; font-weight: bold; color: #131921;">Quantita</th>
                     <th style="padding: 12px; text-align: right; font-weight: bold; color: #131921;">Prezzo</th>
                 </tr>
             </thead>
@@ -546,7 +546,7 @@ async function sendOrderConfirmationEmail({
                 <tr style="border-bottom: 1px solid #eee;">
                     <td style="padding: 12px; color: #131921;">${item.name}</td>
                     <td style="padding: 12px; text-align: center; color: #131921;">${item.quantity}</td>
-                    <td style="padding: 12px; text-align: right; color: #131921;">€${itemTotal.toFixed(2)}</td>
+                    <td style="padding: 12px; text-align: right; color: #131921;">&euro;${itemTotal.toFixed(2)}</td>
                 </tr>
         `;
   }
@@ -558,8 +558,8 @@ async function sendOrderConfirmationEmail({
     ? `${shippingAddress.line1}, ${shippingAddress.postalCode} ${shippingAddress.city}, ${shippingAddress.country}`
     : "Non specificato";
   if (!isEmailConfigured || !transporter) {
-    console.warn(
-      "⚠️ Email non configurato (mancano credenziali), ordine salvato normalmente",
+    console.log(
+      "[WARN] Email non configurato (mancano credenziali), ordine salvato normalmente",
     );
     return {
       success: true,
@@ -620,7 +620,7 @@ async function sendOrderConfirmationEmail({
     <div class="email-container">
         <!-- Header -->
         <div class="header">
-            <h1>🛒 ShopNow</h1>
+            <h1>ShopNow</h1>
             <p>Ordine Confermato con Successo</p>
         </div>
 
@@ -629,14 +629,14 @@ async function sendOrderConfirmationEmail({
             <!-- Greeting -->
             <div class="greeting">
                 Ciao <strong>${customerName}</strong>,
-                <div class="status-badge">✓ Pagamento Confermato</div>
+                <div class="status-badge">Pagamento confermato</div>
             </div>
 
-            <p style="color: #424242; margin-bottom: 15px;">Grazie per aver acquistato su ShopNow! Il tuo ordine è stato confermato e sarà elaborato al più presto.</p>
+            <p style="color: #424242; margin-bottom: 15px;">Grazie per aver acquistato su ShopNow! Il tuo ordine &egrave; stato confermato e sar&agrave; elaborato al pi&ugrave; presto.</p>
 
             <!-- Order Details -->
             <div class="order-details">
-                <h3>📋 Dettagli Ordine</h3>
+                <h3>Dettagli Ordine</h3>
                 <div class="detail-row">
                     <span class="detail-label">Numero Ordine:</span>
                     <span class="detail-value">#${orderId}</span>
@@ -652,26 +652,26 @@ async function sendOrderConfirmationEmail({
             </div>
 
             <!-- Items -->
-            <h3 style="color: #131921; margin: 20px 0 15px 0; font-size: 16px;">📦 Articoli Acquistati</h3>
+            <h3 style="color: #131921; margin: 20px 0 15px 0; font-size: 16px;">Articoli acquistati</h3>
             ${itemsHTML}
 
             <!-- Order Summary -->
             <div class="summary">
                 <div class="summary-row">
                     <span>Subtotale:</span>
-                    <span>€${subtotal.toFixed(2)}</span>
+                    <span>&euro;${subtotal.toFixed(2)}</span>
                 </div>
                 <div class="summary-row total">
                     <span>Totale Pagato:</span>
-                    <span>€${amount.toFixed(2)}</span>
+                    <span>&euro;${amount.toFixed(2)}</span>
                 </div>
             </div>
 
             <!-- Shipping Information -->
             <div class="shipping-info">
-                <h3>🚚 Informazioni Spedizione</h3>
+                <h3>Informazioni spedizione</h3>
                 <p><strong>Indirizzo di Spedizione:</strong><br/>${shippingText}</p>
-                <p style="margin-top: 10px; font-size: 13px;">Questo è un ambiente di test. In produzione, riceverai aggiornamenti sullo stato della spedizione.</p>
+                <p style="margin-top: 10px; font-size: 13px;">Questo &egrave; un ambiente di test. In produzione, riceverai aggiornamenti sullo stato della spedizione.</p>
             </div>
 
             <!-- Next Steps -->
@@ -703,7 +703,7 @@ async function sendOrderConfirmationEmail({
             </div>
             <p>&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
             <p style="margin-top: 15px; opacity: 0.8;">
-                Questo è un email automatico. Non rispondere direttamente a questo indirizzo.
+                Questa &egrave; una email automatica. Non rispondere direttamente a questo indirizzo.
             </p>
         </div>
     </div>
@@ -715,11 +715,11 @@ async function sendOrderConfirmationEmail({
   sentEmails.push({
     subject: mailOptions.subject,
     to: customerEmail,
-    text: `Ordine #${orderId} confermato - Totale €${amount.toFixed(2)}`,
+    text: `Ordine #${orderId} confermato - Totale EUR ${amount.toFixed(2)}`,
     timestamp: new Date().toLocaleString("it-IT"),
     orderId: orderId,
   });
-  console.log(`✅ Email inviata a ${customerEmail}`);
+  console.log(`[OK] Email inviata a ${customerEmail}`);
   return {
     success: true,
     emailSent: true,
@@ -825,14 +825,14 @@ app.post("/api/checkout", async (req, res) => {
       !customerName
     ) {
       console.error(
-        "❌ Checkout fallito: Dati incompleti ricevuti dal client.",
+        "[ERROR] Checkout fallito: dati incompleti ricevuti dal client.",
       );
       return res.status(400).json({ error: "Dati checkout incompleti" });
     }
-    // Salta validazione completa se richiesto per test di velocità
+    // Salta la validazione completa se richiesto per test rapidi
     let checkoutSnapshot = null;
     if (skipValidation === true || skipValidation === "true") {
-      console.log("ℹ️ Skipping validation (Test Mode)");
+      console.log("[INFO] Skipping validation (test mode)");
       checkoutSnapshot = {
         items: items.map((item) => ({
           id: item.id,
@@ -851,7 +851,7 @@ app.post("/api/checkout", async (req, res) => {
       checkoutSnapshot = buildCheckoutStockSnapshot(items);
       if (Math.abs(checkoutSnapshot.total - Number(total)) > 0.01) {
         console.error(
-          `❌ Checkout fallito: Discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`,
+          `[ERROR] Checkout fallito: discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`,
         );
         return res.status(400).json({
           error: "Totale ordine non coerente con i prezzi correnti",
@@ -861,9 +861,9 @@ app.post("/api/checkout", async (req, res) => {
     const expectedAmount = Math.round(checkoutSnapshot.total * 100);
     let confirmedPaymentIntent = null;
 
-    // Se skipStripe è true, salta completamente Stripe per i test
+    // Se skipStripe e true, salta completamente Stripe per i test
     if (skipStripe === true || skipStripe === "true") {
-      console.log("ℹ️ Stripe bypassato tramite skipStripe flag.");
+      console.log("[INFO] Stripe bypassato tramite skipStripe flag.");
       confirmedPaymentIntent = {
         id: `pi_test_${Date.now()}`,
         status: "succeeded",
@@ -902,7 +902,7 @@ app.post("/api/checkout", async (req, res) => {
         await stripe.paymentIntents.retrieve(paymentIntentId);
       if (!paymentIntent || paymentIntent.status !== "succeeded") {
         console.error(
-          `❌ Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`,
+          `[ERROR] Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`,
         );
         return res
           .status(400)
@@ -910,7 +910,7 @@ app.post("/api/checkout", async (req, res) => {
       }
       if (paymentIntent.amount !== expectedAmount) {
         console.error(
-          `❌ Checkout fallito: L'importo Stripe (${paymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`,
+          `[ERROR] Checkout fallito: l'importo Stripe (${paymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`,
         );
         return res.status(400).json({
           error: "Importo pagamento non coerente con l'ordine",
@@ -973,7 +973,7 @@ app.post("/api/checkout", async (req, res) => {
       });
     }
     console.log(
-      `✅ Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
+      `[OK] Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
     );
     res.json({
       success: true,
@@ -986,7 +986,7 @@ app.post("/api/checkout", async (req, res) => {
     });
   } catch (error) {
     console.error(
-      "🚨 Errore fatale durante il processo di checkout:",
+      "[ERROR] Errore fatale durante il processo di checkout:",
       error.message,
       error.stack,
     );
@@ -1092,8 +1092,8 @@ app.get("/emails-view", (req, res) => {
 </head>
 <body>
     <div class="container mt-5">
-        <h1>📧 Email Inviate (${sentEmails.length})</h1>
-        <a href="/" class="btn btn-primary mb-3">← Torna al Menu</a>
+        <h1>Email inviate (${sentEmails.length})</h1>
+        <a href="/" class="btn btn-primary mb-3">&larr; Torna al menu</a>
         ${emailsHtml || '<p class="text-muted">Nessuna email inviata ancora.</p>'}
     </div>
 </body>
@@ -1565,11 +1565,9 @@ app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
   try {
     const userId = Number(req.params.id);
     if (userId === req.user.id) {
-      return res
-        .status(400)
-        .json({
-          error: "Non puoi eliminare il tuo stesso account amministratore",
-        });
+      return res.status(400).json({
+        error: "Non puoi eliminare il tuo stesso account amministratore",
+      });
     }
     const targetUser = getUserById(userId);
     if (!targetUser)
@@ -1640,22 +1638,18 @@ app.post("/api/admin/restore", requireAdmin, (req, res) => {
       typeof backupData !== "object" ||
       Array.isArray(backupData)
     ) {
-      return res
-        .status(400)
-        .json({
-          error: "Formato backup non valido. Caricare un oggetto JSON.",
-        });
+      return res.status(400).json({
+        error: "Formato backup non valido. Caricare un oggetto JSON.",
+      });
     }
 
     const missing = requiredTables.filter(
       (table) => !Array.isArray(backupData[table]),
     );
     if (missing.length > 0) {
-      return res
-        .status(400)
-        .json({
-          error: `Il file di backup non è integro o compatibile. Tabelle mancanti: ${missing.join(", ")}`,
-        });
+      return res.status(400).json({
+        error: `Il file di backup non e integro o compatibile. Tabelle mancanti: ${missing.join(", ")}`,
+      });
     }
 
     db_module.restoreBackup(backupData);
@@ -1909,7 +1903,7 @@ try {
   db_module.seedDatabase();
 } catch (error) {
   console.error(
-    "⚠️ Errore critico durante l'avvio del DB (proseguo comunque per Healthcheck):",
+    "[WARN] Errore critico durante l'avvio del DB (proseguo comunque per healthcheck):",
     error.message,
   );
 }
