@@ -58,32 +58,32 @@
           <a
             class="nav-link active"
             href="#dashboard"
-            onclick="showSection('dashboard', event)"
+            id="nav-dashboard"
             ><i class="fas fa-tachometer-alt me-1"></i>Dashboard </a
           ><a
             class="nav-link"
             href="#users"
-            onclick="showSection('users', event)"
+            id="nav-users"
             ><i class="fas fa-users me-1"></i>Utenti </a
           ><a
             class="nav-link"
             href="#products"
-            onclick="showSection('products', event)"
+            id="nav-products"
             ><i class="fas fa-box me-1"></i>Prodotti </a
           ><a
             class="nav-link"
             href="#orders"
-            onclick="showSection('orders', event)"
+            id="nav-orders"
             ><i class="fas fa-shopping-cart me-1"></i>Ordini </a
           ><a
             class="nav-link"
             href="#analytics"
-            onclick="showSection('analytics', event)"
+            id="nav-analytics"
             ><i class="fas fa-chart-line me-1"></i>Statistiche </a
           ><a
             class="nav-link"
             href="#settings"
-            onclick="showSection('settings', event)"
+            id="nav-settings"
             ><i class="fas fa-cog me-1"></i>Configurazioni</a
           >
         </div>
@@ -169,7 +169,7 @@
             >
               <i class="fas fa-broom me-2"></i>Pulisci Account Test
             </button>
-            <button class="btn btn-admin" onclick="showAddUserModal()">
+            <button class="btn btn-admin" id="add-user-btn">
               <i class="fas fa-plus me-2"></i>Aggiungi Utente
             </button>
           </div>
@@ -201,7 +201,7 @@
               Aggiungi, modifica ed elimina prodotti
             </p>
           </div>
-          <button class="btn btn-admin" onclick="showAddProductModal()">
+          <button class="btn btn-admin" id="add-product-btn">
             <i class="fas fa-plus me-2"></i>Aggiungi Prodotto
           </button>
         </div>
@@ -298,13 +298,10 @@
                   id="import-backup-file"
                   class="d-none"
                   accept=".json"
-                  onchange="window.importBackup(event)"
                 />
                 <button
                   class="btn btn-outline-danger ms-2"
-                  onclick="
-                    document.getElementById('import-backup-file').click()
-                  "
+                  id="import-backup-btn"
                 >
                   <i class="fas fa-upload me-2"></i>Ripristina da JSON
                 </button>
@@ -445,7 +442,7 @@
               type="button"
               class="btn btn-primary"
               id="product-submit-button"
-              onclick="window.saveProduct()"
+              
             >
               Aggiungi Prodotto
             </button>
@@ -542,7 +539,7 @@
               type="button"
               class="btn btn-danger"
               id="confirm-delete-user-button"
-              onclick="confirmDeleteUser()"
+              
             >
               Elimina Utente
             </button>
@@ -611,7 +608,7 @@
             >
               Annulla
             </button>
-            <button type="button" class="btn btn-primary" onclick="saveUser()">
+            <button type="button" class="btn btn-primary" id="save-user-btn">
               Salva Utente
             </button>
           </div>

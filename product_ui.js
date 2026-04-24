@@ -222,7 +222,7 @@ function renderReviewForm() {
         <div class="mb-3">
             <input type="hidden" id="review-rating-value" value="${existing?.rating || 5}">
             <div class="review-stars-input-row">
-                ${[1,2,3,4,5].map(v => `<button type="button" class="review-star-button ${v <= (existing?.rating || 5) ? 'filled' : ''}" onclick="setProductReviewRating(${v})"><i class="fas fa-star"></i></button>`).join("")}
+                ${[1,2,3,4,5].map(v => `<button type="button" class="review-star-button ${v <= (existing?.rating || 5) ? 'filled' : ''}" data-rating="${v}"><i class="fas fa-star"></i></button>`).join("")}
             </div>
             <span id="review-rating-caption" class="small text-muted">5 stelle selezionate</span>
         </div>

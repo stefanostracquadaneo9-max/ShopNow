@@ -31,8 +31,8 @@
                                 id="search-input"
                                 class="form-control"
                                 placeholder="Cerca prodotti nel catalogo ShopNow..."
-                            />
-                            <button class="btn" onclick="searchProducts()">
+                                aria-label="Cerca prodotti nel catalogo ShopNow"
+                            /><button class="btn" id="search-btn" aria-label="Cerca">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
@@ -40,24 +40,21 @@
                     <div class="col-auto">
                         <div class="nav-icons">
                             <a href="account.html" class="nav-icon">
-                                <i class="fas fa-user"></i> 
+                                <i class="fas fa-user" aria-label="Il mio account"></i> 
                             </a>
                             <a href="orders.html" class="nav-icon">
-                                <i class="fas fa-box"></i> 
+                                <i class="fas fa-box" aria-label="I miei ordini"></i> 
                             </a>
                             <a href="cart.html" class="nav-icon">
-                                <i class="fas fa-shopping-cart"></i>
+                                <i class="fas fa-shopping-cart" aria-label="Il mio carrello"></i>
                                 <span id="cart-count" class="cart-count"
                                     >0</span
                                 >
                             </a>
                             <a 
                                 href="#"
-                                class="nav-icon"
-                                onclick="
-                                    logout();
-                                    return false;
-                                "
+                                class="nav-icon logout-link-global"
+                                aria-label="Esci"
                             >
                                 <i class="fas fa-sign-out-alt"></i>
                             </a>
@@ -87,43 +84,43 @@
                         <div id="categories-list">
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('all')"
+                                data-category="all"
                             >
                                 Tutte le categorie
                             </div>
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('elettronica')"
+                                data-category="elettronica"
                             >
                                 Elettronica
                             </div>
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('abbigliamento')"
+                                data-category="abbigliamento"
                             >
                                 Abbigliamento
                             </div>
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('casa')"
+                                data-category="casa"
                             >
                                 Casa e Giardino
                             </div>
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('sport')"
+                                data-category="sport"
                             >
                                 Sport e Tempo Libero
                             </div>
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('libri')"
+                                data-category="libri"
                             >
                                 Libri
                             </div>
                             <div
                                 class="category-item"
-                                onclick="filterByCategory('altro')"
+                                data-category="altro"
                             >
                                 Altro
                             </div>
@@ -159,7 +156,7 @@
                                         />
                                     </div>
                                 </div>
-                                <button class="btn btn-sm btn-amazon w-100 mt-2 py-1" onclick="applyFilters()">Vai</button>
+                                <button class="btn btn-sm btn-amazon w-100 mt-2 py-1" id="apply-filters-btn">Vai</button>
                             </div>
 
                             <div class="filter-group mb-4">
@@ -169,7 +166,6 @@
                                     class="form-check-input"
                                     type="checkbox"
                                     id="rating-4"
-                                    onchange="applyRatingFilter()"
                                 />
                                 <label class="form-check-label" for="rating-4">
                                     <i class="fas fa-star text-warning"></i>
@@ -190,7 +186,6 @@
                                     type="checkbox"
                                     id="in-stock"
                                     checked
-                                    onchange="applyStockFilter()"
                                 />
                                 <label class="form-check-label" for="in-stock">
                                     Solo prodotti disponibili
@@ -236,7 +231,6 @@
                             <select
                                 class="form-select form-select-sm"
                                 id="sort-select"
-                                onchange="sortProducts()"
                                 style="width: auto"
                             >
                                 <option value="name">Nome</option>

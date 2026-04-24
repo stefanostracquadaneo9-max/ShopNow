@@ -224,10 +224,10 @@ const sortProducts = () => {
     const sortBy = document.getElementById("sort-select").value;
     currentSort = sortBy;
     filteredProducts.sort((a, b) => {
-        if (sortBy === "price-low") return a.price - b.price;
-        if (sortBy === "price-high") return b.price - a.price;
+        if (sortBy === "price-low") return (a.price || 0) - (b.price || 0);
+        if (sortBy === "price-high") return (b.price || 0) - (a.price || 0);
         if (sortBy === "rating") return (b.rating || 0) - (a.rating || 0);
-        if (sortBy === "newest") return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        if (sortBy === "newest") return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
         return a.name.localeCompare(b.name);
     });
     currentPage = 1;
@@ -238,15 +238,37 @@ const resetFilters = () => {
     document.getElementById("search-input").value = "";
     document.getElementById("min-price").value = "";
     document.getElementById("max-price").value = "";
-    if(document.getElementById("rating-4")) document.getElementById("rating-4").checked = false;
-    document.getElementById("in-stock").checked = true;
+    const rating4Checkbox = document.getElementById("rating-4");
+    if (rating4Checkbox) rating4Checkbox.checked = false;
+    const inStockCheckbox = document.getElementById("in-stock");
+    if (inStockCheckbox) inStockCheckbox.checked = true;
     currentCategory = "all";
     currentSearch = "";
     document.getElementById("current-category").textContent = "Tutti i prodotti";
     filteredProducts = [...allProducts];
     sortProducts();
 }
+document.addEventListener("DOMContentLoaded", () => {
+    // Event listeners per i filtri
+    document.getElementById("min-price")?.addEventListener("input", applyFilters);
+    document.getElementById("max-price")?.addEventListener("input", applyFilters);
+    document.getElementById("rating-4")?.addEventListener("change", applyFilters);
+    document.getElementById("in-stock")?.addEventListener("change", applyFilters);
+    document.getElementById("sort-select")?.addEventListener("change", sortProducts);
 
+    // Event listeners per le categorie
+    document.querySelectorAll(".category-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+            const category = e.target.dataset.category || "all";
+            filterByCategory(category);
+        });
+    });
+
+    // Event listener per i pulsanti di recensione
+    document.querySelectorAll(".review-star-button").forEach(button => {
+        button.addEventListener("click", (e) => setProductReviewRating(e.currentTarget.dataset.rating));
+    });
+});
 window.searchProducts = function() {
     currentSearch = document.getElementById("search-input").value.toLowerCase().trim();
     currentPage = 1;
@@ -254,10 +276,6 @@ window.searchProducts = function() {
 };
 
 document.getElementById("search-input").addEventListener("keypress", (e) => e.key === "Enter" && window.searchProducts());
-window.filterByCategory = filterByCategory;
-window.applyPriceFilter = applyFilters;
-window.applyRatingFilter = applyFilters;
-window.applyStockFilter = applyFilters;
 window.changePage = changePage;
 window.sortProducts = sortProducts;
 window.resetFilters = resetFilters;

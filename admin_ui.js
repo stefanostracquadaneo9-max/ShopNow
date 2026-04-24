@@ -1319,4 +1319,46 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.logout();
         }
     });
+
+    // Event listeners per la navigazione
+    document.getElementById("nav-dashboard")?.addEventListener("click", (e) => window.showSection("dashboard", e));
+    document.getElementById("nav-users")?.addEventListener("click", (e) => window.showSection("users", e));
+    document.getElementById("nav-products")?.addEventListener("click", (e) => window.showSection("products", e));
+    document.getElementById("nav-orders")?.addEventListener("click", (e) => window.showSection("orders", e));
+    document.getElementById("nav-analytics")?.addEventListener("click", (e) => window.showSection("analytics", e));
+    document.getElementById("nav-settings")?.addEventListener("click", (e) => window.showSection("settings", e));
+
+    // Event listeners per i pulsanti delle modali
+    document.getElementById("add-user-btn")?.addEventListener("click", window.showAddUserModal);
+    document.getElementById("save-user-btn")?.addEventListener("click", window.saveUser);
+    document.getElementById("add-product-btn")?.addEventListener("click", window.showAddProductModal);
+    document.getElementById("product-submit-button")?.addEventListener("click", window.saveProduct);
+    document.getElementById("confirm-delete-user-button")?.addEventListener("click", window.confirmDeleteUser);
+
+    // Event listeners per il backup
+    document.getElementById("import-backup-btn")?.addEventListener("click", () => {
+        document.getElementById("import-backup-file")?.click();
+    });
+    document.getElementById("import-backup-file")?.addEventListener("change", window.importBackup);
 });
+
+// Esponi funzioni globali per l'HTML (se necessario per onclick dinamici o per compatibilità)
+window.showSection = showSection;
+window.requestUserDeletion = requestUserDeletion;
+window.cleanTestAccounts = cleanTestAccounts;
+window.viewUserDetails = viewUserDetails;
+window.openProductImagePreview = openProductImagePreview;
+window.updateProductImagePreview = updateProductImagePreview;
+window.removeProductImageSelection = removeProductImageSelection;
+window.showAddProductModal = showAddProductModal;
+window.editProduct = editProduct;
+window.saveProduct = saveProduct;
+window.deleteProduct = deleteProduct;
+window.showAddUserModal = showAddUserModal;
+window.saveUser = saveUser;
+window.cleanTestAccounts = cleanTestAccounts;
+window.requestUserDeletion = requestUserDeletion;
+window.confirmDeleteUser = confirmDeleteUser;
+window.downloadBackup = downloadBackup;
+window.importBackup = importBackup;
+window.searchAdmin = searchAdmin;

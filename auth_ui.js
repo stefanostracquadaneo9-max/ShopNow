@@ -104,7 +104,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     const searchBtn = document.querySelector(".search-bar .btn");
     if (searchBtn) {
         searchBtn.onclick = () => window.searchProducts();
-    };
+    }
 });
 
 function showAuthMessage(type, text) {
