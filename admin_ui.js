@@ -1,3 +1,12 @@
+// Protezione immediata della pagina admin
+(function () {
+    const role = localStorage.getItem("user-role");
+    const hasSession = !!localStorage.getItem("ecommerce-session-token");
+    if (!hasSession || role !== "admin") {
+        window.location.href = "products.html";
+    }
+})();
+
 function isServerBackedAdminMode() {
     return typeof prefersServerAuth === "function"
         ? prefersServerAuth()
@@ -1293,5 +1302,21 @@ document.addEventListener("DOMContentLoaded", async () => {
             window.updateProductImagePreview(event.target?.result || "");
         };
         reader.readAsDataURL(file);
+    });
+
+    const searchInput = document.getElementById("search-input");
+    if (searchInput) {
+        searchInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") window.searchAdmin();
+        });
+    }
+    const searchBtn = document.getElementById("search-admin-btn");
+    if (searchBtn) searchBtn.onclick = () => window.searchAdmin();
+
+    document.addEventListener("click", (e) => {
+        if (e.target.closest(".logout-link-global")) {
+            e.preventDefault();
+            window.logout();
+        }
     });
 });

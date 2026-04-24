@@ -8,8 +8,6 @@ const CART_BRIDGE_KEYS = [
     "cart",
     "cart-count",
 ];
-let stripeInstance = null;
-let stripeCardElement = null;
 let bridgedCheckoutPrefill = null;
 redirectFileModeCartPage();
 function redirectFileModeCartPage() {
@@ -52,15 +50,21 @@ function clearCheckoutFocusFlag() {
 function buyNow(productId) {
     if (!productId) return;
     try {
-        // Se l'utente non è loggato, reindirizza al login
         const token = localStorage.getItem("ecommerce-session-token");
         if (!token) {
             window.location.href = "index.html?msg=login_required";
             return;
         }
-        const checkoutItems = { [String(productId)]: 1 };
-        window.sessionStorage.setItem("shopnow-active-checkout", JSON.stringify(checkoutItems));
-        window.location.href = `checkout.html?mode=direct`;
+
+        // Puliamo eventuali vecchi dati di acquisto rapido
+        window.sessionStorage.removeItem(BUY_NOW_CART_KEY);
+        
+        // Prepariamo il carrello temporaneo
+        const buyNowCart = { [String(productId)]: 1 };
+        window.sessionStorage.setItem(BUY_NOW_CART_KEY, JSON.stringify(buyNowCart));
+        
+        window.location.href = "checkout.html?mode=buy-now";
+        return true;
     } catch (error) {
         console.error("Errore Buy Now:", error);
     }
@@ -187,7 +191,7 @@ function addToCart(productId) {
     
     const currentQty = cart[productId] || 0;
     if (currentQty >= stock) {
-        alert("Prodotto esaurito o limite stock raggiunto.");
+        window.showToast("Prodotto esaurito o limite stock raggiunto.", "error");
         return false;
     }
 
@@ -527,24 +531,27 @@ function getCartItemImageMarkup(item) {
     if (!item.image) {
         return '<span class="text-muted small">N/D</span>';
     }
-    return `<img src="${window.escapeHtml(item.image)}" alt="${window.escapeHtml(item.name)}" class="cart-item-image">`;
+    return `<img src="${window.escapeHtml(item.image)}" alt="${window.escapeHtml(item.name)}" class="cart-item-image img-fluid rounded" style="max-width: 80px; height: auto;">`;
 }
 function renderCart() {
     const itemsContainer = document.getElementById("cart-items");
     const totalContainer = document.getElementById("cart-total");
+    const checkoutSummary = document.getElementById("checkout-summary"); // Per pagina checkout
     const checkoutPanel = document.getElementById("checkout-panel");
     const checkoutButton = document.getElementById("checkout-btn");
     const totalLabel = document.getElementById("checkout-total-label");
-    if (
-        !itemsContainer ||
-        !totalContainer ||
-        !checkoutPanel ||
-        !checkoutButton ||
-        !totalLabel
-    ) {
+
+    const { items, subtotal, vat, shipping, total } = getCartDetails();
+
+    // Se siamo nella pagina di checkout, usiamo una logica di rendering diversa
+    if (checkoutSummary && totalLabel) {
+        renderCheckoutSummary(items, subtotal, shipping, vat, total);
         return;
     }
-    const { items, subtotal, vat, shipping, total } = getCartDetails();
+
+    if (!itemsContainer || !totalContainer) {
+        return;
+    }
     if (!items.length) {
         itemsContainer.innerHTML = isBuyNowMode()
             ? '<div class="alert alert-warning">Seleziona almeno un prodotto per procedere al checkout rapido.</div>'
@@ -554,66 +561,97 @@ function renderCart() {
         checkoutButton.style.display = "none";
         return;
     }
-    const rowsMarkup = items
+    const itemsMarkup = items
         .map(
             (item) => `
-        <tr>
-            <td>${getCartItemImageMarkup(item)}</td>
-            <td>${window.escapeHtml(item.name)}</td>
-            <td>${window.formatCurrency(item.price)}</td>
-            <td>
-                <button class="btn btn-sm btn-outline-secondary" onclick="updateQuantity(${item.id}, ${item.quantity - 1})">-</button>
-                <span class="mx-2">${item.quantity}</span>
-                <button class="btn btn-sm btn-outline-secondary" onclick="updateQuantity(${item.id}, ${item.quantity + 1})" ${item.quantity >= item.stock ? "disabled" : ""}>+</button>
-                <div class="small text-muted mt-1">Disponibili: ${item.stock}</div>
-            </td>
-            <td>${window.formatCurrency(item.price * item.quantity)}</td>
-            <td>
-                <div class="d-flex flex-column gap-1">
-                    <button class="btn btn-sm btn-buy-now py-0" onclick="checkoutSingleItem(${item.id})">Acquista ora</button>
-                    <button class="btn btn-sm btn-outline-danger py-0" onclick="removeFromCart(${item.id})">Rimuovi</button>
+        <div class="cart-item-card p-3 mb-3 border rounded bg-white shadow-sm">
+            <div class="row align-items-center g-3">
+                <div class="col-4 col-md-2 text-center">
+                    ${getCartItemImageMarkup(item)}
                 </div>
-            </td>
-        </tr>
+                <div class="col-8 col-md-4">
+                    <h6 class="mb-1 fw-bold">${window.escapeHtml(item.name)}</h6>
+                    <div class="text-primary fw-semibold">${window.formatCurrency(item.price)}</div>
+                    <div class="small text-muted mt-1">Stock: ${item.stock}</div>
+                </div>
+                <div class="col-6 col-md-3">
+                    <div class="input-group input-group-sm" style="max-width: 120px;">
+                        <button class="btn btn-outline-secondary" onclick="updateQuantity(${item.id}, ${item.quantity - 1})">-</button>
+                        <span class="input-group-text bg-white px-3">${item.quantity}</span>
+                        <button class="btn btn-outline-secondary" onclick="updateQuantity(${item.id}, ${item.quantity + 1})" ${item.quantity >= item.stock ? "disabled" : ""}>+</button>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 text-end">
+                    <div class="fw-bold mb-2">${window.formatCurrency(item.price * item.quantity)}</div>
+                    <div class="d-flex flex-column flex-md-row gap-2 justify-content-end">
+                        <button class="btn btn-sm btn-buy-now" onclick="checkoutSingleItem(${item.id})">
+                            <i class="fas fa-bolt me-1"></i> Subito
+                        </button>
+                        <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${item.id})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     `,
         )
         .join("");
     const buyNowNotice = isBuyNowMode()
         ? `
-            <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
-                <i class="fas fa-bolt"></i>
+            <div class="alert alert-info border-0 shadow-sm d-flex align-items-center gap-2 mb-4" style="background-color: #f0f8ff;">
+                <i class="fas fa-bolt text-primary"></i>
                 <span>Checkout rapido attivo: questo flusso "Acquista ora" usa solo il prodotto selezionato e porta direttamente al pagamento.</span>
             </div>
         `
         : "";
     itemsContainer.innerHTML = `
         ${buyNowNotice}
-        <table class="table">
-            <thead>
-                <tr>
-                    <th>Immagine</th>
-                    <th>Prodotto</th>
-                    <th>Prezzo</th>
-                    <th>Quantita</th>
-                    <th>Totale</th>
-                    <th>Azioni</th>
-                </tr>
-            </thead>
-            <tbody>${rowsMarkup}</tbody>
-        </table>
+        <div class="cart-items-list">
+            ${itemsMarkup}
+        </div>
+        ${!isBuyNowMode() ? `
+            <div class="text-start mt-3">
+                <button class="btn btn-sm btn-outline-secondary" onclick="clearFullCart()">
+                    <i class="fas fa-trash-alt me-1"></i> Svuota carrello
+                </button>
+            </div>` : ''}
     `;
     totalContainer.innerHTML = `
         <div class="summary-card">
+            <h5 class="fw-bold mb-3">Riepilogo ordine</h5>
             <div class="summary-row"><span>Subtotale:</span> <span>${window.formatCurrency(subtotal)}</span></div>
-            <div class="summary-row"><span>IVA (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
             <div class="summary-row"><span>Spedizione:</span> <span>${shipping > 0 ? `${window.formatCurrency(shipping)} (5% sotto ${window.formatCurrency(FREE_SHIPPING_THRESHOLD)})` : "Gratis"}</span></div>
-            <div class="summary-row total"><span>Totale:</span> <span>${window.formatCurrency(total)}</span></div>
+            <div class="summary-row"><span>IVA (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
+            <hr>
+            <div class="summary-row total mt-0 border-0"><span>Totale:</span> <span class="text-danger">${window.formatCurrency(total)}</span></div>
         </div>
     `;
     totalLabel.textContent = window.formatCurrency(total);
     checkoutPanel.style.display = "block";
     checkoutButton.style.display = "inline-block";
 }
+
+function renderCheckoutSummary(items, subtotal, shipping, vat, total) {
+    const summaryContainer = document.getElementById("checkout-summary");
+    const totalLabel = document.getElementById("checkout-total-label");
+    
+    summaryContainer.innerHTML = items.map(item => `
+        <div class="d-flex justify-content-between align-items-center mb-2 small">
+            <span>${window.escapeHtml(item.name)} (x${item.quantity})</span>
+            <span>${window.formatCurrency(item.price * item.quantity)}</span>
+        </div>
+    `).join("");
+
+    const detailsHtml = `
+        <div class="summary-row mt-3"><span>Articoli:</span> <span>${window.formatCurrency(subtotal)}</span></div>
+        <div class="summary-row"><span>Spedizione:</span> <span>${shipping > 0 ? window.formatCurrency(shipping) : 'Gratis'}</span></div>
+        <div class="summary-row"><span>IVA (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
+    `;
+    summaryContainer.innerHTML += detailsHtml;
+    totalLabel.textContent = window.formatCurrency(total);
+}
+
 function updateQuantity(productId, newQty) {
     const cart = getCart();
     const product = getProductsForCart().find(
@@ -635,381 +673,39 @@ function updateQuantity(productId, newQty) {
     saveCart(cart);
     renderCart();
 }
+function clearFullCart() {
+    if (confirm("Sei sicuro di voler svuotare tutto il carrello?")) {
+        clearLocalCart();
+        renderCart();
+        updateCartCount();
+    }
+}
 function removeFromCart(productId) {
     const cart = getCart();
     delete cart[productId];
     saveCart(cart);
     renderCart();
 }
-function configureStaticCheckoutUi() {
-    const checkoutButton = document.getElementById("checkout-btn");
-    const stripeCardSection = document.getElementById("stripe-card-section");
-    const cardElement = document.getElementById("card-element");
-    const cardErrors = document.getElementById("card-errors");
-    const paymentHint = stripeCardSection?.querySelector(".payment-hint");
-    const paymentLabel = stripeCardSection?.querySelector(".form-label");
-    if (checkoutButton) {
-        checkoutButton.disabled = true;
-        checkoutButton.textContent = "Stripe richiede backend";
-    }
-    if (paymentLabel) {
-        paymentLabel.textContent = "Stripe non disponibile";
-    }
-    if (cardElement) {
-        cardElement.style.display = "none";
-        cardElement.innerHTML = "";
-    }
-    if (paymentHint) {
-        paymentHint.textContent =
-            "Per usare Stripe da GitHub Pages devi configurare un backend sicuro e controllare l'URL API centrale definito in `auth.js`.";
-    }
-    if (cardErrors) {
-        cardErrors.textContent = "";
-    }
-    showCheckoutMessage(
-        "warning",
-        "Stripe reale e disattivato finche non colleghi un backend sicuro.",
-    );
-}
-async function loadStripeScript() {
-    if (typeof window.Stripe === "function") {
-        return;
-    }
-    await new Promise((resolve, reject) => {
-        const existing = document.querySelector(
-            'script[data-stripe-js="true"]',
-        );
-        if (existing) {
-            if (typeof window.Stripe === "function") {
-                resolve();
-                return;
-            }
-            existing.addEventListener("load", resolve, { once: true });
-            existing.addEventListener("error", reject, { once: true });
-            return;
-        }
-        const script = document.createElement("script");
-        script.src = "https://js.stripe.com/v3/";
-        script.async = true;
-        script.dataset.stripeJs = "true";
-        script.onload = resolve;
-        script.onerror = () => reject(new Error("Stripe non disponibile."));
-        document.head.appendChild(script);
-    });
-}
-async function initializeStripeCheckout() {
-    if (isStaticCheckoutMode()) {
-        configureStaticCheckoutUi();
-        return;
-    }
-    await loadStripeScript();
-    const configResponse = await fetchWithTimeout(getApiUrl("/config"), {
-        headers: getApiRequestHeaders(), // Assicurati che getApiRequestHeaders sia definito
-    });
-    const config = await configResponse.json();
-    if (
-        !configResponse.ok ||
-        !config.stripePublicKey ||
-        config.stripePublicKey.includes("placeholder")
-    ) {
-        throw new Error(
-            config.error || "Stripe non configurato correttamente.",
-        );
-    }
-    const checkoutForm = document.getElementById("checkout-form");
-    const cardElementContainer = document.getElementById("card-element");
-
-    if (checkoutForm && cardElementContainer) {
-        stripeInstance = window.Stripe(config.stripePublicKey);
-        const elements = stripeInstance.elements({
-            appearance: {
-                theme: "stripe",
-                variables: { colorPrimary: "#007185", borderRadius: "10px" },
-            },
-        });
-        stripeCardElement = elements.create("card", { hidePostalCode: true });
-        stripeCardElement.mount(cardElementContainer);
-        stripeCardElement.on("change", (event) => {
-            const errorBox = document.getElementById("card-errors");
-            if (errorBox) {
-                errorBox.textContent = event.error ? event.error.message : "";
-            }
-        });
-    }
-}
-async function handleCheckoutSubmit(event) {
-    event.preventDefault();
-    showCheckoutMessage("", "");
-    const name = document.getElementById("checkout-name")?.value.trim() || "";
-    const email = document.getElementById("checkout-email")?.value.trim() || "";
-    const street =
-        document.getElementById("checkout-address")?.value.trim() || "";
-    const city = document.getElementById("checkout-city")?.value.trim() || "";
-    const postalCode = 
-        document.getElementById("checkout-postal")?.value.trim() || "";
-    const country = normalizeCountryCode(
-        document.getElementById("checkout-country")?.value || "",
-    );
-    if (!name || !email || !street || !city || !postalCode || !country) {
-        showCheckoutMessage("danger", "Compila tutti i campi del checkout.");
-        return;
-    }
-    const { items, total } = getCartDetails();
-    if (!items.length) {
-        showCheckoutMessage("warning", "Il carrello e vuoto.");
-        renderCart();
-        return;
-    }
-    const shippingAddress = {
-        line1: street,
-        city: city,
-        postalCode: postalCode,
-        country: country,
-    };
-    setCheckoutLoading(true);
-    try {
-        if (isStaticCheckoutMode()) {
-            throw new Error(
-                "Stripe richiede un backend configurato. Controlla l'URL API centrale in `auth.js`.",
-            );
-        }
-        if (!stripeInstance || !stripeCardElement) {
-            throw new Error("Pagamento non disponibile al momento.");
-        }
-        const intentResponse = await fetchWithTimeout(
-            getApiUrl("/create-payment-intent"),
-            {
-                method: "POST",
-                headers: getApiRequestHeaders({
-                    "Content-Type": "application/json",
-                }),
-                body: JSON.stringify({
-                    amount: total,
-                    items: items,
-                    customerName: name,
-                    customerEmail: email,
-                }),
-            },
-        );
-        const intentData = await intentResponse.json();
-        if (!intentResponse.ok) {
-            if (
-                typeof syncProductsFromServer === "function" &&
-                (intentResponse.status === 409 ||
-                    /prezzi correnti/i.test(intentData.error || ""))
-            ) {
-                await syncProductsFromServer();
-            }
-            throw new Error(
-                intentData.error || "Impossibile iniziare il pagamento.",
-            );
-        }
-        if (!intentData.clientSecret) {
-            throw new Error(
-                intentData.error || "Client secret Stripe mancante.",
-            );
-        }
-        const paymentResult = await stripeInstance.confirmCardPayment(
-            intentData.clientSecret,
-            {
-                payment_method: {
-                    card: stripeCardElement,
-                    billing_details: {
-                        name: name,
-                        email: email,
-                        address: {
-                            line1: street,
-                            city: city,
-                            postal_code: postalCode,
-                            country: country,
-                        },
-                    },
-                },
-            },
-        );
-        if (paymentResult.error) {
-            throw new Error(
-                paymentResult.error.message || "Pagamento non riuscito.",
-            );
-        }
-        const checkoutResponse = await fetchWithTimeout(
-            getApiUrl("/api/checkout"),
-            {
-                method: "POST",
-                headers: getApiRequestHeaders({
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${typeof getSessionToken === "function" ? getSessionToken() : ""}`,
-                }),
-                body: JSON.stringify({
-                    paymentIntentId: paymentResult.paymentIntent.id,
-                    items: items,
-                    total: total,
-                    shippingAddress: shippingAddress,
-                    customerName: name,
-                    customerEmail: email,
-                }),
-            },
-        );
-        const data = await checkoutResponse.json();
-        if (!checkoutResponse.ok) {
-            if (
-                typeof syncProductsFromServer === "function" &&
-                (checkoutResponse.status === 409 ||
-                    /prezzi correnti/i.test(data.error || ""))
-            ) {
-                await syncProductsFromServer();
-            }
-            throw new Error(data.error || "Ordine non completato.");
-        }
-        clearLocalCart();
-        if (
-            Array.isArray(data.updatedProducts) &&
-            typeof saveData === "function"
-        ) {
-            saveData("products", data.updatedProducts);
-        } else if (typeof syncProductsFromServer === "function") {
-            await syncProductsFromServer();
-        }
-        renderCart();
-        updateCartCount();
-        if (typeof saveOrderForCurrentUser === "function") {
-            await saveOrderForCurrentUser({
-                id: data.order.id,
-                total: total,
-                status: data.order.status || "paid",
-                date: new Date(
-                    data.order.createdAt || Date.now(),
-                ).toLocaleString("it-IT"),
-                createdAt: data.order.createdAt || new Date().toISOString(),
-                customer: name,
-                email: email,
-                items: items.map((item) => ({
-                    id: item.id,
-                    name: item.name,
-                    quantity: item.quantity,
-                    price: item.price,
-                })),
-                shippingAddress: shippingAddress,
-            });
-        }
-        const emailText = data.emailSent
-            ? "Ti abbiamo inviato anche l'email di conferma."
-            : "Ordine registrato, ma l'email di conferma non e stata inviata.";
-        showCheckoutMessage(
-            "success",
-            `Pagamento completato. Ordine #${data.order.id} confermato. ${emailText}`,
-        );
-    } catch (error) {
-        console.error("Errore checkout:", error);
-        const isNetworkFailure =
-            error.message &&
-            (error.message.includes("Timeout") ||
-                error.message.includes("NetworkError") ||
-                error.message.includes("Failed to fetch") ||
-                error.message.includes("non e stato possibile") ||
-                error.message.includes("net::ERR"));
-        showCheckoutMessage(
-            "danger",
-            isNetworkFailure
-                ? "Connessione al backend fallita. Controlla l'URL API centrale in `auth.js` e assicurati che il backend sia attivo."
-                : error.message || "Errore durante il checkout.",
-        );
-    } finally {
-        setCheckoutLoading(false);
-    }
-}
-async function prefillCheckoutForm() {
-    const nameInput = document.getElementById("checkout-name");
-    const emailInput = document.getElementById("checkout-email");
-    const addressInput = document.getElementById("checkout-address");
-    const cityInput = document.getElementById("checkout-city");
-    const postalInput = document.getElementById("checkout-postal");
-    const countryInput = document.getElementById("checkout-country");
-    if (bridgedCheckoutPrefill) {
-        if (nameInput && !nameInput.value) {
-            nameInput.value = bridgedCheckoutPrefill.name || "";
-        }
-        if (emailInput && !emailInput.value) {
-            emailInput.value = bridgedCheckoutPrefill.email || "";
-        }
-        if (addressInput && !addressInput.value) {
-            addressInput.value = bridgedCheckoutPrefill.line1 || "";
-        }
-        if (cityInput && !cityInput.value) {
-            cityInput.value = bridgedCheckoutPrefill.city || "";
-        }
-        if (postalInput && !postalInput.value) {
-            postalInput.value = bridgedCheckoutPrefill.postalCode || ""; 
-        }
-        if (countryInput && !countryInput.value) {
-            countryInput.value = normalizeCountryCode(
-                bridgedCheckoutPrefill.country || "IT",
-            );
-        }
-        renderSavedPaymentMethod(bridgedCheckoutPrefill.paymentMethod);
-    }
-    if (typeof getCurrentUser !== "function") {
-        return;
-    }
-    const user = await getCurrentUser();
-    if (!user) {
-        return;
-    }
-    if (nameInput && !nameInput.value) {
-        nameInput.value = user.name || "";
-    }
-    if (emailInput && !emailInput.value) {
-        emailInput.value = user.email || "";
-    }
-    const firstAddress =
-        Array.isArray(user.addresses) && user.addresses.length
-            ? user.addresses[0]
-            : null;
-    if (firstAddress) {
-        if (addressInput && !addressInput.value) {
-            addressInput.value =
-                firstAddress.line1 || firstAddress.street || "";
-        }
-        if (cityInput && !cityInput.value) {
-            cityInput.value = firstAddress.city || "";
-        }
-        if (postalInput && !postalInput.value) {
-            postalInput.value = firstAddress.postalCode || ""; 
-        }
-        if (countryInput && !countryInput.value) {
-            countryInput.value = normalizeCountryCode(
-                firstAddress.country || "IT",
-            );
-        }
-    }
-    const firstPaymentMethod =
-        Array.isArray(user.paymentMethods) && user.paymentMethods.length
-            ? user.paymentMethods[0]
-            : null;
-    renderSavedPaymentMethod(
-        firstPaymentMethod || bridgedCheckoutPrefill?.paymentMethod || null,
-    );
-}
 document.addEventListener("DOMContentLoaded", async () => {
     consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm
     updateCartCount();
     renderCart();
 
-    const checkoutForm = document.getElementById("checkout-form");
-    if (checkoutForm) {
-        checkoutForm.addEventListener("submit", handleCheckoutSubmit);
-        try {
-            await initializeStripeCheckout();
-        } catch (error) {
-            console.error("Errore inizializzazione Stripe:", error);
-            showCheckoutMessage("danger", "Stripe non disponibile. Riprova tra poco.");
-        }
-    }
-    await prefillCheckoutForm();
 window.removeFromCart = removeFromCart;
 window.updateQuantity = updateQuantity;
 window.addToCart = addToCart;
 window.buyNow = buyNow;
 window.proceedToCheckout = proceedToCheckout;
 window.checkoutSingleItem = checkoutSingleItem;
+window.clearFullCart = clearFullCart;
+window.consumeBridgeData = consumeBridgeData;
+window.getCartStorageArea = getCartStorageArea;
+window.getCartDetails = getCartDetails;
+window.getApiUrl = getApiUrl;
+window.getApiRequestHeaders = getApiRequestHeaders;
+window.isStaticCheckoutMode = isStaticCheckoutMode;
+window.showCheckoutMessage = showCheckoutMessage;
+window.fetchWithTimeout = fetchWithTimeout;
+window.clearLocalCart = clearLocalCart;
+window.saveOrderForCurrentUser = saveOrderForCurrentUser;
 });

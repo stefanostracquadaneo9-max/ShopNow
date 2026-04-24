@@ -555,6 +555,8 @@ function initializeDatabase() {
   );
   ensureColumn("users", "refreshToken", "refreshToken TEXT");
   ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
+  ensureColumn("users", "resetPasswordToken", "resetPasswordToken TEXT");
+  ensureColumn("users", "resetPasswordExpires", "resetPasswordExpires DATETIME");
   ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
   ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
   ensureColumn("orders", "stripePaymentIntentId", "stripePaymentIntentId TEXT");
@@ -677,6 +679,23 @@ function issueSessionTokens(userId) {
         `,
   ).run(sessionToken, refreshToken, userId);
   return { sessionToken, refreshToken };
+}
+
+function setResetPasswordToken(email, token, expires) {
+  const result = db.prepare(`
+      UPDATE users
+      SET resetPasswordToken = ?,
+          resetPasswordExpires = ?
+      WHERE email = ?
+  `).run(token, expires.toISOString(), normalizeEmail(email));
+  return result.changes > 0;
+}
+
+function getUserByResetToken(token) {
+  return db.prepare(`
+      SELECT * FROM users
+      WHERE resetPasswordToken = ? AND resetPasswordExpires > CURRENT_TIMESTAMP
+  `).get(token);
 }
 
 function clearUserSession(userId) {
@@ -1527,6 +1546,8 @@ module.exports = {
   authenticateUser,
   issueSessionTokens,
   clearUserSession,
+  setResetPasswordToken,
+  getUserByResetToken,
   updateUserPassword,
   getAllUsers,
   updateUser,

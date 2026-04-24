@@ -96,10 +96,10 @@ function setProductReviewRating(rating) {
 
 async function submitProductReview(event) {
     event.preventDefault();
-    if (!currentViewer) { alert("Accedi per lasciare una recensione."); return; }
+    if (!currentViewer) { window.showToast("Accedi per lasciare una recensione.", "error"); return; }
     const rating = Number(document.getElementById("review-rating-value")?.value || 0);
     const comment = document.getElementById("review-comment")?.value.trim() || "";
-    if (rating < 1 || rating > 5 || comment.length < 5) { alert("Compila correttamente tutti i campi."); return; }
+    if (rating < 1 || rating > 5 || comment.length < 5) { window.showToast("Compila correttamente tutti i campi.", "error"); return; }
     const btn = document.getElementById("submit-review-button");
     if (btn) btn.disabled = true;
     try {
@@ -118,8 +118,8 @@ async function submitProductReview(event) {
             if (data.product) syncCurrentProductCache(data.product);
         }
         renderProductDetail(currentProduct);
-        alert("Recensione salvata!");
-    } catch (e) { alert(e.message); }
+        window.showToast("Recensione salvata!");
+    } catch (e) { window.showToast(e.message, "error"); }
     finally { if (btn) btn.disabled = false; }
 }
 

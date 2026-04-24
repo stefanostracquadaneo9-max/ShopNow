@@ -31,9 +31,6 @@
                                 id="search-input"
                                 class="form-control"
                                 placeholder="Cerca prodotti nel catalogo ShopNow..."
-                                onkeypress="
-                                    'Enter' === event.key && searchProducts()
-                                "
                             />
                             <button class="btn" onclick="searchProducts()">
                                 <i class="fas fa-search"></i>
@@ -55,8 +52,7 @@
                                 ><i class="fas fa-user"></i> </a
                             ><a
                                 href="#"
-                                class="nav-icon"
-                                onclick="return (logout(), !1);"
+                                class="nav-icon logout-link-global"
                                 ><i class="fas fa-sign-out-alt"></i
                             ></a>
                         </div>
@@ -121,6 +117,9 @@
                                             >
                                                 <i class="fas fa-eye"></i>
                                             </button>
+                                        </div>
+                                        <div class="text-end mt-2">
+                                            <a href="forgot-password.html" class="small text-decoration-none">Password dimenticata?</a>
                                         </div>
                                     </div>
                                     <button

@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     if (currentUser) {
         const isAuthPage = window.location.pathname.endsWith("index.html") || window.location.pathname.endsWith("register.html") || window.location.pathname === "/";
-        if (isAuthPage) {
+        if (isAuthPage && !new URLSearchParams(window.location.search).get("msg")) {
             if (currentUser.role === "admin") window.location.href = "admin.html";
             else showSiteContent();
         }
@@ -89,7 +89,22 @@ document.addEventListener("DOMContentLoaded", async function () {
             event.preventDefault();
             window.logout();
         }
+        if (event.target.closest(".logout-link-global")) {
+            event.preventDefault();
+            window.logout();
+        }
     });
+
+    const searchInput = document.getElementById("search-input");
+    if (searchInput) {
+        searchInput.addEventListener("keypress", (e) => {
+            if (e.key === 'Enter') window.searchProducts();
+        });
+    }
+    const searchBtn = document.querySelector(".search-bar .btn");
+    if (searchBtn) {
+        searchBtn.onclick = () => window.searchProducts();
+    };
 });
 
 function showAuthMessage(type, text) {

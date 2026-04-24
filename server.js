@@ -4,6 +4,7 @@ const cors = require("cors");
 const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
 const stripe = stripeSecretKey ? require("stripe")(stripeSecretKey) : null;
 if (!stripe) {
@@ -30,6 +31,8 @@ const {
   verifyPassword,
   validatePasswordStrength,
   issueSessionTokens,
+  setResetPasswordToken,
+  getUserByResetToken,
   clearUserSession,
   updateUserPassword,
   getAllUsers,

@@ -36,6 +36,8 @@
                                 "
                             />
                             <button class="btn" onclick="searchProducts()">
+                                aria-label="Cerca prodotti nel catalogo ShopNow"
+                            /><button class="btn" id="search-btn" aria-label="Cerca">
                                 <i class="fas fa-search"></i>
                             </button>
                         </div>
@@ -44,18 +46,22 @@
                         <div class="nav-icons">
                             <a href="products.html" class="nav-icon">
                                 <i class="fas fa-store"></i>
+                                <i class="fas fa-store" aria-label="Torna al negozio"></i>
                             </a>
                             <a href="orders.html" class="nav-icon">
                                 <i class="fas fa-list"></i>
+                                <i class="fas fa-list" aria-label="I miei ordini"></i>
                             </a>
                             <a href="cart.html" class="nav-icon">
                                 <i class="fas fa-shopping-cart"></i>
+                                <i class="fas fa-shopping-cart" aria-label="Visualizza carrello"></i>
                                 <span id="cart-count" class="cart-count"
                                     >0</span
                                 >
                             </a>
                             <a href="account.html" class="nav-icon">
                                 <i class="fas fa-user"></i>
+                                <i class="fas fa-user" aria-label="Il mio profilo"></i>
                             </a>
                             <a
                                 href="#"
@@ -64,6 +70,8 @@
                                     logout();
                                     return false;
                                 "
+                                class="nav-icon logout-link-global"
+                                aria-label="Esci"
                             >
                                 <i class="fas fa-sign-out-alt"></i>
                             </a>

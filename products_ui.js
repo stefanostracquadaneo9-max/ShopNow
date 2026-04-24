@@ -22,7 +22,7 @@ async function loadProducts() {
         }
         filteredProducts = [...allProducts];
         applyInitialFiltersFromQuery();
-        displayProducts(); // Forza la visualizzazione
+        displayProducts();
     } catch (error) {
         console.error("Error loading products:", error);
         showEmptyState("Errore nel caricamento dei prodotti");
@@ -122,7 +122,7 @@ function displayProducts() {
         return;
     }
 
-    container.innerHTML = `<div class="products-grid">${productsToShow.map((product) => createProductCard(product)).join("")}</div>`;
+    container.innerHTML = `<div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 g-4">${productsToShow.map((product) => createProductCard(product)).join("")}</div>`;
     updateResultsCount();
     updatePagination();
 }
@@ -136,31 +136,36 @@ const createProductCard = (product) => {
     const ratingText = reviews > 0 ? `${rating.toFixed(1)} su 5 · ${reviews === 1 ? "1 recensione" : `${reviews} recensioni`}` : "Sii il primo a recensire questo prodotto";
 
     return `
-    <div class="product-card">
+    <div class="col">
+        <div class="card h-100 shadow-sm product-card-custom">
         <a href="${productUrl}" class="product-media-link">
             <img src="${window.escapeHtml(product.image || "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg==")}"
-                 alt="${window.escapeHtml(product.name)}" class="product-image" onerror="this.onerror=null;this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjgwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2YzZjNmMyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE4IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNjY2IiBkeT0iLjNlbSI+SW1tYWdpbmUgbm9uIGRpc3BvbmliaWxlPC90ZXh0Pjwvc3ZnPg=='">
-        </a>
-        <div class="product-info">
-            <a href="${productUrl}" class="product-title product-title-link">${window.escapeHtml(product.name)}</a>
-            <div class="product-rating">
+                alt="${window.escapeHtml(product.name)}" class="card-img-top product-image-custom">
+        <div class="card-body d-flex flex-column">
+            <a href="${productUrl}" class="card-title fw-bold text-decoration-none text-dark product-title-custom">${window.escapeHtml(product.name)}</a>
+            <div class="product-rating mb-2">
                 <span class="product-stars">${window.renderRatingStars(rating)}</span>
-                <span class="product-rating-text">${ratingText}</span>
+                <span class="product-rating-text small text-muted">${ratingText}</span>
             </div>
-            <div class="product-price">${window.formatCurrency(product.price)}</div>
-            <div class="product-availability ${isOutOfStock ? "out-of-stock" : stock <= 10 ? "low-stock" : ""}">
+            <div class="product-price fs-5 fw-bold text-primary mb-2">${window.formatCurrency(product.price)}</div>
+            <div class="product-availability small mb-3 ${isOutOfStock ? "text-danger" : stock <= 10 ? "text-warning" : "text-success"}">
                 ${getAvailabilityLabel(stock)}
             </div>
-            <button type="button" class="product-open-btn w-100" onclick="openProductPage(${product.id})">
-                <i class="fas fa-arrow-right me-2"></i>Dettagli prodotto
+            <div class="mt-auto d-grid gap-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.openProductPage(${product.id})">
+                <i class="fas fa-arrow-right me-1"></i>Dettagli
             </button>
-            <button type="button" class="add-to-cart-btn mt-2" onclick="window.addToCart(${product.id})" ${isOutOfStock ? "disabled" : ""}> 
-                <i class="fas fa-cart-plus me-2"></i>${isOutOfStock ? "Esaurito" : "Aggiungi al carrello"}
+            <button type="button" class="btn btn-primary btn-sm" onclick="window.addToCart(${product.id})" ${isOutOfStock ? "disabled" : ""}>
+                <i class="fas fa-cart-plus me-1"></i>${isOutOfStock ? "Esaurito" : "Aggiungi al carrello"}
             </button>
-            <button type="button" class="btn btn-warning w-100 mt-2 fw-bold" onclick="window.buyNow(${product.id})" ${isOutOfStock ? "disabled" : ""}>Acquista ora</button>
+            <button type="button" class="btn btn-warning btn-sm fw-bold" onclick="window.buyNow(${product.id})" ${isOutOfStock ? "disabled" : ""}>
+                <i class="fas fa-bolt me-1"></i> Acquista ora
+            </button>
             ${product.image ? `<button type="button" class="btn btn-link btn-sm p-0 mt-2" onclick="window.openProductImage(${product.id})">Visualizza immagine ingrandita</button>` : ""}
         </div>
-    </div>`;
+    </div>
+</div>
+</div>`;
 }
 
 const showEmptyState = (message) => {
@@ -208,7 +213,7 @@ const applyFilters = () => {
     const min = parseFloat(document.getElementById("min-price").value) || 0;
     const max = parseFloat(document.getElementById("max-price").value) || Infinity;
     temp = temp.filter(p => p.price >= min && p.price <= max);
-    const minR = document.getElementById("rating-4").checked ? 4 : 0;
+    const minR = (document.getElementById("rating-4") && document.getElementById("rating-4").checked) ? 4 : 0;
     temp = temp.filter(p => (p.rating || 0) >= minR);
     if (document.getElementById("in-stock").checked) temp = temp.filter(p => (p.stock || 0) > 0);
     filteredProducts = temp;
@@ -233,7 +238,7 @@ const resetFilters = () => {
     document.getElementById("search-input").value = "";
     document.getElementById("min-price").value = "";
     document.getElementById("max-price").value = "";
-    document.getElementById("rating-4").checked = false;
+    if(document.getElementById("rating-4")) document.getElementById("rating-4").checked = false;
     document.getElementById("in-stock").checked = true;
     currentCategory = "all";
     currentSearch = "";

@@ -70,8 +70,17 @@
         <div class="container-fluid my-4">
             <div class="row">
                 <!-- Sidebar Categories -->
-                <div class="col-lg-2 mb-4">
-                    <div class="categories-sidebar">
+                <div class="col-lg-3 col-xl-2 mb-4">
+                    <!-- Mobile Filter Toggle -->
+                    <div class="d-lg-none mb-3">
+                        <button class="btn btn-outline-dark w-100 d-flex justify-content-between align-items-center" type="button" data-bs-toggle="collapse" data-bs-target="#sidebarCollapse">
+                            <span><i class="fas fa-filter me-2"></i>Filtri e Categorie</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                    </div>
+
+                    <div class="collapse d-lg-block" id="sidebarCollapse">
+                        <div class="categories-sidebar mb-4">
                         <h5 class="mb-3">
                             <i class="fas fa-list me-2"></i>Categorie
                         </h5>
@@ -121,40 +130,41 @@
                         </div>
                     </div>
 
-                    <!-- Filters -->
-                    <div class="filters-section">
-                        <h6 class="filter-title">
-                            <i class="fas fa-filter me-2"></i>Filtri
-                        </h6>
+                        <!-- Filters -->
+                        <div class="filters-section p-3 border rounded bg-white shadow-sm">
+                            <h6 class="filter-title border-bottom pb-2 mb-3">
+                                <i class="fas fa-sliders-h me-2"></i>Affina la ricerca
+                            </h6>
 
-                        <div class="filter-group">
-                            <label class="form-label">Prezzo</label>
-                            <div class="price-range">
-                                <input
-                                    type="number"
-                                    id="min-price"
-                                    class="price-input"
-                                    placeholder="Min"
-                                />
-                                <span>-</span>
-                                <input
-                                    type="number"
-                                    id="max-price"
-                                    class="price-input"
-                                    placeholder="Max"
-                                />
-                                <button
-                                    class="btn btn-sm btn-outline-primary"
-                                    onclick="applyPriceFilter()"
-                                >
-                                    Applica
-                                </button>
+                            <div class="filter-group mb-4">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Prezzo</label>
+                                <div class="price-range d-flex gap-2 align-items-center">
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">€</span>
+                                        <input
+                                            type="number"
+                                            id="min-price"
+                                            class="form-control"
+                                            placeholder="Min"
+                                        />
+                                    </div>
+                                    <span class="text-muted">-</span>
+                                    <div class="input-group input-group-sm">
+                                        <span class="input-group-text">€</span>
+                                        <input
+                                            type="number"
+                                            id="max-price"
+                                            class="form-control"
+                                            placeholder="Max"
+                                        />
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-amazon w-100 mt-2 py-1" onclick="applyFilters()">Vai</button>
                             </div>
-                        </div>
 
-                        <div class="filter-group">
-                            <label class="form-label">Valutazione</label>
-                            <div class="form-check">
+                            <div class="filter-group mb-4">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Valutazione</label>
+                                <div class="form-check custom-filter-check">
                                 <input
                                     class="form-check-input"
                                     type="checkbox"
@@ -167,14 +177,14 @@
                                     <i class="fas fa-star text-warning"></i>
                                     <i class="fas fa-star text-warning"></i>
                                     <i class="far fa-star text-warning"></i> &
-                                    sopra
+                                    più
                                 </label>
                             </div>
                         </div>
 
-                        <div class="filter-group">
-                            <label class="form-label">Disponibilità</label>
-                            <div class="form-check">
+                            <div class="filter-group">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Disponibilità</label>
+                                <div class="form-check custom-filter-check">
                                 <input
                                     class="form-check-input"
                                     type="checkbox"
@@ -186,12 +196,17 @@
                                     Solo prodotti disponibili
                                 </label>
                             </div>
+                            </div>
+
+                            <button class="btn btn-link btn-sm text-decoration-none w-100 mt-3 p-0" onclick="resetFilters()">
+                                <i class="fas fa-undo me-1"></i>Reset filtri
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <!-- Main Content -->
-                <div class="col-lg-10">
+                <div class="col-lg-9 col-xl-10">
                     <!-- Breadcrumb -->
                     <nav aria-label="breadcrumb" class="mb-3">
                         <ol class="breadcrumb">

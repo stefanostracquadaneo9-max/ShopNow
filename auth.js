@@ -9,13 +9,15 @@ let usersSyncPromise = null;
 let productsSyncPromise = null;
 
 window.SHOPNOW_API_BASE_URL =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1")
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
     ? "http://localhost:3000"
     : "https://shopnow-production.up.railway.app";
 
 const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
+
+// Helper per determinare se siamo in ambiente browser
+const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
 
 function getDataStorageKey(key) {
   return `${DB_KEY_PREFIX}${key}`;
@@ -47,7 +49,7 @@ let isRefreshing = false;
 let refreshPromise = null;
 const MAX_REFRESH_RETRIES = 1;
 
-if (typeof window !== "undefined" && typeof window.fetch === "function") {
+if (isBrowser && typeof window.fetch === "function") {
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
     const options = { ...(args[1] || {}) };
@@ -57,7 +59,7 @@ if (typeof window !== "undefined" && typeof window.fetch === "function") {
 
     if (response.status === 401) {
       const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
-      const isAuthEndpoint =
+      const isAuthEndpoint = 
         url.includes("/login") ||
         url.includes("/register") ||
         url.includes("/refresh");
@@ -81,9 +83,12 @@ if (typeof window !== "undefined" && typeof window.fetch === "function") {
         if (refreshed) {
           const retryOptions = { ...options, _retryCount: retryCount + 1 };
           retryOptions.headers = {
-            ...(retryOptions.headers || {}),
+            ...getBackendRequestHeaders(retryOptions.headers || {}),
             Authorization: `Bearer ${getSessionToken()}`,
           };
+          // Rimuoviamo il vecchio segnaposto se presente
+          delete retryOptions.headers["Authorization"]; 
+          retryOptions.headers["Authorization"] = `Bearer ${getSessionToken()}`;
           return window.fetch(args[0], retryOptions);
         }
       }
@@ -110,6 +115,7 @@ async function refreshAuthToken() {
   const refreshToken = localStorage.getItem(AUTH_REFRESH_KEY);
   if (!refreshToken) return false;
 
+  console.log("[Auth] Tentativo di refresh del token...");
   try {
     const response = await fetch(`${SHOPNOW_API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
@@ -122,10 +128,11 @@ async function refreshAuthToken() {
       setSessionToken(data.sessionToken, data.refreshToken);
       return true;
     }
-  } catch (e) {
-    console.error("Impossibile rinnovare il token:", e);
+    return false;
+  } catch (error) {
+    console.error("[Auth] Impossibile rinnovare il token:", error);
+    return false;
   }
-  return false;
 }
 
 const PRODUCT_IMAGE_OVERRIDES = {
@@ -237,6 +244,7 @@ function getServerBaseUrl() {
 function getBackendRequestHeaders(extraHeaders = {}) {
   const headers = { ...extraHeaders };
   try {
+    if (!headers["Content-Type"] && !(extraHeaders instanceof FormData)) headers["Content-Type"] = "application/json";
     const hostname = new URL(getServerBaseUrl()).hostname.toLowerCase();
     if (hostname.includes("ngrok-free")) {
       headers["ngrok-skip-browser-warning"] = "true";
@@ -247,10 +255,10 @@ function getBackendRequestHeaders(extraHeaders = {}) {
   return headers;
 }
 function prefersServerAuth() {
-  if (typeof window === "undefined" || !window.location) {
+  if (!isBrowser || !window.location) {
     return false;
   }
-  if (window.location.protocol === "file:") {
+  if (window.location.protocol === "file:" || window.location.hostname.includes("github.io")) {
     return false;
   }
   return Boolean(getServerBaseUrl());
@@ -259,6 +267,7 @@ function isStaticHostedMode() {
   return !prefersServerAuth();
 }
 async function initializeLocalDB() {
+  if (!isBrowser) return;
   if (window.DB_INITIALIZING) return;
   window.DB_INITIALIZING = true;
 
@@ -284,8 +293,7 @@ async function initializeLocalDB() {
     migrateAuthStorage();
   }
   const forceReset =
-    typeof window !== "undefined" &&
-    window.location &&
+    window.location && 
     new URLSearchParams(window.location.search).get("reset") === "1";
   if (forceReset) {
     console.log("Forzata reinizializzazione del DB locale");
@@ -368,7 +376,7 @@ async function initializeLocalDB() {
       saveData("users", existingUsers);
     }
   }
-  if (!initialized || !adminUser || !existingProducts.length) {
+  if ((!initialized || !adminUser || !existingProducts.length) && !shouldUseServerAuth) {
     console.log("DB non inizializzato o admin mancante, inizializzo...");
     const users = {
       "admin@gmail.com": {
@@ -389,7 +397,7 @@ async function initializeLocalDB() {
     localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
     console.log("DB locale inizializzato con dati demo");
   }
-  // Sincronizzazione in background per evitare blocchi UI (schermo bianco)
+
   syncUsersFromServer();
   syncProductsFromServer();
   window.DB_INITIALIZING = false;
@@ -477,6 +485,7 @@ function clearSessionToken() {
   localStorage.removeItem(AUTH_SESSION_KEY);
   localStorage.removeItem(AUTH_REFRESH_KEY);
   localStorage.removeItem("user-role");
+  localDataValueCache.clear();
 }
 function getAuthRequestHeaders(extraHeaders = {}) {
   const headers = getBackendRequestHeaders(extraHeaders);
@@ -634,10 +643,7 @@ async function syncUsersFromServer() {
         if (!normalizedEmail) return;
         const existing =
           findUserEntryByEmail(localUsers, normalizedEmail)?.user || {};
-        localUsers[normalizedEmail] = {
-          ...stripSensitiveUserData(existing),
-          id: serverUser.id,
-          email: normalizedEmail,
+        localUsers[normalizedEmail] = { ...existing, ...serverUser, 
           name: serverUser.name,
           role: serverUser.role,
           createdAt:
@@ -687,9 +693,8 @@ async function syncProductsFromServer() {
       if (!didWrite) {
         return false;
       }
-      console.log(
-        `✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`,
-      );
+      console.log(`✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`);
+      return true;
     } catch (error) {
       console.warn("❌ Sync prodotti server fallito:", error.message);
       // Se siamo su GitHub Pages e la sync fallisce, assicuriamoci di avere prodotti locali
@@ -973,10 +978,8 @@ async function updateCurrentUser(changes) {
   if (!user) throw new Error("Utente non autenticato");
   if (prefersServerAuth()) {
     const response = await fetch(getAuthApiUrl("/api/profile"), {
-      method: "PUT",
-      headers: getAuthRequestHeaders({
-        "Content-Type": "application/json",
-      }),
+      method: "PATCH",
+      headers: getAuthRequestHeaders(),
       body: JSON.stringify(changes),
     });
     const data = await response.json().catch(() => null);
@@ -1017,9 +1020,7 @@ async function changePassword(currentPassword, newPassword, confirmPassword) {
 
   const response = await fetch(getAuthApiUrl("/api/profile/password"), {
     method: "POST",
-    headers: getAuthRequestHeaders({
-      "Content-Type": "application/json",
-    }),
+    headers: getAuthRequestHeaders(),
     body: JSON.stringify({
       currentPassword: currentPassword,
       newPassword: newPassword,
@@ -1042,9 +1043,7 @@ async function addAddress(address) {
   if (prefersServerAuth()) {
     const response = await fetch(getAuthApiUrl("/api/profile/addresses"), {
       method: "POST",
-      headers: getAuthRequestHeaders({
-        "Content-Type": "application/json",
-      }),
+      headers: getAuthRequestHeaders(),
       body: JSON.stringify(address),
     });
     const data = await response.json().catch(() => null);
@@ -1123,10 +1122,8 @@ async function addPaymentMethod(method) {
     const response = await fetch(
       getAuthApiUrl("/api/profile/payment-methods"),
       {
-        method: "POST",
-        headers: getAuthRequestHeaders({
-          "Content-Type": "application/json",
-        }),
+        method: "POST", 
+        headers: getAuthRequestHeaders(),
         body: JSON.stringify(method),
       },
     );
