@@ -333,6 +333,22 @@ function ensureColumn(tableName, columnName, definition) {
       db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${definition}`);
       getTableColumns(tableName, { refresh: true });
     } catch (error) {
+      if (/non-constant default/i.test(error.message)) {
+        const fallbackDefinition = definition.replace(
+          /\s+DEFAULT\s+CURRENT_TIMESTAMP/i,
+          "",
+        );
+        try {
+          db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${fallbackDefinition}`);
+          getTableColumns(tableName, { refresh: true });
+          return;
+        } catch (fallbackError) {
+          console.warn(
+            `Nota: Impossibile aggiungere colonna ${columnName} a ${tableName}: ${fallbackError.message}`,
+          );
+          return;
+        }
+      }
       console.warn(
         `Nota: Impossibile aggiungere colonna ${columnName} a ${tableName}: ${error.message}`,
       );
@@ -434,6 +450,8 @@ function initializeDatabase() {
             role TEXT DEFAULT 'user',
             sessionToken TEXT UNIQUE,
             refreshToken TEXT,
+            passwordUpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            lastLoginAt DATETIME,
             updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
         )
@@ -566,6 +584,13 @@ function initializeDatabase() {
         CREATE INDEX IF NOT EXISTS idx_payment_methods_user_default
         ON paymentMethods(userId, isDefault DESC, createdAt DESC, id DESC);
     `);
+  if (tableHasColumn("users", "passwordUpdatedAt")) {
+    db.exec(`
+          UPDATE users
+          SET passwordUpdatedAt = COALESCE(passwordUpdatedAt, updatedAt, createdAt, CURRENT_TIMESTAMP)
+          WHERE passwordUpdatedAt IS NULL
+      `);
+  }
   refreshProductReviewStats();
 
   console.log("SQLite Database Inizializzato");
