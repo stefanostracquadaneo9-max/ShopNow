@@ -556,7 +556,11 @@ function initializeDatabase() {
   ensureColumn("users", "refreshToken", "refreshToken TEXT");
   ensureColumn("products", "reviewCount", "reviewCount INTEGER DEFAULT 0");
   ensureColumn("users", "resetPasswordToken", "resetPasswordToken TEXT");
-  ensureColumn("users", "resetPasswordExpires", "resetPasswordExpires DATETIME");
+  ensureColumn(
+    "users",
+    "resetPasswordExpires",
+    "resetPasswordExpires DATETIME",
+  );
   ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
   ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
   ensureColumn("orders", "stripePaymentIntentId", "stripePaymentIntentId TEXT");
@@ -682,20 +686,28 @@ function issueSessionTokens(userId) {
 }
 
 function setResetPasswordToken(email, token, expires) {
-  const result = db.prepare(`
+  const result = db
+    .prepare(
+      `
       UPDATE users
       SET resetPasswordToken = ?,
           resetPasswordExpires = ?
       WHERE email = ?
-  `).run(token, expires.toISOString(), normalizeEmail(email));
+  `,
+    )
+    .run(token, expires.toISOString(), normalizeEmail(email));
   return result.changes > 0;
 }
 
 function getUserByResetToken(token) {
-  return db.prepare(`
+  return db
+    .prepare(
+      `
       SELECT * FROM users
       WHERE resetPasswordToken = ? AND resetPasswordExpires > CURRENT_TIMESTAMP
-  `).get(token);
+  `,
+    )
+    .get(token);
 }
 
 function clearUserSession(userId) {
@@ -1443,7 +1455,7 @@ function seedDatabase() {
       createUser(ADMIN_EMAIL, ADMIN_NAME, bootstrapPassword, "admin");
       console.log(`[SEED] Admin creato con successo: ${ADMIN_EMAIL}`);
       if (!ADMIN_PASSWORD) {
-        console.warn(
+        console.log(
           `[SEED] ADMIN_PASSWORD non configurata. Password temporanea generata: ${bootstrapPassword}`,
         );
       }
@@ -1456,7 +1468,7 @@ function seedDatabase() {
   } else {
     console.log(`[SEED] Admin esistente pronto: ${adminUser.email}.`);
     if (verifyPassword("admin", adminUser.passwordHash).valid) {
-      console.warn(
+      console.log(
         `[SEED] L'account admin ${adminUser.email} usa ancora una password debole predefinita. Aggiornala dal profilo o tramite ADMIN_PASSWORD.`,
       );
     }
