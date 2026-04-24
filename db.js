@@ -16,7 +16,7 @@ const db = new Database(DB_PATH);
 const tableColumnsCache = new Map();
 
 const ADMIN_EMAIL = normalizeEmail(
-  process.env.ADMIN_EMAIL || "admin@shopnow.local",
+  process.env.ADMIN_EMAIL || "admin@gmail.com",
 );
 const ADMIN_NAME =
   String(process.env.ADMIN_NAME || "Administrator").trim() || "Administrator";
