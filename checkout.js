@@ -2155,15 +2155,28 @@ function autoFillCityFromZipMultiCountry() {
   }
 }
 
+function isPostalCodeValidForCountry(countryCode, value) {
+  const pattern = ZIP_PATTERNS[countryCode];
+  if (!pattern) return true;
+  return pattern.test(value.trim());
+}
+
 function autoFillZipFromCityMultiCountry() {
+  const country = document.getElementById("checkout-country")?.value;
   const cityInput = document.getElementById("checkout-city");
   const zipInput = document.getElementById("checkout-postal");
   
-  if (!cityInput || !zipInput) return;
-  
+  if (!country || !cityInput || !zipInput) return;
+  if (country !== "IT") return;
+
   const city = cityInput.value.trim().toLowerCase();
-  if (city && CITY_TO_CAP[city]) {
-    zipInput.value = CITY_TO_CAP[city];
+  const currentZip = zipInput.value.trim();
+  if (!city) return;
+  if (currentZip && isPostalCodeValidForCountry(country, currentZip)) return;
+
+  const zip = CITY_TO_CAP[city];
+  if (zip) {
+    zipInput.value = zip;
     zipInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
@@ -2494,18 +2507,14 @@ async function initCheckoutPage() {
       cn: '🇨🇳',
       br: '🇧🇷'
     }[code] || '';
-    return $(
-      `<span><img src="https://flagcdn.com/20x15/${code}.png" 
-            class="img-flag" 
-            style="margin-right: 10px; border-radius: 2px; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.1);" /> 
-        ${flag} ${country.text}</span>`
-    );
+    const name = country.text.replace(/^[^a-zA-Z0-9]+/, '').trim();
+    return $(`<span>${flag} ${name}</span>`);
   }
   
   function formatCountrySelection(country) {
     if (!country.id) return country.text;
     const code = country.id.toLowerCase();
-    const flag = {
+    const flag = country.element?.dataset?.flag || {
       it: '🇮🇹',
       fr: '🇫🇷',
       de: '🇩🇪',
@@ -2518,7 +2527,8 @@ async function initCheckoutPage() {
       cn: '🇨🇳',
       br: '🇧🇷'
     }[code] || '';
-    return `${flag} ${country.text}`;
+    const name = country.text.replace(/^[^a-zA-Z0-9]+/, '').trim();
+    return $(`<span>${flag} ${name}</span>`);
   }
 
   // 1. Inizializza Select2
@@ -2534,16 +2544,15 @@ async function initCheckoutPage() {
   // 2. Event Listeners per validazione CAP
   $("#checkout-country").on("change", validatePostalCode);
   $("#checkout-postal").on("input", validatePostalCode);
-  
-  // Auto-fill CAP/Città - solo per CAP → Città (rimuoviamo il reverse per evitare loop infinito)
-  const postalInput = document.getElementById("checkout-postal");
-  if (postalInput) {
-    postalInput.addEventListener("input", autoFillCityFromZipMultiCountry);
-    postalInput.addEventListener("change", autoFillCityFromZipMultiCountry);
+  $("#checkout-postal").on("input", autoFillCityFromZipMultiCountry);
+  $("#checkout-postal").on("change", autoFillCityFromZipMultiCountry);
+
+  const cityInput = document.getElementById("checkout-city");
+  if (cityInput) {
+    cityInput.addEventListener("change", autoFillZipFromCityMultiCountry);
+    cityInput.addEventListener("blur", autoFillZipFromCityMultiCountry);
   }
 
-  // Rimuoviamo l'event listener per città → CAP per evitare loop infinito
-  
   $("#checkout-country").on("change", function() {
     document.getElementById("checkout-postal").value = "";
     document.getElementById("checkout-city").value = "";
