@@ -20,7 +20,7 @@ const ADMIN_EMAIL = normalizeEmail(
 );
 const ADMIN_NAME =
   String(process.env.ADMIN_NAME || "Administrator").trim() || "Administrator";
-const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "").trim();
+const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || "admin").trim();
 const PASSWORD_HASH_PREFIX = "scrypt";
 const PASSWORD_KEY_LENGTH = 64;
 const PASSWORD_SALT_BYTES = 16;
@@ -1446,6 +1446,14 @@ function seedDatabase() {
       ).run(configuredAdmin.id);
     }
     console.log(`[SEED] Admin configurato pronto: ${configuredAdmin.email}.`);
+
+    // Sincronizza la password se definita nel .env ed è diversa da quella nel DB
+    if (ADMIN_PASSWORD && !verifyPassword(ADMIN_PASSWORD, configuredAdmin.passwordHash).valid) {
+      console.log(`[SEED] Aggiornamento password admin per allineamento con .env...`);
+      db.prepare(
+        "UPDATE users SET passwordHash = ?, passwordUpdatedAt = CURRENT_TIMESTAMP WHERE id = ?"
+      ).run(hashPassword(ADMIN_PASSWORD), configuredAdmin.id);
+    }
   } else if (!adminUser) {
     const bootstrapPassword = ADMIN_PASSWORD || generateBootstrapPassword();
     console.log(
