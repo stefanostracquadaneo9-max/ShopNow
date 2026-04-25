@@ -438,6 +438,8 @@ function initializeDatabase() {
             role TEXT DEFAULT 'user',
             sessionToken TEXT UNIQUE,
             refreshToken TEXT,
+            resetToken TEXT,
+            resetTokenExpiry DATETIME,
             passwordUpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
             lastLoginAt DATETIME,
             updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,

@@ -8,6 +8,9 @@ const localDataValueCache = new Map();
 let usersSyncPromise = null;
 let productsSyncPromise = null;
 
+// Temporary definition
+window.getCurrentUser = async function() { return null; };
+
 window.SHOPNOW_API_BASE_URL =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1"

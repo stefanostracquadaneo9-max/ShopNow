@@ -65,6 +65,7 @@ const {
   getCart,
   updateCart,
   clearCart,
+  hashPassword,
 } = db_module;
 app.use(cors());
 app.use(express.json());
@@ -1167,6 +1168,134 @@ app.post("/api/auth/logout", requireAuth, (req, res) => {
     res.status(500).json({ error: "Errore interno del server" });
   }
 });
+
+// Endpoint per richiedere reset password
+app.post("/api/auth/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email || !email.trim()) {
+      return res.status(400).json({ error: "Email richiesta" });
+    }
+
+    const user = db_module.getUserByEmail(email.trim());
+    if (!user) {
+      // Per sicurezza, non riveliamo se l'email esiste
+      return res.json({
+        message:
+          "Se l'email è presente nei nostri sistemi, riceverai a breve un link di reset.",
+      });
+    }
+
+    // Genera token di reset
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const tokenHash = crypto
+      .createHash("sha256")
+      .update(resetToken)
+      .digest("hex");
+    const resetTokenExpiry = new Date(Date.now() + 3600000); // 1 ora
+
+    // Salva token nel database
+    const stmt = db.prepare(
+      "UPDATE users SET resetToken = ?, resetTokenExpiry = ? WHERE id = ?",
+    );
+    stmt.run(tokenHash, resetTokenExpiry.toISOString(), user.id);
+
+    // Invia email con link di reset
+    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password.html?token=${resetToken}`;
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || "noreply@shopnow.com",
+      to: user.email,
+      subject: "🔐 ShopNow - Ripristina la tua password",
+      html: `
+        <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
+          <div style="background: linear-gradient(135deg, #FF9900 0%, #146EB4 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
+            <h2 style="margin: 0;">Recupero Password</h2>
+          </div>
+          <div style="padding: 30px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
+            <p>Ciao ${user.name || "Utente"},</p>
+            <p>Hai richiesto di ripristinare la tua password. Clicca il link qui sotto entro 1 ora:</p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${resetLink}" style="background-color: #FF9900; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+                Ripristina Password
+              </a>
+            </div>
+            <p style="color: #666; font-size: 12px;">Se il pulsante non funziona, copia questo link nel browser:</p>
+            <p style="color: #0066cc; font-size: 11px; word-break: break-all;">${resetLink}</p>
+            <p style="color: #666; font-size: 12px; margin-top: 20px;">Non hai richiesto questo? Ignora questo email.</p>
+            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+            <p style="color: #999; font-size: 11px; text-align: center;">© ShopNow - Il tuo negozio online</p>
+          </div>
+        </div>
+      `,
+    };
+
+    transporter.sendMail(mailOptions, (err) => {
+      if (err) {
+        console.error("Errore invio email reset:", err);
+      }
+    });
+
+    res.json({
+      message:
+        "Se l'email è presente nei nostri sistemi, riceverai a breve un link di reset.",
+    });
+  } catch (error) {
+    console.error("Errore forgot password:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
+});
+
+// Endpoint per resettare la password
+app.post("/api/auth/reset-password", async (req, res) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    if (!token || !newPassword) {
+      return res.status(400).json({ error: "Token e password richiesti" });
+    }
+
+    if (newPassword.length < 8) {
+      return res.status(400).json({
+        error: "La password deve contenere almeno 8 caratteri",
+      });
+    }
+
+    // Hash del token ricevuto
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Trova l'utente con il token di reset
+    const stmt = db.prepare(
+      "SELECT * FROM users WHERE resetToken = ? AND resetTokenExpiry > datetime('now')",
+    );
+    const user = stmt.get(tokenHash);
+
+    if (!user) {
+      return res.status(400).json({
+        error:
+          "Token di reset non valido o scaduto. Richiedi un nuovo link.",
+      });
+    }
+
+    // Hash della nuova password usando la funzione del db
+    const passwordHash = hashPassword(newPassword);
+
+    // Aggiorna la password e pulisce i token
+    const updateStmt = db.prepare(
+      "UPDATE users SET passwordHash = ?, resetToken = NULL, resetTokenExpiry = NULL, passwordUpdatedAt = datetime('now') WHERE id = ?",
+    );
+    updateStmt.run(passwordHash, user.id);
+
+    res.json({
+      success: true,
+      message: "Password aggiornata con successo.",
+    });
+  } catch (error) {
+    console.error("Errore reset password:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
+});
+
 app.post("/api/admin/users", requireAdmin, (req, res) => {
   try {
     const name = String(req.body.name || "").trim();

@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   document.body.classList.remove("initially-hidden");
 
-  const currentUser = await getCurrentUser();
+  const currentUser = await window.getCurrentUser();
 
   if (currentUser) {
     const isAuthPage =

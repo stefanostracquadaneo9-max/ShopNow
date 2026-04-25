@@ -1012,15 +1012,13 @@ window.downloadBackup = async function () {
       throw new Error(data?.error || "Errore durante il download del backup");
     }
 
-    const blob = await response.blob();
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `shopnow_backup_${Date.now()}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    const backupData = await response.json();
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const jsonString = JSON.stringify(backupData, null, 2);
+    const lines = doc.splitTextToSize(jsonString, 180);
+    doc.text(lines, 10, 10);
+    doc.save(`shopnow_backup_${Date.now()}.pdf`);
   } catch (error) {
     alert(error.message || "Errore download backup");
   }
