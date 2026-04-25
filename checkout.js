@@ -359,22 +359,33 @@ for (const [cap, city] of Object.entries(CAP_TO_CITY)) {
   CITY_TO_CAP[city.toLowerCase()] = cap;
 }
 
+// Esponi globalmente per debugging
+window.CAP_TO_CITY = CAP_TO_CITY;
+window.CITY_TO_CAP = CITY_TO_CAP;
+
 function autoFillCityFromZipMultiCountry() {
-  const country = document.getElementById("checkout-country")?.value;
-  const zip = document.getElementById("checkout-postal")?.value.trim();
+  const postalInput = document.getElementById("checkout-postal");
   const cityInput = document.getElementById("checkout-city");
   
+  if (!postalInput || !cityInput) return;
+  
+  const zip = postalInput.value.trim();
   if (zip && CAP_TO_CITY[zip]) {
     cityInput.value = CAP_TO_CITY[zip];
+    cityInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
 
 function autoFillZipFromCityMultiCountry() {
-  const city = document.getElementById("checkout-city")?.value.trim().toLowerCase();
+  const cityInput = document.getElementById("checkout-city");
   const zipInput = document.getElementById("checkout-postal");
   
+  if (!cityInput || !zipInput) return;
+  
+  const city = cityInput.value.trim().toLowerCase();
   if (city && CITY_TO_CAP[city]) {
     zipInput.value = CITY_TO_CAP[city];
+    zipInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 }
 
@@ -696,6 +707,26 @@ $(document).ready(async function () {
         ${country.text}</span>`
     );
   }
+  
+  function formatCountrySelection(country) {
+    if (!country.id) return country.text;
+    // Nel campo di selezione, mostra solo la bandiera usando il codice paese
+    const flags = {
+      'it': '🇮🇹',
+      'fr': '🇫🇷',
+      'de': '🇩🇪',
+      'es': '🇪🇸',
+      'gb': '🇬🇧',
+      'us': '🇺🇸',
+      'ca': '🇨🇦',
+      'au': '🇦🇺',
+      'jp': '🇯🇵',
+      'cn': '🇨🇳',
+      'br': '🇧🇷'
+    };
+    const code = country.id.toLowerCase();
+    return flags[code] || country.text;
+  }
 
   // 1. Inizializza Select2
   $(".select2-enable").select2({
@@ -704,14 +735,27 @@ $(document).ready(async function () {
     width: "100%",
     language: { noResults: () => "Nessun paese trovato" },
     templateResult: formatCountry,
-    templateSelection: formatCountry
+    templateSelection: formatCountrySelection
   });
 
   // 2. Event Listeners per validazione CAP
   $("#checkout-country").on("change", validatePostalCode);
   $("#checkout-postal").on("input", validatePostalCode);
-  $("#checkout-postal").on("input", autoFillCityFromZipMultiCountry);
-  $("#checkout-city").on("input", autoFillZipFromCityMultiCountry);
+  
+  // Auto-fill CAP/Città - use both 'input' and 'change' events for reliability
+  const postalInput = document.getElementById("checkout-postal");
+  const cityInput = document.getElementById("checkout-city");
+  
+  if (postalInput) {
+    postalInput.addEventListener("input", autoFillCityFromZipMultiCountry);
+    postalInput.addEventListener("change", autoFillCityFromZipMultiCountry);
+  }
+  
+  if (cityInput) {
+    cityInput.addEventListener("input", autoFillZipFromCityMultiCountry);
+    cityInput.addEventListener("change", autoFillZipFromCityMultiCountry);
+  }
+  
   $("#checkout-country").on("change", function() {
     document.getElementById("checkout-postal").value = "";
     document.getElementById("checkout-city").value = "";

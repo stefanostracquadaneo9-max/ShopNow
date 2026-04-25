@@ -551,6 +551,12 @@ function initializeDatabase() {
     "resetPasswordExpires",
     "resetPasswordExpires DATETIME",
   );
+  ensureColumn("users", "resetToken", "resetToken TEXT");
+  ensureColumn(
+    "users",
+    "resetTokenExpiry",
+    "resetTokenExpiry DATETIME",
+  );
   ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
   ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
   ensureColumn("orders", "stripePaymentIntentId", "stripePaymentIntentId TEXT");
