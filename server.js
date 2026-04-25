@@ -963,6 +963,7 @@ app.post("/api/checkout", async (req, res) => {
     }
     // Invia email di conferma ordine (salta se richiesto per i test)
     if (isEmailConfigured && skipEmail !== true && skipEmail !== "true") {
+      console.log(`[EMAIL] Inizio procedura invio email per ordine #${updatedOrder.id} a ${customerEmail}`);
       sendOrderConfirmationEmail({
         customerName: customerName,
         customerEmail: customerEmail,
@@ -971,7 +972,7 @@ app.post("/api/checkout", async (req, res) => {
         items: purchasedItems,
         orderDate: new Date(updatedOrder.createdAt).toLocaleString("it-IT"),
         shippingAddress: shippingAddress,
-      }).catch(err => console.error("[EMAIL ERROR] Invio asincrono fallito:", err));
+      }).catch(err => console.error(`[EMAIL ERROR] Fallimento per ordine #${updatedOrder.id}:`, err.message));
     }
     console.log(
       `[OK] Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,

@@ -255,6 +255,22 @@ function updateDashboardStats() {
         ? "Ricavi Stripe"
         : "Ricavi Totali";
   }
+
+  const stripeStatusMessageElement = document.getElementById("stripe-status-message");
+  if (stripeStatusMessageElement) {
+    if (stripeSummary && Number.isFinite(Number(stripeSummary.revenue))) {
+      stripeStatusMessageElement.innerHTML = ''; // Clear any previous message
+    } else {
+      stripeStatusMessageElement.innerHTML = `
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <div>
+            <strong>Attenzione:</strong> I dati di Stripe non sono disponibili. Assicurati che <code>STRIPE_SECRET_KEY</code> sia configurata correttamente nelle variabili d'ambiente su Railway.
+          </div>
+        </div>
+      `;
+    }
+  }
 }
 
 function renderUserStatusBadge(user) {
