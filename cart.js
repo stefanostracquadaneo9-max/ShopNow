@@ -714,5 +714,4 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.showCheckoutMessage = showCheckoutMessage;
   window.fetchWithTimeout = fetchWithTimeout;
   window.clearLocalCart = clearLocalCart;
-  window.saveOrderForCurrentUser = saveOrderForCurrentUser;
 });

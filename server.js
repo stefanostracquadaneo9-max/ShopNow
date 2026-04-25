@@ -77,7 +77,7 @@ app.get("/", (req, res) => {
 app.use(
   express.static(__dirname, {
     index: "index.html",
-    maxAge: "1d",
+    maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
     etag: true,
     lastModified: true,
   }),

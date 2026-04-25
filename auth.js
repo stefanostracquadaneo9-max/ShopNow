@@ -1368,3 +1368,5 @@ window.getBackendRequestHeaders = getBackendRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
 window.getDefaultProducts = getDefaultProducts;
 window.changePassword = changePassword;
+window.getCurrentUser = getCurrentUser;
+window.saveOrderForCurrentUser = saveOrderForCurrentUser;
