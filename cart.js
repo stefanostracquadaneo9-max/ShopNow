@@ -8,6 +8,12 @@ const CART_BRIDGE_KEYS = [
   "cart",
   "cart-count",
 ];
+const currencyFormatter = new Intl.NumberFormat('it-IT', {
+  style: 'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 let bridgedCheckoutPrefill = null;
 redirectFileModeCartPage();
 function redirectFileModeCartPage() {

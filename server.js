@@ -1201,7 +1201,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     stmt.run(tokenHash, resetTokenExpiry.toISOString(), user.id);
 
     // Invia email con link di reset
-    const resetLink = `${process.env.FRONTEND_URL || "http://localhost:3000"}/reset-password.html?token=${resetToken}`;
+    const resetLink = `${process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/reset-password.html?token=${resetToken}`;
 
     const mailOptions = {
       from: process.env.EMAIL_FROM || "noreply@shopnow.com",

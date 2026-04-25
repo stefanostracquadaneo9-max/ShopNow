@@ -280,8 +280,8 @@ async function initializeLocalDB() {
   window.DB_INITIALIZING = true;
 
   const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
-  const existingUsers = loadData("users", {});
-  const adminUser = existingUsers["admin@gmail.com"];
+  const existingUsers2 = loadData("users", {});
+  const adminUser = existingUsers2["admin@gmail.com"];
 
   if (initialized === "1" && adminUser && !new URLSearchParams(window.location.search).get("reset")) {
     if (prefersServerAuth()) {
@@ -318,11 +318,11 @@ async function initializeLocalDB() {
       );
     }
   }
-  const initialized = window.localStorage.getItem(
+  let dbInitialized = window.localStorage.getItem(
     DB_KEY_PREFIX + "initialized",
   );
-  const existingUsers = loadData("users", {});
-  const adminUser = existingUsers["admin@gmail.com"];
+  const existingUsers3 = loadData("users", {});
+  const adminUser2 = existingUsers3["admin@gmail.com"];
   let existingProducts = loadData("products", []);
   const shouldUseServerAuth = prefersServerAuth();
   if (existingProducts.length > 0) {
@@ -357,7 +357,7 @@ async function initializeLocalDB() {
     }
   }
   if (shouldUseServerAuth) {
-    if (!initialized || !existingProducts.length) {
+    if (!dbInitialized || !existingProducts.length) {
       const products = normalizeLocalCatalogProducts(
         existingProducts.length ? existingProducts : getDefaultProducts(),
       );
@@ -372,20 +372,20 @@ async function initializeLocalDB() {
   }
   const expectedAdminShaHash =
     "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918";
-  if (initialized && adminUser && adminUser.passwordHash) {
+  if (dbInitialized && adminUser2 && adminUser2.passwordHash) {
     const expectedLegacyHash = simpleHash("admin");
     if (
-      adminUser.passwordHash !== expectedLegacyHash &&
-      adminUser.passwordHash !== expectedAdminShaHash
+      adminUser2.passwordHash !== expectedLegacyHash &&
+      adminUser2.passwordHash !== expectedAdminShaHash
     ) {
       console.log("Hash admin non valido trovato, ripristino con hash legacy.");
-      adminUser.passwordHash = expectedLegacyHash;
-      existingUsers[String(adminUser.email).toLowerCase()] = adminUser;
-      saveData("users", existingUsers);
+      adminUser2.passwordHash = expectedLegacyHash;
+      existingUsers3[String(adminUser2.email).toLowerCase()] = adminUser2;
+      saveData("users", existingUsers3);
     }
   }
   if (
-    (!initialized || !adminUser || !existingProducts.length) &&
+    (!dbInitialized || !adminUser2 || !existingProducts.length) &&
     !shouldUseServerAuth
   ) {
     console.log("DB non inizializzato o admin mancante, inizializzo...");
