@@ -1,4 +1,4 @@
-﻿require("dotenv").config();
+﻿﻿require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
@@ -960,9 +960,8 @@ app.post("/api/checkout", async (req, res) => {
       };
     }
     // Invia email di conferma ordine (salta se richiesto per i test)
-    let emailResult = { emailSent: false };
-    if (skipEmail !== true && skipEmail !== "true") {
-      emailResult = await sendOrderConfirmationEmail({
+    if (isEmailConfigured && skipEmail !== true && skipEmail !== "true") {
+      sendOrderConfirmationEmail({
         customerName: customerName,
         customerEmail: customerEmail,
         orderId: updatedOrder.id,
@@ -970,7 +969,7 @@ app.post("/api/checkout", async (req, res) => {
         items: purchasedItems,
         orderDate: new Date(updatedOrder.createdAt).toLocaleString("it-IT"),
         shippingAddress: shippingAddress,
-      });
+      }).catch(err => console.error("[EMAIL ERROR] Invio asincrono fallito:", err));
     }
     console.log(
       `[OK] Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
@@ -978,7 +977,7 @@ app.post("/api/checkout", async (req, res) => {
     res.json({
       success: true,
       order: updatedOrder,
-      emailSent: emailResult.emailSent,
+      emailSent: isEmailConfigured,
       paymentIntentId: confirmedPaymentIntent.id,
       // Salta l'aggiornamento prodotti se richiesto per i test
       updatedProducts:

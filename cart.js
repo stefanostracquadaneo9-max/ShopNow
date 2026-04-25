@@ -269,7 +269,7 @@ function setCheckoutLoading(isLoading) {
       ? "Conferma ordine"
       : "Procedi al pagamento";
 }
-function fetchWithTimeout(url, options = {}, timeout = 15000) {
+function fetchWithTimeout(url, options = {}, timeout = 30000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   const fetchOptions = {
