@@ -2528,7 +2528,7 @@ async function initCheckoutPage() {
       br: '🇧🇷'
     }[code] || '';
     const name = country.text.replace(/^[^a-zA-Z0-9]+/, '').trim();
-    return $(`<span>${flag} ${name}</span>`);
+    return `${flag} ${name}`.trim();
   }
 
   // 1. Inizializza Select2
@@ -2538,7 +2538,8 @@ async function initCheckoutPage() {
     width: "100%",
     language: { noResults: () => "Nessun paese trovato" },
     templateResult: formatCountry,
-    templateSelection: formatCountrySelection
+    templateSelection: formatCountrySelection,
+    escapeMarkup: function(markup) { return markup; }
   });
 
   // 2. Event Listeners per validazione CAP
@@ -2549,6 +2550,7 @@ async function initCheckoutPage() {
 
   const cityInput = document.getElementById("checkout-city");
   if (cityInput) {
+    cityInput.addEventListener("input", autoFillZipFromCityMultiCountry);
     cityInput.addEventListener("change", autoFillZipFromCityMultiCountry);
     cityInput.addEventListener("blur", autoFillZipFromCityMultiCountry);
   }

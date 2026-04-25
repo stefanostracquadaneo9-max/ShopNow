@@ -1373,3 +1373,4 @@ window.getDefaultProducts = getDefaultProducts;
 window.changePassword = changePassword;
 window.getCurrentUser = getCurrentUser;
 window.saveOrderForCurrentUser = saveOrderForCurrentUser;
+window.getAllProducts = getAllProducts;

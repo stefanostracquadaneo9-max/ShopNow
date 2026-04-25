@@ -81,6 +81,14 @@ app.use(
     maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
     etag: true,
     lastModified: true,
+    setHeaders: (res, path, stat) => {
+      // Cache busting for .js files in development
+      if (process.env.NODE_ENV !== "production" && path.endsWith('.js')) {
+        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.set('Pragma', 'no-cache');
+        res.set('Expires', '0');
+      }
+    }
   }),
 );
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
