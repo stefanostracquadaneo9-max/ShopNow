@@ -131,9 +131,11 @@ if (isEmailConfigured) {
   transporter = nodemailer.createTransport(transporterOptions);
   transporter.verify((error, success) => {
     if (error) {
-      console.log("[WARN] Email non configurato:", error.message);
+      console.log("[WARN] Errore configurazione email (SMTP):", error.message);
+      isEmailConfigured = false;
     } else {
       console.log("[OK] Email configurato e pronto");
+      isEmailConfigured = true;
     }
   });
 }

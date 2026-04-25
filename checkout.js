@@ -323,12 +323,28 @@ function configureStaticCheckoutUi() {
 
 // Inizializzazione pagina
 $(document).ready(async function () {
+  // Funzione per formattare le opzioni di Select2 con le bandiere
+  function formatCountry(country) {
+    if (!country.id) return country.text;
+    
+    const code = country.id.toLowerCase();
+    // Utilizziamo flagcdn.com per le immagini delle bandiere basate sul codice ISO
+    return $(
+      `<span><img src="https://flagcdn.com/20x15/${code}.png" 
+            class="img-flag"
+            style="margin-right: 10px; border-radius: 2px; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.1);" /> 
+        ${country.text}</span>`
+    );
+  }
+
   // 1. Inizializza Select2
   $(".select2-enable").select2({
     placeholder: "Cerca un paese...",
     allowClear: true,
     width: "100%",
     language: { noResults: () => "Nessun paese trovato" },
+    templateResult: formatCountry,
+    templateSelection: formatCountry
   });
 
   // 2. Event Listeners per validazione CAP
