@@ -1445,16 +1445,26 @@ function seedDatabase() {
         "UPDATE users SET role = 'admin', updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
       ).run(configuredAdmin.id);
     }
-    console.log(`[SEED] Admin configurato pronto: ${configuredAdmin.email}.`);
+    
+    // Forza sempre la password del .env se l'utente esiste
+    const currentHash = hashPassword(ADMIN_PASSWORD);
+    db.prepare("UPDATE users SET passwordHash = ? WHERE email = ?").run(currentHash, ADMIN_EMAIL);
+    console.log(`[SEED] Password per ${ADMIN_EMAIL} sincronizzata con successo.`);
+  } else {
+    console.log(`[SEED] Creazione account admin configurato: ${ADMIN_EMAIL}...`);
+    createUser(ADMIN_EMAIL, ADMIN_NAME, ADMIN_PASSWORD || "admin", "admin");
+  }
 
-    // Sincronizza la password se definita nel .env ed è diversa da quella nel DB
-    if (ADMIN_PASSWORD && !verifyPassword(ADMIN_PASSWORD, configuredAdmin.passwordHash).valid) {
-      console.log(`[SEED] Aggiornamento password admin per allineamento con .env...`);
-      db.prepare(
-        "UPDATE users SET passwordHash = ?, passwordUpdatedAt = CURRENT_TIMESTAMP WHERE id = ?"
-      ).run(hashPassword(ADMIN_PASSWORD), configuredAdmin.id);
-    }
-  } else if (!adminUser) {
+  // Verifica e forza la sincronizzazione della password per l'admin configurato
+  const finalAdmin = getUserByEmail(ADMIN_EMAIL);
+  if (finalAdmin && ADMIN_PASSWORD && !verifyPassword(ADMIN_PASSWORD, finalAdmin.passwordHash).valid) {
+    console.log(`[SEED] Sincronizzazione password per ${ADMIN_EMAIL}...`);
+    db.prepare(
+      "UPDATE users SET passwordHash = ?, passwordUpdatedAt = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(hashPassword(ADMIN_PASSWORD), finalAdmin.id);
+  }
+
+  if (!adminUser && !configuredAdmin) {
     const bootstrapPassword = ADMIN_PASSWORD || generateBootstrapPassword();
     console.log(
       `[SEED] Nessun admin trovato. Creo bootstrap admin ${ADMIN_EMAIL}...`,

@@ -276,11 +276,11 @@ async function initializeLocalDB() {
   if (window.DB_INITIALIZING) return;
   window.DB_INITIALIZING = true;
 
-  // Se già inizializzato, facciamo solo una sync silente ed esciamo
-  if (
-    window.localStorage.getItem(DB_KEY_PREFIX + "initialized") === "1" &&
-    !new URLSearchParams(window.location.search).get("reset")
-  ) {
+  const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
+  const existingUsers = loadData("users", {});
+  const adminUser = existingUsers["admin@gmail.com"];
+
+  if (initialized === "1" && adminUser && !new URLSearchParams(window.location.search).get("reset")) {
     if (prefersServerAuth()) {
       saveData("users", {});
     } else {
