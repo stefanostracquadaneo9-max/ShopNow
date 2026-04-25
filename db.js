@@ -305,19 +305,7 @@ function hashLegacyPassword(password) {
 }
 
 function validatePasswordStrength(password) {
-  const normalizedPassword = String(password || "");
-  if (normalizedPassword.length < 8) {
-    return "La password deve contenere almeno 8 caratteri";
-  }
-  if (!/[a-z]/.test(normalizedPassword)) {
-    return "La password deve contenere almeno una lettera minuscola";
-  }
-  if (!/[A-Z]/.test(normalizedPassword)) {
-    return "La password deve contenere almeno una lettera maiuscola";
-  }
-  if (!/\d/.test(normalizedPassword)) {
-    return "La password deve contenere almeno un numero";
-  }
+  // Nessuna limitazione sulla password
   return null;
 }
 

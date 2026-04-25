@@ -12,7 +12,7 @@ window.SHOPNOW_API_BASE_URL =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1"
     ? "http://localhost:3000"
-    : "https://shopnow-production.up.railway.app";
+    : window.location.origin;
 
 const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
 
