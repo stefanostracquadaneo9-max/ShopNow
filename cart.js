@@ -538,15 +538,13 @@ function getCartItemImageMarkup(item) {
 function renderCart() {
   const itemsContainer = document.getElementById("cart-items");
   const totalContainer = document.getElementById("cart-total");
-  const checkoutSummary = document.getElementById("checkout-summary"); // Per pagina checkout
-  const checkoutPanel = document.getElementById("checkout-panel");
-  const checkoutButton = document.getElementById("checkout-btn");
-  const totalLabel = document.getElementById("checkout-total-label");
+  const proceedToCheckoutContainer = document.getElementById("proceed-to-checkout-container");
+  const proceedToCheckoutBtn = document.getElementById("proceed-to-checkout-btn");
 
   const { items, subtotal, vat, shipping, total } = getCartDetails();
 
   // Se siamo nella pagina di checkout, usiamo una logica di rendering diversa
-  if (checkoutSummary && totalLabel) {
+  if (document.getElementById("checkout-summary") && document.getElementById("checkout-total-label")) { // Check for elements specific to checkout.html
     renderCheckoutSummary(items, subtotal, shipping, vat, total);
     return;
   }
@@ -559,8 +557,8 @@ function renderCart() {
       ? '<div class="alert alert-warning">Seleziona almeno un prodotto per procedere al checkout rapido.</div>'
       : "<p>Il carrello e vuoto.</p>";
     totalContainer.innerHTML = "";
-    checkoutPanel.style.display = "none";
-    checkoutButton.style.display = "none";
+    if (proceedToCheckoutContainer) proceedToCheckoutContainer.style.display = "none";
+    if (proceedToCheckoutBtn) proceedToCheckoutBtn.disabled = true;
     return;
   }
   const itemsMarkup = items
@@ -633,9 +631,8 @@ function renderCart() {
             <div class="summary-row total mt-0 border-0"><span>Totale:</span> <span class="text-danger">${window.formatCurrency(total)}</span></div>
         </div>
     `;
-  totalLabel.textContent = window.formatCurrency(total);
-  checkoutPanel.style.display = "block";
-  checkoutButton.style.display = "inline-block";
+  if (proceedToCheckoutContainer) proceedToCheckoutContainer.style.display = "flex";
+  if (proceedToCheckoutBtn) proceedToCheckoutBtn.disabled = false;
 }
 
 function renderCheckoutSummary(items, subtotal, shipping, vat, total) {

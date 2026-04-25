@@ -331,7 +331,7 @@ $(document).ready(async function () {
     // Utilizziamo flagcdn.com per le immagini delle bandiere basate sul codice ISO
     return $(
       `<span><img src="https://flagcdn.com/20x15/${code}.png" 
-            class="img-flag"
+            class="img-flag" 
             style="margin-right: 10px; border-radius: 2px; vertical-align: middle; box-shadow: 0 1px 2px rgba(0,0,0,0.1);" /> 
         ${country.text}</span>`
     );
