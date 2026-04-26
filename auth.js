@@ -585,6 +585,18 @@ async function initializeLocalDB() {
         updated = true;
       }
     }
+    if (
+      !shouldUseServerAuth() &&
+      existingProducts.length > 0 &&
+      existingProducts.length < getDefaultProducts().length
+    ) {
+      const defaultProducts = normalizeLocalCatalogProducts(getDefaultProducts());
+      console.log(
+        `Aggiorno il catalogo locale: ${existingProducts.length} prodotti trovati, sostituisco con ${defaultProducts.length} prodotti di default`,
+      );
+      existingProducts = defaultProducts;
+      updated = true;
+    }
     if (updated) {
       saveData("products", existingProducts);
       console.log("Immagini prodotti migrate a fallback locale");
