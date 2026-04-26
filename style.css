@@ -15,6 +15,21 @@
 body {
     font-family: "Amazon Ember", Arial, sans-serif;
     background-color: var(--amazon-light);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main {
+    flex: 1;
+}
+
+.amazon-footer {
+    background-color: var(--amazon-dark);
+    color: white;
+    padding: 3rem 0 2rem;
+    margin-top: auto;
+    border-top: 1px solid #333;
 }
 
 .amazon-header {
@@ -93,30 +108,57 @@ body {
 .amazon-footer {
     background-color: var(--amazon-dark);
     color: white;
-    padding: 2rem 0 1rem;
-    margin-top: 3rem;
+    padding: 3rem 0 2rem;
+    margin-top: auto;
+    border-top: 1px solid #333;
 }
 
 .amazon-footer h5,
 .amazon-footer h6 {
     color: white;
+    font-weight: 600;
 }
 
 .amazon-footer a {
     color: #ddd;
     text-decoration: none;
+    transition: color 0.3s ease;
 }
 
 .amazon-footer a:hover {
     color: var(--amazon-orange);
+    text-decoration: underline;
 }
 
 .amazon-footer hr {
     border-color: #555;
+    margin: 2rem 0;
 }
 
 .amazon-footer .small {
     color: #ccc;
+    font-size: 0.875rem;
+}
+
+.amazon-footer .text-muted {
+    color: #bbb !important;
+}
+
+.amazon-footer .newsletter-signup {
+    background-color: rgba(255, 255, 255, 0.05);
+    padding: 1.5rem;
+    border-radius: 8px;
+    border: 1px solid #444;
+}
+
+.amazon-footer .newsletter-signup h6 {
+    color: var(--amazon-orange);
+    margin-bottom: 0.5rem;
+}
+
+.amazon-footer .newsletter-signup p {
+    color: #ddd;
+    margin-bottom: 1rem;
 }
 
 /* Sistema Globale Bottoni Coerenti - Stile Amazon Moderno */
