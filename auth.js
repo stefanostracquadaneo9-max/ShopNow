@@ -23,6 +23,12 @@ const SHOPNOW_API_BASE_URL = window.SHOPNOW_API_BASE_URL;
 const isBrowser =
   typeof window !== "undefined" && typeof document !== "undefined";
 
+if (isBrowser) {
+  window.localDBReady = new Promise((resolve) => {
+    window.localDBReadyResolve = resolve;
+  });
+}
+
 function getDataStorageKey(key) {
   return `${DB_KEY_PREFIX}${key}`;
 }
@@ -466,6 +472,13 @@ function normalizeLocalCatalogProducts(products) {
     : [];
 }
 
+function isProductCatalogUpToDate(products) {
+  if (!Array.isArray(products)) return false;
+  const defaultNames = new Set(getDefaultProducts().map((product) => product.name));
+  if (products.length !== defaultNames.size) return false;
+  return products.every((product) => defaultNames.has(product.name));
+}
+
 function stripSensitiveUserData(user) {
   if (!user || typeof user !== "object") {
     return user;
@@ -521,10 +534,15 @@ async function initializeLocalDB() {
     if (prefersServerAuth()) {
       saveData("users", {});
     } else {
-      syncUsersFromServer();
+      await syncUsersFromServer();
     }
-    syncProductsFromServer();
+    await syncProductsFromServer();
     window.DB_INITIALIZING = false;
+    if (typeof window.localDBReadyResolve === "function") {
+      window.localDBReadyResolve();
+      window.localDBReadyResolve = null;
+    }
+    window.dispatchEvent(new Event("shopnow-localdb-ready"));
     return false;
   }
 
@@ -584,9 +602,17 @@ async function initializeLocalDB() {
         existingProducts = normalizedProducts;
         updated = true;
       }
+      if (!isProductCatalogUpToDate(existingProducts)) {
+        const defaultProducts = normalizeLocalCatalogProducts(getDefaultProducts());
+        console.log(
+          `Aggiorno il catalogo locale: prodotti locali non corrispondono al catalogo di default, sostituisco con ${defaultProducts.length} prodotti di default`,
+        );
+        existingProducts = defaultProducts;
+        updated = true;
+      }
     }
     if (
-      !shouldUseServerAuth() &&
+      !shouldUseServerAuth &&
       existingProducts.length > 0 &&
       existingProducts.length < getDefaultProducts().length
     ) {
@@ -612,8 +638,13 @@ async function initializeLocalDB() {
       localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
     }
     saveData("users", {});
-    syncProductsFromServer();
+    await syncProductsFromServer();
     window.DB_INITIALIZING = false;
+    if (typeof window.localDBReadyResolve === "function") {
+      window.localDBReadyResolve();
+      window.localDBReadyResolve = null;
+    }
+    window.dispatchEvent(new Event("shopnow-localdb-ready"));
     return false;
   }
   const expectedAdminShaHash =
@@ -655,9 +686,14 @@ async function initializeLocalDB() {
     console.log("DB locale inizializzato con dati demo");
   }
 
-  syncUsersFromServer();
-  syncProductsFromServer();
+  await syncUsersFromServer();
+  await syncProductsFromServer();
   window.DB_INITIALIZING = false;
+  if (typeof window.localDBReadyResolve === "function") {
+    window.localDBReadyResolve();
+    window.localDBReadyResolve = null;
+  }
+  window.dispatchEvent(new Event("shopnow-localdb-ready"));
 }
 function saveData(key, data) {
   try {

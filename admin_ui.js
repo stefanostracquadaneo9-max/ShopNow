@@ -75,6 +75,38 @@ function formatAdminCurrency(value) {
   }).format(Number(value || 0));
 }
 
+function safeLoadData(key, defaultValue = {}) {
+  if (typeof loadData === "function") {
+    return loadData(key, defaultValue);
+  }
+  try {
+    const raw = localStorage.getItem(`ecommerce_${key}`);
+    if (!raw) return defaultValue;
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn(`safeLoadData failed for ${key}:`, error);
+    return defaultValue;
+  }
+}
+
+function safeGetAllProducts() {
+  if (typeof getAllProducts === "function") {
+    const products = getAllProducts();
+    if (Array.isArray(products)) return products;
+  }
+  if (typeof window.getAllProducts === "function") {
+    const products = window.getAllProducts();
+    if (Array.isArray(products)) return products;
+  }
+  if (typeof getDefaultProducts === "function") {
+    return getDefaultProducts();
+  }
+  if (typeof window.getDefaultProducts === "function") {
+    return window.getDefaultProducts();
+  }
+  return [];
+}
+
 function parseDate(value) {
   const date = value ? new Date(value) : new Date();
   return Number.isNaN(date.getTime()) ? new Date() : date;
@@ -142,8 +174,8 @@ function loadDashboardDataFromCache() {
 }
 
 function loadDashboardDataFromLocal() {
-  users = Object.values(loadData("users", {}));
-  products = typeof getAllProducts === "function" ? getAllProducts() : [];
+  users = Object.values(safeLoadData("users", {}));
+  products = safeGetAllProducts();
   orders = users.flatMap((user) =>
     Array.isArray(user.orders)
       ? user.orders.map((order) => ({
@@ -823,7 +855,7 @@ window.showAddUserModal = function () {
 };
 
 async function saveUserLocal({ name, email, password, role }) {
-  const localUsers = loadData("users", {});
+  const localUsers = safeLoadData("users", {});
   const normalizedEmail = String(email || "")
     .trim()
     .toLowerCase();
@@ -922,7 +954,7 @@ window.cleanTestAccounts = async function () {
       );
       message = response.message || message;
     } else {
-      const localUsers = loadData("users", {});
+      const localUsers = safeLoadData("users", {});
       let deletedCount = 0;
       Object.keys(localUsers).forEach((email) => {
         if (
@@ -984,7 +1016,7 @@ window.confirmDeleteUser = async function () {
         "Errore eliminazione utente",
       );
     } else {
-      const localUsers = loadData("users", {});
+      const localUsers = safeLoadData("users", {});
       delete localUsers[String(pendingUserDeletion.email || "").toLowerCase()];
       saveData("users", localUsers);
     }

@@ -1488,8 +1488,75 @@ function seedDatabase() {
     }
   }
 
-  const existingRows = db.prepare("SELECT name FROM products").all();
+  const existingRows = db.prepare("SELECT id,name FROM products").all();
   const existingNames = new Set(existingRows.map((product) => product.name));
+  const defaultNames = new Set(DEFAULT_PRODUCTS.map((product) => product.name));
+  const defaultProductsByName = new Map(
+    DEFAULT_PRODUCTS.map((product) => [product.name, product]),
+  );
+  const matchLegacyProductName = new Map([
+    ["Lampada a Sospensione", "Lampada LED"],
+    ["Bicicletta Mountain", "Bicicletta MTB"],
+  ]);
+
+  const referencedIds = new Set(
+    getAllOrders()
+      .flatMap((order) => parseOrderItems(order.items))
+      .filter((item) => item && item.id)
+      .map((item) => Number(item.id)),
+  );
+
+  const staleRows = existingRows.filter(
+    (product) => !defaultNames.has(product.name),
+  );
+
+  const renamedStaleIds = [];
+  for (const row of staleRows) {
+    if (!referencedIds.has(row.id)) continue;
+    const canonicalName = matchLegacyProductName.get(row.name);
+    const canonicalProduct = canonicalName
+      ? defaultProductsByName.get(canonicalName)
+      : null;
+    if (!canonicalProduct) continue;
+
+    db.prepare(
+      `UPDATE products SET name = ?, description = ?, price = ?, category = ?, image = ?, stock = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`,
+    ).run(
+      canonicalProduct.name,
+      canonicalProduct.description || "",
+      canonicalProduct.price,
+      canonicalProduct.category || "",
+      canonicalProduct.image || "",
+      canonicalProduct.stock || 0,
+      row.id,
+    );
+
+    db.prepare(
+      "DELETE FROM products WHERE name = ? AND id != ?",
+    ).run(canonicalProduct.name, row.id);
+
+    existingNames.delete(row.name);
+    existingNames.add(canonicalProduct.name);
+    renamedStaleIds.push(row.id);
+  }
+
+  const staleIdsToDelete = staleRows
+    .filter(
+      (product) =>
+        !referencedIds.has(product.id) ||
+        !matchLegacyProductName.has(product.name),
+    )
+    .map((product) => product.id);
+
+  if (staleIdsToDelete.length > 0) {
+    const placeholders = staleIdsToDelete.map(() => "?").join(",");
+    db.prepare(
+      `DELETE FROM products WHERE id IN (${placeholders})`,
+    ).run(...staleIdsToDelete);
+    console.log(
+      `[SEED] Rimosso ${staleIdsToDelete.length} prodotti obsoleti non referenziati da ordini.`,
+    );
+  }
 
   let insertedProducts = 0;
   for (const product of DEFAULT_PRODUCTS) {

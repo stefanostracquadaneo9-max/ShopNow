@@ -8,7 +8,7 @@ const CART_BRIDGE_KEYS = [
   "cart",
   "cart-count",
 ];
-const currencyFormatter = new Intl.NumberFormat('it-IT', {
+const cartCurrencyFormatter = new Intl.NumberFormat('it-IT', {
   style: 'currency',
   currency: 'EUR',
   minimumFractionDigits: 2,
@@ -292,7 +292,7 @@ function fetchWithTimeout(url, options = {}, timeout = 30000) {
     });
 }
 function formatCurrency(value) {
-  return currencyFormatter.format(Number(value || 0));
+  return cartCurrencyFormatter.format(Number(value || 0));
 }
 function calculateShippingCost(subtotal) {
   const normalizedSubtotal = Number(subtotal || 0);
@@ -449,12 +449,21 @@ function normalizeCountryCode(value) {
 function getProductsForCart() {
   if (typeof getAllProducts === "function") {
     const products = getAllProducts();
-    if (products.length) {
+    if (Array.isArray(products) && products.length) {
+      return products;
+    }
+  }
+  if (typeof window.getAllProducts === "function") {
+    const products = window.getAllProducts();
+    if (Array.isArray(products) && products.length) {
       return products;
     }
   }
   if (typeof getDefaultProducts === "function") {
     return getDefaultProducts();
+  }
+  if (typeof window.getDefaultProducts === "function") {
+    return window.getDefaultProducts();
   }
   return [];
 }
@@ -698,6 +707,25 @@ function removeFromCart(productId) {
   delete cart[productId];
   saveCart(cart);
   renderCart();
+}
+
+if (typeof window !== "undefined") {
+  window.removeFromCart = removeFromCart;
+  window.updateQuantity = updateQuantity;
+  window.addToCart = addToCart;
+  window.buyNow = buyNow;
+  window.proceedToCheckout = proceedToCheckout;
+  window.checkoutSingleItem = checkoutSingleItem;
+  window.clearFullCart = clearFullCart;
+  window.consumeBridgeData = consumeBridgeData;
+  window.getCartStorageArea = getCartStorageArea;
+  window.getCartDetails = getCartDetails;
+  window.getApiUrl = getApiUrl;
+  window.getApiRequestHeaders = getApiRequestHeaders;
+  window.isStaticCheckoutMode = isStaticCheckoutMode;
+  window.showCheckoutMessage = showCheckoutMessage;
+  window.fetchWithTimeout = fetchWithTimeout;
+  window.clearLocalCart = clearLocalCart;
 }
 document.addEventListener("DOMContentLoaded", async () => {
   consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm

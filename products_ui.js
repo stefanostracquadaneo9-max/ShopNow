@@ -7,6 +7,28 @@ let currentSearch = "";
 let currentSort = "name";
 let productImagePreviewModal = null;
 
+function getCatalogProducts() {
+  if (typeof getAllProducts === "function") {
+    const products = getAllProducts();
+    if (Array.isArray(products) && products.length) {
+      return products;
+    }
+  }
+  if (typeof window.getAllProducts === "function") {
+    const products = window.getAllProducts();
+    if (Array.isArray(products) && products.length) {
+      return products;
+    }
+  }
+  if (typeof getDefaultProducts === "function") {
+    return getDefaultProducts();
+  }
+  if (typeof window.getDefaultProducts === "function") {
+    return window.getDefaultProducts();
+  }
+  return [];
+}
+
 // Load products on page load
 document.addEventListener("DOMContentLoaded", async function () {
   loadProducts();
@@ -14,11 +36,14 @@ document.addEventListener("DOMContentLoaded", async function () {
 
 async function loadProducts() {
   try {
-    allProducts = getAllProducts();
+    if (window.localDBReady instanceof Promise) {
+      await window.localDBReady;
+    }
+    allProducts = getCatalogProducts();
     console.log("Loaded products:", allProducts);
     if (!allProducts || !allProducts.length) {
       console.log("No products in DB, using defaults");
-      allProducts = getDefaultProducts();
+      allProducts = getCatalogProducts();
     }
     filteredProducts = [...allProducts];
     applyInitialFiltersFromQuery();
@@ -321,12 +346,16 @@ window.searchProducts = function () {
   applyFilters();
 };
 
-document
-  .getElementById("search-input")
-  .addEventListener(
-    "keypress",
-    (e) => e.key === "Enter" && window.searchProducts(),
+const searchInputElement = document.getElementById("search-input");
+if (searchInputElement) {
+  searchInputElement.addEventListener("keypress", (e) =>
+    e.key === "Enter" && window.searchProducts(),
   );
+}
+const searchButton = document.getElementById("search-btn");
+if (searchButton) {
+  searchButton.addEventListener("click", () => window.searchProducts());
+}
 window.changePage = changePage;
 window.sortProducts = sortProducts;
 window.resetFilters = resetFilters;
