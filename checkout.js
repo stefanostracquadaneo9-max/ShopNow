@@ -595,6 +595,7 @@ const CAP_TO_CITY = {
   "05100": "Terni",
   "07100": "Sassari",
   "08100": "Nuoro",
+  "97019": "Vittoria",
 
   // FRANCIA
   "75001": "Parigi",
