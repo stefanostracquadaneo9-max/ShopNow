@@ -1263,12 +1263,6 @@ app.post("/api/auth/reset-password", async (req, res) => {
       return res.status(400).json({ error: "Token e password richiesti" });
     }
 
-    if (newPassword.length < 8) {
-      return res.status(400).json({
-        error: "La password deve contenere almeno 8 caratteri",
-      });
-    }
-
     // Hash del token ricevuto
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 

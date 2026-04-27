@@ -8,9 +8,6 @@ const localDataValueCache = new Map();
 let usersSyncPromise = null;
 let productsSyncPromise = null;
 
-// Temporary definition
-window.getCurrentUser = async function() { return null; };
-
 window.SHOPNOW_API_BASE_URL =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1"
@@ -512,7 +509,9 @@ function prefersServerAuth() {
   }
   if (
     window.location.protocol === "file:" ||
-    window.location.hostname.includes("github.io")
+    window.location.hostname.includes("github.io") ||
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
   ) {
     return false;
   }
@@ -523,7 +522,12 @@ function isStaticHostedMode() {
 }
 async function initializeLocalDB() {
   if (!isBrowser) return;
-  if (window.DB_INITIALIZING) return;
+  if (window.DB_INITIALIZING) {
+    if (window.localDBReady) {
+      await window.localDBReady;
+    }
+    return;
+  }
   window.DB_INITIALIZING = true;
 
   const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
@@ -1656,3 +1660,5 @@ window.changePassword = changePassword;
 window.getCurrentUser = getCurrentUser;
 window.saveOrderForCurrentUser = saveOrderForCurrentUser;
 window.getAllProducts = getAllProducts;
+window.loginUser = loginUser;
+window.registerUser = registerUser;

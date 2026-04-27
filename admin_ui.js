@@ -239,9 +239,12 @@ async function loadDashboardData() {
 
 async function checkAdminAccess() {
   try {
+    if (window.localDBReady) {
+      await window.localDBReady;
+    }
     currentUser = await getCurrentUser();
     if (!currentUser || currentUser.role !== "admin") {
-      alert("Accesso negato.");
+      console.warn("Accesso negato.", currentUser);
       window.location.href = "index.html";
       return false;
     }
@@ -929,53 +932,6 @@ window.saveUser = async function () {
   }
 };
 
-window.cleanTestAccounts = async function () {
-  const targetDomain = "example.com";
-  if (
-    !confirm(
-      `Vuoi eliminare tutti gli account di test con dominio ${targetDomain}?`,
-    )
-  ) {
-    return;
-  }
-
-  try {
-    let message = `Eliminati gli account con dominio ${targetDomain}.`;
-
-    if (isServerBackedAdminMode()) {
-      const response = await requestJson(
-        `${SERVER_BASE_URL}/api/admin/users/mass-delete`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ domain: targetDomain }),
-        },
-        "Errore pulizia account test",
-      );
-      message = response.message || message;
-    } else {
-      const localUsers = safeLoadData("users", {});
-      let deletedCount = 0;
-      Object.keys(localUsers).forEach((email) => {
-        if (
-          email !== "admin@gmail.com" &&
-          email.toLowerCase().endsWith(`@${targetDomain}`)
-        ) {
-          delete localUsers[email];
-          deletedCount += 1;
-        }
-      });
-      saveData("users", localUsers);
-      message = `Eliminati ${deletedCount} utenti con dominio ${targetDomain}`;
-    }
-
-    await loadDashboardData();
-    alert(message);
-  } catch (error) {
-    alert(error.message || "Errore pulizia account test");
-  }
-};
-
 window.requestUserDeletion = function (userId) {
   const user = users.find((entry) => String(entry.id) === String(userId));
   if (!user) {
@@ -1045,12 +1001,16 @@ window.downloadBackup = async function () {
     }
 
     const backupData = await response.json();
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
     const jsonString = JSON.stringify(backupData, null, 2);
-    const lines = doc.splitTextToSize(jsonString, 180);
-    doc.text(lines, 10, 10);
-    doc.save(`shopnow_backup_${Date.now()}.pdf`);
+    const blob = new Blob([jsonString], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `shopnow_backup_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   } catch (error) {
     alert(error.message || "Errore download backup");
   }
@@ -1406,7 +1366,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Esponi funzioni globali per l'HTML (se necessario per onclick dinamici o per compatibilità)
 window.showSection = showSection;
 window.requestUserDeletion = requestUserDeletion;
-window.cleanTestAccounts = cleanTestAccounts;
 window.viewUserDetails = viewUserDetails;
 window.openProductImagePreview = openProductImagePreview;
 window.updateProductImagePreview = updateProductImagePreview;
@@ -1417,7 +1376,6 @@ window.saveProduct = saveProduct;
 window.deleteProduct = deleteProduct;
 window.showAddUserModal = showAddUserModal;
 window.saveUser = saveUser;
-window.cleanTestAccounts = cleanTestAccounts;
 window.requestUserDeletion = requestUserDeletion;
 window.confirmDeleteUser = confirmDeleteUser;
 window.downloadBackup = downloadBackup;
