@@ -16,9 +16,11 @@ function isServerBackedAdminMode() {
 const SERVER_BASE_URL =
   typeof getServerBaseUrl === "function"
     ? getServerBaseUrl()
-    : window.location.hostname.includes("railway.app")
-      ? "https://shopnow-production.up.railway.app"
-      : "http://localhost:3000";
+    : typeof window !== "undefined" && window.location && window.location.origin
+      ? window.location.origin
+      : window.location.hostname.includes("railway.app")
+        ? "https://shopnow-production.up.railway.app"
+        : "http://localhost:3000";
 const ADMIN_DASHBOARD_CACHE_KEY = "admin-dashboard-cache";
 
 let currentUser = null;

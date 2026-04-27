@@ -707,10 +707,10 @@ async function sendOrderConfirmationEmail({
         <div class="footer">
             <p><strong>ShopNow - Il tuo marketplace di fiducia</strong></p>
             <div class="footer-links">
-                <a href="${process.env.SHOP_URL || "http://localhost:3000"}">Shop</a> |
-                <a href="${process.env.SHOP_URL || "http://localhost:3000"}/account">Account</a> |
-                <a href="${process.env.SHOP_URL || "http://localhost:3000"}/about">Chi Siamo</a> |
-                <a href="${process.env.SHOP_URL || "http://localhost:3000"}/privacy">Privacy</a>
+                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}">Shop</a> |
+                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/account">Account</a> |
+                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/about">Chi Siamo</a> |
+                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/privacy">Privacy</a>
             </div>
             <p>&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
             <p style="margin-top: 15px; opacity: 0.8;">
@@ -808,7 +808,7 @@ app.post("/confirm-payment", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.post("/api/checkout", async (req, res) => {
+app.post("/api/checkout", requireAuth, async (req, res) => {
   try {
     const {
       paymentIntentId,
@@ -1913,6 +1913,33 @@ app.put("/admin/products/:id", requireAdmin, (req, res) => {
     });
   } catch (error) {
     console.error("Errore aggiornamento prodotto:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
+});
+app.put("/api/admin/products/:id/stock", requireAdmin, (req, res) => {
+  try {
+    const productId = req.params.id;
+    const { stock } = req.body;
+
+    if (typeof stock !== 'number' || stock < 0) {
+      return res.status(400).json({ error: "Stock deve essere un numero positivo" });
+    }
+
+    const existingProduct = getProductById(productId);
+    if (!existingProduct) {
+      return res.status(404).json({ error: "Prodotto non trovato" });
+    }
+
+    const product = updateProduct(productId, { stock });
+    console.log("Stock prodotto aggiornato:", productId, "nuovo stock:", stock);
+
+    res.json({
+      success: true,
+      message: "Stock prodotto aggiornato",
+      product: product,
+    });
+  } catch (error) {
+    console.error("Errore aggiornamento stock:", error);
     res.status(500).json({ error: "Errore interno del server" });
   }
 });
