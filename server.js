@@ -1,4 +1,4 @@
-﻿﻿require("dotenv").config();
+﻿﻿﻿﻿require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
@@ -943,24 +943,17 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       quantity: item.quantity,
       image: item.image,
     }));
-    // Consuma lo stock dei prodotti acquistati (salta se richiesto per i test)
-    if (skipStripe !== true && skipStripe !== "true") {
-      consumeProductStock(checkoutSnapshot.items);
-    }
-    // Crea e aggiorna ordine (salta se richiesto per i test)
+
     let updatedOrder = null;
     if (skipStripe !== true && skipStripe !== "true") {
-      const order = createOrder(
+      updatedOrder = db_module.executeCheckoutTransaction(
         checkoutUser.id,
         checkoutSnapshot.total,
         purchasedItems,
         JSON.stringify(shippingAddress),
-        confirmedPaymentIntent.id,
+        confirmedPaymentIntent.id
       );
-      updatedOrder = updateOrderStatus(order.id, "paid");
-      if (authUser) {
-        clearCart(authUser.id);
-      }
+      updateOrderStatus(updatedOrder.id, "paid");
     } else {
       // Crea ordine fittizio per i test
       updatedOrder = {

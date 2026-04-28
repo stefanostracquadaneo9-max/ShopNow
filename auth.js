@@ -472,8 +472,8 @@ function normalizeLocalCatalogProducts(products) {
 function isProductCatalogUpToDate(products) {
   if (!Array.isArray(products)) return false;
   const defaultNames = new Set(getDefaultProducts().map((product) => product.name));
-  if (products.length !== defaultNames.size) return false;
-  return products.every((product) => defaultNames.has(product.name));
+  // Verifica solo che i prodotti di default siano presenti, non che siano gli unici
+  return Array.from(defaultNames).every(name => products.some(p => p.name === name));
 }
 
 function stripSensitiveUserData(user) {
@@ -1078,9 +1078,7 @@ async function registerUser({ name, email, password }) {
       email: normalizedEmail,
       name: name,
       role: serverResult.ok ? serverResult.data.user.role : "user",
-      createdAt: serverResult.ok
-        ? new Date().toISOString()
-        : new Date().toISOString(),
+      createdAt: new Date().toISOString(),
       addresses: [],
       orders: [],
       sessionToken: serverResult.ok

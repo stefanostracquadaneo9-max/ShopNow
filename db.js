@@ -1625,6 +1625,32 @@ function restoreBackup(data) {
   })();
 }
 
+function executeCheckoutTransaction(userId, total, items, shippingAddress, stripeId) {
+  return db.transaction(() => {
+    // 1. Consuma lo stock
+    const updateStockStmt = db.prepare(
+      "UPDATE products SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND stock >= ?"
+    );
+    
+    for (const item of items) {
+      const result = updateStockStmt.run(item.quantity, item.id, item.quantity);
+      if (result.changes === 0) {
+        throw new Error(`Stock insufficiente per prodotto ID ${item.id}`);
+      }
+    }
+
+    // 2. Crea l'ordine
+    const order = createOrder(userId, total, items, shippingAddress, stripeId);
+    
+    // 3. Pulisce il carrello se l'utente è loggato
+    if (userId) {
+      db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
+    }
+
+    return order;
+  })();
+}
+
 module.exports = {
   db,
   initializeDatabase,
@@ -1677,4 +1703,5 @@ module.exports = {
   getUserByRefreshToken,
   exportFullBackup,
   restoreBackup,
+  executeCheckoutTransaction
 };
