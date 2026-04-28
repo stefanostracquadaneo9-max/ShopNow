@@ -4,6 +4,11 @@
 let stripeInstance = null;
 let stripeCardElement = null;
 let checkoutAutoFillLock = false;
+let checkoutAddressLookupTimer = null;
+let checkoutAddressLookupSequence = 0;
+let checkoutLastAutoFilledCity = "";
+const CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS = 350;
+const CHECKOUT_ADDRESS_LOOKUP_CACHE = new Map();
 
 // Oggetto con le bandiere per alcuni paesi, usato come fallback
 const countryFlags = {
@@ -5867,7 +5872,127 @@ for (const [cap, city] of Object.entries(CAP_TO_CITY)) {
 // Esponi globalmente per debugging
 window.CAP_TO_CITY = CAP_TO_CITY;
 window.CITY_TO_CAP = CITY_TO_CAP;
-window.CITY_TO_CAP = CITY_TO_CAP;
+
+function normalizeCheckoutCountryCode(value) {
+  if (typeof window.normalizeCountryCode === "function") {
+    return window.normalizeCountryCode(value);
+  }
+  return String(value || "").trim().toUpperCase();
+}
+
+function getLocalCityForPostalCode(country, postalCode) {
+  if (country !== "IT") return "";
+  return CAP_TO_CITY[postalCode] || "";
+}
+
+function canReplaceCheckoutCity(cityInput) {
+  const currentCity = cityInput.value.trim();
+  return !currentCity || currentCity === checkoutLastAutoFilledCity;
+}
+
+function applyCheckoutCityAutofill(cityInput, city) {
+  const normalizedCity = String(city || "").trim();
+  if (!normalizedCity || !canReplaceCheckoutCity(cityInput)) return false;
+
+  checkoutAutoFillLock = true;
+  cityInput.value = normalizedCity;
+  checkoutLastAutoFilledCity = normalizedCity;
+  cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+  checkoutAutoFillLock = false;
+  return true;
+}
+
+function clearCheckoutAutoFilledCity(cityInput) {
+  if (!checkoutLastAutoFilledCity) return;
+  if (cityInput.value.trim() !== checkoutLastAutoFilledCity) return;
+
+  checkoutAutoFillLock = true;
+  cityInput.value = "";
+  cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+  checkoutAutoFillLock = false;
+  checkoutLastAutoFilledCity = "";
+}
+
+function setCheckoutAddressLookupBusy(postalInput, isBusy) {
+  if (!postalInput) return;
+  if (isBusy) {
+    postalInput.setAttribute("aria-busy", "true");
+  } else {
+    postalInput.removeAttribute("aria-busy");
+  }
+}
+
+async function fetchCheckoutAddressLookup(country, postalCode) {
+  const cacheKey = `${country}:${postalCode.toUpperCase()}`;
+  if (CHECKOUT_ADDRESS_LOOKUP_CACHE.has(cacheKey)) {
+    return CHECKOUT_ADDRESS_LOOKUP_CACHE.get(cacheKey);
+  }
+
+  const query = new URLSearchParams({
+    country,
+    postalCode,
+  });
+  const url =
+    typeof window.getApiUrl === "function"
+      ? window.getApiUrl(`/api/address-autofill?${query.toString()}`)
+      : `/api/address-autofill?${query.toString()}`;
+  const headers =
+    typeof window.getApiRequestHeaders === "function"
+      ? window.getApiRequestHeaders()
+      : {};
+  const request =
+    typeof window.fetchWithTimeout === "function"
+      ? window.fetchWithTimeout(url, { headers }, 10000)
+      : fetch(url, { headers });
+
+  const response = await request;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || "Auto-fill indirizzo non disponibile");
+  }
+
+  CHECKOUT_ADDRESS_LOOKUP_CACHE.set(cacheKey, data);
+  return data;
+}
+
+async function runCheckoutAddressLookup(
+  country,
+  postalCode,
+  postalInput,
+  cityInput,
+) {
+  const sequence = ++checkoutAddressLookupSequence;
+  setCheckoutAddressLookupBusy(postalInput, true);
+
+  try {
+    const data = await fetchCheckoutAddressLookup(country, postalCode);
+    if (sequence !== checkoutAddressLookupSequence) return;
+
+    const match = Array.isArray(data?.matches) ? data.matches[0] : null;
+    if (match?.city) {
+      applyCheckoutCityAutofill(cityInput, match.city);
+      return;
+    }
+
+    const fallbackCity = getLocalCityForPostalCode(country, postalCode);
+    if (fallbackCity) {
+      applyCheckoutCityAutofill(cityInput, fallbackCity);
+      return;
+    }
+
+    clearCheckoutAutoFilledCity(cityInput);
+  } catch (error) {
+    if (sequence !== checkoutAddressLookupSequence) return;
+    const fallbackCity = getLocalCityForPostalCode(country, postalCode);
+    if (fallbackCity) {
+      applyCheckoutCityAutofill(cityInput, fallbackCity);
+    }
+  } finally {
+    if (sequence === checkoutAddressLookupSequence) {
+      setCheckoutAddressLookupBusy(postalInput, false);
+    }
+  }
+}
 
 function autoFillCityFromZipMultiCountry() {
   const postalInput = document.getElementById("checkout-postal");
@@ -5877,26 +6002,24 @@ function autoFillCityFromZipMultiCountry() {
   if (!postalInput || !cityInput || !countrySelect) return;
   if (checkoutAutoFillLock) return;
 
-  // Funziona solo per l'Italia
-  if (countrySelect.value !== "IT") return;
+  const country = normalizeCheckoutCountryCode(countrySelect.value);
+  const postalCode = postalInput.value.trim();
 
-  const zip = postalInput.value.trim();
-  checkoutAutoFillLock = true;
-  if (!zip) {
-    cityInput.value = "";
-    checkoutAutoFillLock = false;
+  window.clearTimeout(checkoutAddressLookupTimer);
+  if (!country || !postalCode) {
+    clearCheckoutAutoFilledCity(cityInput);
     return;
   }
 
-  if (zip && CAP_TO_CITY[zip]) {
-    cityInput.value = CAP_TO_CITY[zip];
-    checkoutAutoFillLock = false;
+  if (!isPostalCodeValidForCountry(country, postalCode)) {
+    clearCheckoutAutoFilledCity(cityInput);
     return;
   }
 
-  // Se il CAP non corrisponde a nessuna città nota, cancelliamo la città per evitare dati obsoleti.
-  cityInput.value = "";
-  checkoutAutoFillLock = false;
+  checkoutAddressLookupTimer = window.setTimeout(
+    () => runCheckoutAddressLookup(country, postalCode, postalInput, cityInput),
+    CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS,
+  );
 }
 
 function isPostalCodeValidForCountry(countryCode, value) {
@@ -5906,10 +6029,12 @@ function isPostalCodeValidForCountry(countryCode, value) {
 }
 
 function autoFillZipFromCityMultiCountry() {
-  const country = document.getElementById("checkout-country")?.value;
+  const country = normalizeCheckoutCountryCode(
+    document.getElementById("checkout-country")?.value,
+  );
   const cityInput = document.getElementById("checkout-city");
   const zipInput = document.getElementById("checkout-postal");
-  
+
   if (!country || !cityInput || !zipInput) return;
   if (checkoutAutoFillLock) return;
   if (country !== "IT") return;
@@ -5917,7 +6042,6 @@ function autoFillZipFromCityMultiCountry() {
   const city = cityInput.value.trim().toLowerCase();
   checkoutAutoFillLock = true;
   if (!city) {
-    zipInput.value = "";
     checkoutAutoFillLock = false;
     return;
   }
@@ -5935,29 +6059,8 @@ function autoFillZipFromCityMultiCountry() {
     return;
   }
 
-  // Se la città non è riconosciuta, cancelliamo il CAP per evitare inconsistenze.
-  zipInput.value = "";
+  // Lascia il CAP manuale intatto se la citta non e nel fallback locale.
   checkoutAutoFillLock = false;
-}
-
-function autoFillCityFromZip() {
-  const country = document.getElementById("checkout-country")?.value;
-  if (country !== "IT") return;
-  const zip = document.getElementById("checkout-postal")?.value.trim();
-  const cityInput = document.getElementById("checkout-city");
-  if (zip && CAP_TO_CITY[zip]) {
-    cityInput.value = CAP_TO_CITY[zip];
-  }
-}
-
-function autoFillZipFromCity() {
-  const country = document.getElementById("checkout-country")?.value;
-  if (country !== "IT") return;
-  const city = document.getElementById("checkout-city")?.value.trim().toLowerCase();
-  const zipInput = document.getElementById("checkout-postal");
-  if (city && CITY_TO_CAP[city]) {
-    zipInput.value = CITY_TO_CAP[city];
-  }
 }
 
 function validatePostalCode() {
@@ -6298,6 +6401,3 @@ if (document.readyState === 'loading') {
   // Aspetta che la finestra sia completamente caricata
   window.addEventListener('load', initCheckoutPage);
 }
-
-
-

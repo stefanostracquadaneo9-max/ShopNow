@@ -360,6 +360,223 @@ function calculateShippingCost(subtotal) {
     (normalizedSubtotal * SHIPPING_RATE_UNDER_THRESHOLD).toFixed(2),
   );
 }
+
+const ADDRESS_LOOKUP_TIMEOUT_MS = 8000;
+const ADDRESS_LOOKUP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const addressLookupCache = new Map();
+
+function normalizeAddressLookupCountry(country) {
+  const normalized = String(country || "").trim().toUpperCase();
+  const aliases = {
+    UK: "GB",
+  };
+  return aliases[normalized] || normalized;
+}
+
+function normalizeAddressLookupValue(value) {
+  return String(value || "").trim().replace(/\s+/g, " ");
+}
+
+function getAddressLookupCache(cacheKey) {
+  const cached = addressLookupCache.get(cacheKey);
+  if (!cached) return null;
+  if (Date.now() - cached.createdAt > ADDRESS_LOOKUP_CACHE_TTL_MS) {
+    addressLookupCache.delete(cacheKey);
+    return null;
+  }
+  return cached.value;
+}
+
+function setAddressLookupCache(cacheKey, value) {
+  addressLookupCache.set(cacheKey, {
+    createdAt: Date.now(),
+    value,
+  });
+  return value;
+}
+
+async function fetchAddressLookupJson(url) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ADDRESS_LOOKUP_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      signal: controller.signal,
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "ShopNow/1.0 address-autofill",
+      },
+    });
+
+    if (response.status === 404) return null;
+    if (!response.ok) {
+      throw new Error(`Address lookup API error: ${response.status}`);
+    }
+
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function normalizeZippopotamPostalResult(country, postalCode, data) {
+  const places = Array.isArray(data?.places) ? data.places : [];
+  const seen = new Set();
+  const matches = places
+    .map((place) => ({
+      city: normalizeAddressLookupValue(place["place name"]),
+      postalCode: normalizeAddressLookupValue(
+        data?.["post code"] || postalCode,
+      ),
+      state: normalizeAddressLookupValue(place.state),
+      stateCode: normalizeAddressLookupValue(place["state abbreviation"]),
+      country: normalizeAddressLookupCountry(
+        data?.["country abbreviation"] || country,
+      ),
+      latitude: place.latitude || "",
+      longitude: place.longitude || "",
+      source: "zippopotam.us",
+    }))
+    .filter((place) => place.city && place.postalCode)
+    .filter((place) => {
+      const key = `${place.postalCode}:${place.city}:${place.state}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  return {
+    success: matches.length > 0,
+    source: "zippopotam.us",
+    matches,
+  };
+}
+
+function normalizeNominatimPostalResult(country, postalCode, data) {
+  const places = Array.isArray(data) ? data : [];
+  const seen = new Set();
+  const matches = places
+    .map((place) => {
+      const address = place.address || {};
+      const city =
+        address.city ||
+        address.town ||
+        address.village ||
+        address.municipality ||
+        address.county ||
+        address.suburb ||
+        place.name;
+      return {
+        city: normalizeAddressLookupValue(city),
+        postalCode: normalizeAddressLookupValue(
+          address.postcode || postalCode,
+        ),
+        state: normalizeAddressLookupValue(address.state || address.region),
+        stateCode: "",
+        country: normalizeAddressLookupCountry(
+          address.country_code || country,
+        ),
+        latitude: place.lat || "",
+        longitude: place.lon || "",
+        source: "nominatim.openstreetmap.org",
+      };
+    })
+    .filter((place) => place.city && place.postalCode)
+    .filter((place) => {
+      const key = `${place.postalCode}:${place.city}:${place.state}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  return {
+    success: matches.length > 0,
+    source: "nominatim.openstreetmap.org",
+    matches,
+  };
+}
+
+function normalizeZippopotamCityResult(country, region, city, data) {
+  const places = Array.isArray(data?.places) ? data.places : [];
+  const seen = new Set();
+  const matches = places
+    .map((place) => ({
+      city: normalizeAddressLookupValue(
+        place["place name"] || data?.["place name"] || city,
+      ),
+      postalCode: normalizeAddressLookupValue(place["post code"]),
+      state: normalizeAddressLookupValue(data?.state || region),
+      stateCode: normalizeAddressLookupValue(data?.["state abbreviation"]),
+      country: normalizeAddressLookupCountry(
+        data?.["country abbreviation"] || country,
+      ),
+      latitude: place.latitude || "",
+      longitude: place.longitude || "",
+      source: "zippopotam.us",
+    }))
+    .filter((place) => place.city && place.postalCode)
+    .filter((place) => {
+      const key = `${place.postalCode}:${place.city}:${place.state}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  return {
+    success: matches.length > 0,
+    source: "zippopotam.us",
+    matches,
+  };
+}
+
+async function lookupAddressByPostalCode(country, postalCode) {
+  const cacheKey = `postal:${country}:${postalCode.toUpperCase()}`;
+  const cached = getAddressLookupCache(cacheKey);
+  if (cached) return cached;
+
+  const zippopotamUrl = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(postalCode)}`;
+  let result = { success: false, source: "zippopotam.us", matches: [] };
+
+  try {
+    const data = await fetchAddressLookupJson(zippopotamUrl);
+    if (data) result = normalizeZippopotamPostalResult(country, postalCode, data);
+  } catch (error) {
+    console.warn("Zippopotam lookup non disponibile:", error.message);
+  }
+
+  if (!result.success) {
+    try {
+      const nominatimUrl = new URL(
+        "https://nominatim.openstreetmap.org/search",
+      );
+      nominatimUrl.searchParams.set("format", "jsonv2");
+      nominatimUrl.searchParams.set("addressdetails", "1");
+      nominatimUrl.searchParams.set("limit", "3");
+      nominatimUrl.searchParams.set("countrycodes", country.toLowerCase());
+      nominatimUrl.searchParams.set("postalcode", postalCode);
+      const data = await fetchAddressLookupJson(nominatimUrl.toString());
+      if (data) result = normalizeNominatimPostalResult(country, postalCode, data);
+    } catch (error) {
+      console.warn("Nominatim lookup non disponibile:", error.message);
+    }
+  }
+
+  return setAddressLookupCache(cacheKey, result);
+}
+
+async function lookupAddressByCity(country, region, city) {
+  const cacheKey = `city:${country}:${region.toUpperCase()}:${city.toUpperCase()}`;
+  const cached = getAddressLookupCache(cacheKey);
+  if (cached) return cached;
+
+  const url = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(region)}/${encodeURIComponent(city)}`;
+  const data = await fetchAddressLookupJson(url);
+  const result = data
+    ? normalizeZippopotamCityResult(country, region, city, data)
+    : { success: false, source: "zippopotam.us", matches: [] };
+
+  return setAddressLookupCache(cacheKey, result);
+}
 function buildCheckoutStockSnapshot(items) {
   if (!Array.isArray(items) || !items.length) {
     const error = new Error("Il carrello e vuoto");
@@ -1050,6 +1267,54 @@ app.get("/config", (req, res) =>
     ),
   }),
 );
+app.get("/api/address-autofill", async (req, res) => {
+  try {
+    const country = normalizeAddressLookupCountry(req.query.country);
+    const postalCode = normalizeAddressLookupValue(req.query.postalCode);
+    const city = normalizeAddressLookupValue(req.query.city);
+    const region = normalizeAddressLookupValue(req.query.region);
+
+    if (!/^[A-Z]{2}$/.test(country)) {
+      return res.status(400).json({ error: "Paese non valido" });
+    }
+    if (!postalCode && !city) {
+      return res.status(400).json({
+        error: "Inserisci un CAP o una citta da cercare",
+      });
+    }
+    if (postalCode.length > 20 || city.length > 120 || region.length > 120) {
+      return res.status(400).json({ error: "Ricerca troppo lunga" });
+    }
+
+    const result = postalCode
+      ? await lookupAddressByPostalCode(country, postalCode)
+      : region
+        ? await lookupAddressByCity(country, region, city)
+        : {
+            success: false,
+            source: "zippopotam.us",
+            matches: [],
+          };
+
+    res.json({
+      success: result.success,
+      source: result.source,
+      matches: result.matches,
+      query: {
+        country,
+        postalCode,
+        city,
+        region,
+      },
+    });
+  } catch (error) {
+    console.error("Errore auto-fill indirizzo:", error.message);
+    res.status(502).json({
+      error: "Auto-fill indirizzo temporaneamente non disponibile",
+      matches: [],
+    });
+  }
+});
 app.get("/login", (req, res) => {
   res.sendFile(path.join(__dirname, "index.html"));
 });

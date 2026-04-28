@@ -12,6 +12,90 @@ document.addEventListener("DOMContentLoaded", async function () {
   const paymentForm = document.getElementById("payment-form-account");
   const paymentList = document.getElementById("payment-list");
   const logoutButton = document.getElementById("logout-button");
+  let addressAutofillTimer = null;
+  let addressAutofillSequence = 0;
+  let lastAutoFilledAddressCity = "";
+
+  function getAddressAutofillUrl(country, postalCode) {
+    const query = new URLSearchParams({ country, postalCode });
+    const path = `/api/address-autofill?${query.toString()}`;
+    if (typeof window.getApiUrl === "function") return window.getApiUrl(path);
+    if (typeof window.getServerBaseUrl === "function") {
+      return `${window.getServerBaseUrl()}${path}`;
+    }
+    return path;
+  }
+
+  function canReplaceAddressCity(cityInput) {
+    const currentCity = cityInput.value.trim();
+    return !currentCity || currentCity === lastAutoFilledAddressCity;
+  }
+
+  async function runAddressAutofill() {
+    const postalInput = document.getElementById("address-postal");
+    const cityInput = document.getElementById("address-city");
+    const countryInput = document.getElementById("address-country");
+    if (!postalInput || !cityInput || !countryInput) return;
+
+    const country =
+      typeof window.normalizeCountryCode === "function"
+        ? window.normalizeCountryCode(countryInput.value)
+        : String(countryInput.value || "").trim().toUpperCase();
+    const postalCode = postalInput.value.trim();
+    if (!country || postalCode.length < 3) return;
+
+    const sequence = ++addressAutofillSequence;
+    postalInput.setAttribute("aria-busy", "true");
+
+    try {
+      const headers =
+        typeof window.getApiRequestHeaders === "function"
+          ? window.getApiRequestHeaders()
+          : typeof window.getBackendRequestHeaders === "function"
+            ? window.getBackendRequestHeaders()
+            : {};
+      const url = getAddressAutofillUrl(country, postalCode);
+      const request =
+        typeof window.fetchWithTimeout === "function"
+          ? window.fetchWithTimeout(url, { headers }, 10000)
+          : fetch(url, { headers });
+      const response = await request;
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return;
+      if (sequence !== addressAutofillSequence) return;
+
+      const match = Array.isArray(data?.matches) ? data.matches[0] : null;
+      if (match?.city && canReplaceAddressCity(cityInput)) {
+        cityInput.value = match.city;
+        lastAutoFilledAddressCity = match.city;
+      }
+    } catch (error) {
+      // Auto-fill is optional; keep the form usable when the lookup fails.
+    } finally {
+      if (sequence === addressAutofillSequence) {
+        postalInput.removeAttribute("aria-busy");
+      }
+    }
+  }
+
+  function scheduleAddressAutofill() {
+    window.clearTimeout(addressAutofillTimer);
+    addressAutofillTimer = window.setTimeout(runAddressAutofill, 350);
+  }
+
+  function initAddressAutofill() {
+    const postalInput = document.getElementById("address-postal");
+    const countryInput = document.getElementById("address-country");
+    if (!postalInput || !countryInput) return;
+
+    postalInput.addEventListener("input", scheduleAddressAutofill);
+    postalInput.addEventListener("change", scheduleAddressAutofill);
+    countryInput.addEventListener("input", scheduleAddressAutofill);
+    countryInput.addEventListener("change", scheduleAddressAutofill);
+  }
+
+  initAddressAutofill();
+
   if (currentUser) showProfile(currentUser);
   else showAuthSection(); // showAuthSection è una funzione locale
   if (profileForm) {
