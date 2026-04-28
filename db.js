@@ -4,10 +4,44 @@ const fs = require("fs");
 const path = require("path");
 
 // Configurazione percorso database (evita conflitti con DATABASE_URL di Railway se è Postgres)
-const rawDbPath = process.env.DB_PATH || "app.db";
+const volumeMountPath = String(process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+const volumeDbPath = volumeMountPath
+  ? path.join(volumeMountPath, "app.db")
+  : "app.db";
+const RESOLVED_VOLUME_PATH = volumeMountPath
+  ? path.resolve(volumeMountPath)
+  : "";
+const requestedDbPath = String(process.env.DB_PATH || "").trim();
+const requestedResolvedDbPath = requestedDbPath
+  ? path.resolve(
+      path.isAbsolute(requestedDbPath)
+        ? requestedDbPath
+        : path.join(__dirname, requestedDbPath),
+    )
+  : "";
+const requestedDbIsPersistent =
+  RESOLVED_VOLUME_PATH &&
+  requestedResolvedDbPath &&
+  (requestedResolvedDbPath === RESOLVED_VOLUME_PATH ||
+    requestedResolvedDbPath.startsWith(RESOLVED_VOLUME_PATH + path.sep));
+const rawDbPath =
+  RESOLVED_VOLUME_PATH && !requestedDbIsPersistent
+    ? volumeDbPath
+    : requestedDbPath || volumeDbPath;
 const DB_PATH = path.isAbsolute(rawDbPath)
   ? rawDbPath
   : path.resolve(__dirname, rawDbPath);
+
+if (
+  RESOLVED_VOLUME_PATH &&
+  requestedDbPath &&
+  requestedResolvedDbPath !== DB_PATH
+) {
+  console.warn(
+    `[WARN] DB_PATH (${requestedDbPath}) non e persistente su Railway. ` +
+      `Uso ${DB_PATH} sul volume ${RESOLVED_VOLUME_PATH}.`,
+  );
+}
 
 // Assicura che la cartella di destinazione esista
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
@@ -1653,6 +1687,7 @@ function executeCheckoutTransaction(userId, total, items, shippingAddress, strip
 
 module.exports = {
   db,
+  DB_PATH,
   initializeDatabase,
   hashPassword,
   verifyPassword,

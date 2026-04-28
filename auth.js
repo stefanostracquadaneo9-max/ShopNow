@@ -715,7 +715,6 @@ function saveData(key, data) {
     localStorage.setItem(storageKey, serializedData);
     localDataRawCache.set(storageKey, serializedData);
     localDataValueCache.set(storageKey, data);
-    console.log(`💾 Dati salvati: ${key}`);
     return true;
   } catch (error) {
     console.error("Errore salvataggio dati:", error);
@@ -1100,9 +1099,7 @@ async function loginUser(email, password) {
     const normalizedEmail = String(email || "")
       .trim()
       .toLowerCase();
-    console.log("Tentativo login per:", normalizedEmail);
     const users = loadData("users", {});
-    console.log("Utenti nel DB:", Object.keys(users));
     const preferredServerLogin = await tryServerLogin(
       normalizedEmail,
       password,
@@ -1131,7 +1128,6 @@ async function loginUser(email, password) {
       const role = String(serverUser.role || "user")
         .trim()
         .toLowerCase();
-      console.log("Login Server Success. Role:", role);
       localStorage.setItem("user-role", role);
 
       if (role === "admin") {
@@ -1148,10 +1144,6 @@ async function loginUser(email, password) {
     const userEntry = findUserEntryByEmail(users, normalizedEmail);
     const user = userEntry?.user;
     if (!user) {
-      if (prefersServerAuth()) {
-        console.log("Login server rifiutato");
-      }
-      console.log("Utente non trovato");
       throw new Error("Email o password errati");
     }
     const passwordHash = await hashPassword(password);
@@ -1162,22 +1154,14 @@ async function loginUser(email, password) {
     const alternateLegacyHash = password.endsWith("?")
       ? simpleHash(password.slice(0, -1))
       : null;
-    console.log("Hash calcolato:", passwordHash);
-    console.log("Hash legacy:", legacyHash);
-    console.log("Hash utente:", user.passwordHash);
     if (
       user.passwordHash !== passwordHash &&
       user.passwordHash !== legacyHash &&
       user.passwordHash !== alternatePasswordHash &&
       user.passwordHash !== alternateLegacyHash
     ) {
-      if (prefersServerAuth()) {
-        console.log("Login server rifiutato");
-      }
-      console.log("Hash non corrispondono");
       throw new Error("Email o password errati");
     }
-    console.log("Login riuscito");
     const sessionToken = generateSessionToken();
     const storedUser =
       migrateUserEmailKey(users, userEntry.key, normalizedEmail) || user;
@@ -1190,7 +1174,6 @@ async function loginUser(email, password) {
     const role = String(storedUser.role || "user")
       .trim()
       .toLowerCase();
-    console.log("Login Static Success. Role:", role);
     localStorage.setItem("user-role", role);
 
     if (role === "admin") {
@@ -1569,7 +1552,6 @@ async function saveOrderForCurrentUser(order) {
     });
     users[normalizedEmail] = storedUser;
     saveData("users", users);
-    console.log("✅ Ordine salvato");
   } catch (error) {
     console.error("Errore salvataggio ordine:", error);
   }

@@ -40,9 +40,7 @@ async function loadProducts() {
       await window.localDBReady;
     }
     allProducts = getCatalogProducts();
-    console.log("Loaded products:", allProducts);
     if (!allProducts || !allProducts.length) {
-      console.log("No products in DB, using defaults");
       allProducts = getCatalogProducts();
     }
     filteredProducts = [...allProducts];

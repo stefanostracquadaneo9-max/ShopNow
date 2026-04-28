@@ -75,323 +75,330 @@
 
     <main>
       <div class="container my-5">
-      <h2 class="mb-4 text-center">Procedi all'acquisto</h2>
+        <h2 class="mb-4 text-center">Procedi all'acquisto</h2>
 
-      <!-- Barra di progresso Checkout -->
-      <div class="checkout-progress mb-5">
-        <div class="progress-step active" id="prog-step-1">
-          <div class="step-number">1</div>
-          <div class="step-label">Indirizzo</div>
-        </div>
-        <div class="progress-step" id="prog-step-2">
-          <div class="step-number">2</div>
-          <div class="step-label">Pagamento</div>
-        </div>
-        <div class="progress-step" id="prog-step-3">
-          <div class="step-number">3</div>
-          <div class="step-label">Conferma</div>
-        </div>
-      </div>
-
-      <div class="row">
-        <div class="col-lg-8">
-          <div class="checkout-step shadow-sm border">
-            <h5 class="checkout-step-title">1. Indirizzo di spedizione</h5>
-            <form id="checkout-form">
-              <div class="mb-3">
-                <label for="checkout-name" class="form-label"
-                  >Nome Completo</label
-                >
-                <input
-                  type="text"
-                  id="checkout-name"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="mb-3">
-                <label for="checkout-email" class="form-label">Email</label>
-                <input
-                  type="email"
-                  id="checkout-email"
-                  class="form-control"
-                  required
-                />
-              </div>
-              <div class="row">
-                <div class="col-md-8 mb-3">
-                  <label for="checkout-address" class="form-label"
-                    >Indirizzo</label
-                  >
-                  <input
-                    type="text"
-                    id="checkout-address"
-                    class="form-control"
-                    required
-                  />
-                </div>
-                <div class="col-md-4 mb-3">
-                  <label for="checkout-postal" class="form-label">CAP</label>
-                  <input
-                    type="text"
-                    id="checkout-postal"
-                    class="form-control"
-                    required
-                    placeholder="Es. 00100"
-                  />
-                  <div id="postal-feedback" class="invalid-feedback">
-                    Formato CAP non valido per il paese selezionato.
-                  </div>
-                </div>
-              </div>
-              <div class="row">
-                <div class="col-md-6 mb-3">
-                  <label for="checkout-city" class="form-label"
-                    >Citt&agrave;</label
-                  >
-                  <input
-                    type="text"
-                    id="checkout-city"
-                    class="form-control"
-                    required
-                  />
-                </div>
-                <div class="col-md-6 mb-3">
-                  <label for="checkout-country" class="form-label">Paese</label>
-                  <select
-                    id="checkout-country"
-                    name="country"
-                    class="form-control select2-enable"
-                    required
-                  >
-                    <option value="">Seleziona paese</option>
-                    <option value="IT" data-flag="🇮🇹">Italia</option>
-                    <option value="FR" data-flag="🇫🇷">Francia</option>
-                    <option value="DE" data-flag="🇩🇪">Germania</option>
-                    <option value="ES" data-flag="🇪🇸">Spagna</option>
-                    <option value="GB" data-flag="🇬🇧">Regno Unito</option>
-                    <option value="US" data-flag="🇺🇸">Stati Uniti</option>
-                    <option value="CA" data-flag="🇨🇦">Canada</option>
-                    <option value="AU" data-flag="🇦🇺">Australia</option>
-                    <option value="JP" data-flag="🇯🇵">Giappone</option>
-                    <option value="CN" data-flag="🇨🇳">Cina</option>
-                    <option value="BR" data-flag="🇧🇷">Brasile</option>
-                    <option value="AT" data-flag="🇦🇹">Austria</option>
-                    <option value="CH" data-flag="🇨🇭">Svizzera</option>
-                    <option value="BE" data-flag="🇧🇪">Belgio</option>
-                    <option value="NL" data-flag="🇳🇱">Paesi Bassi</option>
-                    <option value="PT" data-flag="🇵🇹">Portogallo</option>
-                    <option value="SE" data-flag="🇸🇪">Svezia</option>
-                    <option value="NO" data-flag="🇳🇴">Norvegia</option>
-                    <option value="DK" data-flag="🇩🇰">Danimarca</option>
-                    <option value="IE" data-flag="🇮🇪">Irlanda</option>
-                    <option value="PL" data-flag="🇵🇱">Polonia</option>
-                    <option value="CZ" data-flag="🇨🇿">Repubblica Ceca</option>
-                    <option value="HU" data-flag="🇭🇺">Ungheria</option>
-                    <option value="RO" data-flag="🇷🇴">Romania</option>
-                    <option value="GR" data-flag="🇬🇷">Grecia</option>
-                    <option value="MX" data-flag="🇲🇽">Messico</option>
-                    <option value="IN" data-flag="🇮🇳">India</option>
-                    <option value="KR" data-flag="🇰🇷">Corea del Sud</option>
-                    <option value="ZA" data-flag="🇿🇦">Sudafrica</option>
-                    <option value="NZ" data-flag="🇳🇿">Nuova Zelanda</option>
-                    <option value="AR" data-flag="🇦🇷">Argentina</option>
-                    <option value="CL" data-flag="🇨🇱">Cile</option>
-                    <option value="CO" data-flag="🇨🇴">Colombia</option>
-                    <option value="PE" data-flag="🇵🇪">Perù</option>
-                    <option value="VE" data-flag="🇻🇪">Venezuela</option>
-                    <option value="UY" data-flag="🇺🇾">Uruguay</option>
-                    <option value="PY" data-flag="🇵🇾">Paraguay</option>
-                    <option value="BO" data-flag="🇧🇴">Bolivia</option>
-                    <option value="EC" data-flag="🇪🇨">Ecuador</option>
-                    <option value="GT" data-flag="🇬🇹">Guatemala</option>
-                    <option value="HN" data-flag="🇭🇳">Honduras</option>
-                    <option value="SV" data-flag="🇸🇻">El Salvador</option>
-                    <option value="NI" data-flag="🇳🇮">Nicaragua</option>
-                    <option value="CR" data-flag="🇨🇷">Costa Rica</option>
-                    <option value="PA" data-flag="🇵🇦">Panama</option>
-                    <option value="DO" data-flag="🇩🇴">Repubblica Dominicana</option>
-                    <option value="JM" data-flag="🇯🇲">Giamaica</option>
-                    <option value="TT" data-flag="🇹🇹">Trinidad e Tobago</option>
-                    <option value="BB" data-flag="🇧🇧">Barbados</option>
-                    <option value="LC" data-flag="🇱🇨">Santa Lucia</option>
-                    <option value="VC" data-flag="🇻🇨">San Vincenzo e Grenadine</option>
-                    <option value="GD" data-flag="🇬🇩">Grenada</option>
-                    <option value="AG" data-flag="🇦🇬">Antigua e Barbuda</option>
-                    <option value="DM" data-flag="🇩🇲">Dominica</option>
-                    <option value="KN" data-flag="🇰🇳">Saint Kitts e Nevis</option>
-                    <option value="BS" data-flag="🇧🇸">Bahamas</option>
-                    <option value="CU" data-flag="🇨🇺">Cuba</option>
-                    <option value="HT" data-flag="🇭🇹">Haiti</option>
-                    <option value="PR" data-flag="🇵🇷">Porto Rico</option>
-                    <option value="VI" data-flag="🇻🇮">Isole Vergini Americane</option>
-                    <option value="KY" data-flag="🇰🇾">Isole Cayman</option>
-                    <option value="BM" data-flag="🇧🇲">Bermuda</option>
-                    <option value="GL" data-flag="🇬🇱">Groenlandia</option>
-                    <option value="IS" data-flag="🇮🇸">Islanda</option>
-                    <option value="FO" data-flag="🇫🇴">Isole Faroe</option>
-                    <option value="SJ" data-flag="🇸🇯">Svalbard e Jan Mayen</option>
-                    <option value="AX" data-flag="🇦🇽">Isole Åland</option>
-                    <option value="FI" data-flag="🇫🇮">Finlandia</option>
-                    <option value="EE" data-flag="🇪🇪">Estonia</option>
-                    <option value="LV" data-flag="🇱🇻">Lettonia</option>
-                    <option value="LT" data-flag="🇱🇹">Lituania</option>
-                    <option value="BY" data-flag="🇧🇾">Bielorussia</option>
-                    <option value="UA" data-flag="🇺🇦">Ucraina</option>
-                    <option value="MD" data-flag="🇲🇩">Moldova</option>
-                    <option value="BG" data-flag="🇧🇬">Bulgaria</option>
-                    <option value="AL" data-flag="🇦🇱">Albania</option>
-                    <option value="MK" data-flag="🇲🇰">Macedonia del Nord</option>
-                    <option value="ME" data-flag="🇲🇪">Montenegro</option>
-                    <option value="BA" data-flag="🇧🇦">Bosnia ed Erzegovina</option>
-                    <option value="HR" data-flag="🇭🇷">Croazia</option>
-                    <option value="SI" data-flag="🇸🇮">Slovenia</option>
-                    <option value="SK" data-flag="🇸🇰">Slovacchia</option>
-                    <option value="LI" data-flag="🇱🇮">Liechtenstein</option>
-                    <option value="LU" data-flag="🇱🇺">Lussemburgo</option>
-                    <option value="MC" data-flag="🇲🇨">Monaco</option>
-                    <option value="AD" data-flag="🇦🇩">Andorra</option>
-                    <option value="SM" data-flag="🇸🇲">San Marino</option>
-                    <option value="VA" data-flag="🇻🇦">Città del Vaticano</option>
-                    <option value="MT" data-flag="🇲🇹">Malta</option>
-                    <option value="CY" data-flag="🇨🇾">Cipro</option>
-                    <option value="TR" data-flag="🇹🇷">Turchia</option>
-                    <option value="IL" data-flag="🇮🇱">Israele</option>
-                    <option value="LB" data-flag="🇱🇧">Libano</option>
-                    <option value="JO" data-flag="🇯🇴">Giordania</option>
-                    <option value="SY" data-flag="🇸🇾">Siria</option>
-                    <option value="IQ" data-flag="🇮🇶">Iraq</option>
-                    <option value="KW" data-flag="🇰🇼">Kuwait</option>
-                    <option value="SA" data-flag="🇸🇦">Arabia Saudita</option>
-                    <option value="BH" data-flag="🇧🇭">Bahrein</option>
-                    <option value="QA" data-flag="🇶🇦">Qatar</option>
-                    <option value="AE" data-flag="🇦🇪">Emirati Arabi Uniti</option>
-                    <option value="OM" data-flag="🇴🇲">Oman</option>
-                    <option value="YE" data-flag="🇾🇪">Yemen</option>
-                    <option value="EG" data-flag="🇪🇬">Egitto</option>
-                    <option value="LY" data-flag="🇱🇾">Libia</option>
-                    <option value="TN" data-flag="🇹🇳">Tunisia</option>
-                    <option value="DZ" data-flag="🇩🇿">Algeria</option>
-                    <option value="MA" data-flag="🇲🇦">Marocco</option>
-                    <option value="EH" data-flag="🇪🇭">Sahara Occidentale</option>
-                    <option value="MR" data-flag="🇲🇷">Mauritania</option>
-                    <option value="ML" data-flag="🇲🇱">Mali</option>
-                    <option value="SN" data-flag="🇸🇳">Senegal</option>
-                    <option value="GM" data-flag="🇬🇲">Gambia</option>
-                    <option value="GN" data-flag="🇬🇳">Guinea</option>
-                    <option value="SL" data-flag="🇸🇱">Sierra Leone</option>
-                    <option value="LR" data-flag="🇱🇷">Liberia</option>
-                    <option value="CI" data-flag="🇨🇮">Costa d'Avorio</option>
-                    <option value="GH" data-flag="🇬🇭">Ghana</option>
-                    <option value="TG" data-flag="🇹🇬">Togo</option>
-                    <option value="BJ" data-flag="🇧🇯">Benin</option>
-                    <option value="NE" data-flag="🇳🇪">Niger</option>
-                    <option value="BF" data-flag="🇧🇫">Burkina Faso</option>
-                    <option value="CV" data-flag="🇨🇻">Capo Verde</option>
-                    <option value="GW" data-flag="🇬🇼">Guinea-Bissau</option>
-                    <option value="ST" data-flag="🇸🇹">São Tomé e Príncipe</option>
-                    <option value="GQ" data-flag="🇬🇶">Guinea Equatoriale</option>
-                    <option value="GA" data-flag="🇬🇦">Gabon</option>
-                    <option value="CM" data-flag="🇨🇲">Camerun</option>
-                    <option value="TD" data-flag="🇹🇩">Ciad</option>
-                    <option value="CF" data-flag="🇨🇫">Repubblica Centrafricana</option>
-                    <option value="CG" data-flag="🇨🇬">Congo</option>
-                    <option value="CD" data-flag="🇨🇩">Repubblica Democratica del Congo</option>
-                    <option value="AO" data-flag="🇦🇴">Angola</option>
-                    <option value="BW" data-flag="🇧🇼">Botswana</option>
-                    <option value="ZW" data-flag="🇿🇼">Zimbabwe</option>
-                    <option value="MZ" data-flag="🇲🇿">Mozambico</option>
-                    <option value="MW" data-flag="🇲🇼">Malawi</option>
-                    <option value="ZM" data-flag="🇿🇲">Zambia</option>
-                    <option value="TZ" data-flag="🇹🇿">Tanzania</option>
-                    <option value="KE" data-flag="🇰🇪">Kenya</option>
-                    <option value="UG" data-flag="🇺🇬">Uganda</option>
-                    <option value="RW" data-flag="🇷🇼">Ruanda</option>
-                    <option value="BI" data-flag="🇧🇮">Burundi</option>
-                    <option value="SS" data-flag="🇸🇸">Sud Sudan</option>
-                    <option value="ET" data-flag="🇪🇹">Etiopia</option>
-                    <option value="SO" data-flag="🇸🇴">Somalia</option>
-                    <option value="DJ" data-flag="🇩🇯">Gibuti</option>
-                    <option value="ER" data-flag="🇪🇷">Eritrea</option>
-                    <option value="SD" data-flag="🇸🇩">Sudan</option>
-                    <option value="TH" data-flag="🇹🇭">Thailandia</option>
-                    <option value="VN" data-flag="🇻🇳">Vietnam</option>
-                    <option value="MY" data-flag="🇲🇾">Malesia</option>
-                    <option value="SG" data-flag="🇸🇬">Singapore</option>
-                    <option value="ID" data-flag="🇮🇩">Indonesia</option>
-                    <option value="PH" data-flag="🇵🇭">Filippine</option>
-                    <option value="BN" data-flag="🇧🇳">Brunei</option>
-                    <option value="KH" data-flag="🇰🇭">Cambogia</option>
-                    <option value="LA" data-flag="🇱🇦">Laos</option>
-                    <option value="MM" data-flag="🇲🇲">Myanmar</option>
-                    <option value="LK" data-flag="🇱🇰">Sri Lanka</option>
-                    <option value="NP" data-flag="🇳🇵">Nepal</option>
-                    <option value="BT" data-flag="🇧🇹">Bhutan</option>
-                    <option value="BD" data-flag="🇧🇩">Bangladesh</option>
-                    <option value="PK" data-flag="🇵🇰">Pakistan</option>
-                    <option value="AF" data-flag="🇦🇫">Afghanistan</option>
-                    <option value="TJ" data-flag="🇹🇯">Tagikistan</option>
-                    <option value="KG" data-flag="🇰🇬">Kirghizistan</option>
-                    <option value="UZ" data-flag="🇺🇿">Uzbekistan</option>
-                    <option value="TM" data-flag="🇹🇲">Turkmenistan</option>
-                    <option value="IR" data-flag="🇮🇷">Iran</option>
-                    <option value="AM" data-flag="🇦🇲">Armenia</option>
-                    <option value="AZ" data-flag="🇦🇿">Azerbaigian</option>
-                    <option value="GE" data-flag="🇬🇪">Georgia</option>
-                    <option value="KZ" data-flag="🇰🇿">Kazakistan</option>
-                    <option value="MN" data-flag="🇲🇳">Mongolia</option>
-                    <option value="KP" data-flag="🇰🇵">Corea del Nord</option>
-                    <option value="TW" data-flag="🇹🇼">Taiwan</option>
-                    <option value="HK" data-flag="🇭🇰">Hong Kong</option>
-                    <option value="MO" data-flag="🇲🇴">Macao</option>
-                    <option value="RU" data-flag="🇷🇺">Russia</option>
-                  </select>
-                </div>
-              </div>
-
-              <h5 class="checkout-step-title mt-4">2. Metodo di pagamento</h5>
-              <div
-                id="stripe-card-section"
-                class="border p-3 rounded bg-light mb-4"
-              >
-                <div id="card-element"></div>
-                <div id="card-errors" class="text-danger small mt-2"></div>
-              </div>
-
-              <button
-                type="submit"
-                id="checkout-btn"
-                class="btn btn-warning w-100 py-2 fw-bold shadow-sm"
-              >
-                Conferma e Paga
-              </button>
-              <div
-                id="checkout-message"
-                class="mt-3"
-                style="display: none"
-              ></div>
-            </form>
+        <!-- Barra di progresso Checkout -->
+        <div class="checkout-progress mb-5">
+          <div class="progress-step active" id="prog-step-1">
+            <div class="step-number">1</div>
+            <div class="step-label">Indirizzo</div>
+          </div>
+          <div class="progress-step" id="prog-step-2">
+            <div class="step-number">2</div>
+            <div class="step-label">Pagamento</div>
+          </div>
+          <div class="progress-step" id="prog-step-3">
+            <div class="step-number">3</div>
+            <div class="step-label">Conferma</div>
           </div>
         </div>
-        <div class="col-lg-4">
-          <div
-            class="checkout-sidebar summary-card shadow-sm p-4 border bg-white rounded"
-          >
-            <h5>Riepilogo Ordine</h5>
-            <div id="checkout-summary" class="mt-3 mb-3"></div>
-            <hr />
+
+        <div class="row">
+          <div class="col-lg-8">
+            <div class="checkout-step shadow-sm border">
+              <h5 class="checkout-step-title">1. Indirizzo di spedizione</h5>
+              <form id="checkout-form">
+                <div class="mb-3">
+                  <label for="checkout-name" class="form-label"
+                    >Nome Completo</label
+                  >
+                  <input
+                    type="text"
+                    id="checkout-name"
+                    class="form-control"
+                    required
+                  />
+                </div>
+                <div class="mb-3">
+                  <label for="checkout-email" class="form-label">Email</label>
+                  <input
+                    type="email"
+                    id="checkout-email"
+                    class="form-control"
+                    required
+                  />
+                </div>
+                <div class="row">
+                  <div class="col-md-8 mb-3">
+                    <label for="checkout-address" class="form-label"
+                      >Indirizzo</label
+                    >
+                    <input
+                      type="text"
+                      id="checkout-address"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-4 mb-3">
+                    <label for="checkout-postal" class="form-label">CAP</label>
+                    <input
+                      type="text"
+                      id="checkout-postal"
+                      class="form-control"
+                      required
+                      placeholder="Es. 00100"
+                    />
+                    <div id="postal-feedback" class="invalid-feedback">
+                      Formato CAP non valido per il paese selezionato.
+                    </div>
+                    <div class="form-text small text-muted">
+                      Dati CAP: Zippopotam.us e OpenStreetMap contributors.
+                    </div>
+                  </div>
+                </div>
+                <div class="row">
+                  <div class="col-md-6 mb-3">
+                    <label for="checkout-city" class="form-label"
+                      >Citt&agrave;</label
+                    >
+                    <input
+                      type="text"
+                      id="checkout-city"
+                      class="form-control"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-6 mb-3">
+                    <label for="checkout-country" class="form-label"
+                      >Paese</label
+                    >
+                    <select
+                      id="checkout-country"
+                      name="country"
+                      class="form-control"
+                      required
+                    >
+                      <option value="">Seleziona paese</option>
+                      <option value="IT">Italia</option>
+                      <option value="FR">Francia</option>
+                      <option value="DE">Germania</option>
+                      <option value="ES">Spagna</option>
+                      <option value="GB">Regno Unito</option>
+                      <option value="US">Stati Uniti</option>
+                      <option value="CA">Canada</option>
+                      <option value="AU">Australia</option>
+                      <option value="JP">Giappone</option>
+                      <option value="CN">Cina</option>
+                      <option value="BR">Brasile</option>
+                      <option value="AT">Austria</option>
+                      <option value="CH">Svizzera</option>
+                      <option value="BE">Belgio</option>
+                      <option value="NL">Paesi Bassi</option>
+                      <option value="PT">Portogallo</option>
+                      <option value="SE">Svezia</option>
+                      <option value="NO">Norvegia</option>
+                      <option value="DK">Danimarca</option>
+                      <option value="IE">Irlanda</option>
+                      <option value="PL">Polonia</option>
+                      <option value="CZ">Repubblica Ceca</option>
+                      <option value="HU">Ungheria</option>
+                      <option value="RO">Romania</option>
+                      <option value="GR">Grecia</option>
+                      <option value="MX">Messico</option>
+                      <option value="IN">India</option>
+                      <option value="KR">Corea del Sud</option>
+                      <option value="ZA">Sudafrica</option>
+                      <option value="NZ">Nuova Zelanda</option>
+                      <option value="AR">Argentina</option>
+                      <option value="CL">Cile</option>
+                      <option value="CO">Colombia</option>
+                      <option value="PE">Perù</option>
+                      <option value="VE">Venezuela</option>
+                      <option value="UY">Uruguay</option>
+                      <option value="PY">Paraguay</option>
+                      <option value="BO">Bolivia</option>
+                      <option value="EC">Ecuador</option>
+                      <option value="GT">Guatemala</option>
+                      <option value="HN">Honduras</option>
+                      <option value="SV">El Salvador</option>
+                      <option value="NI">Nicaragua</option>
+                      <option value="CR">Costa Rica</option>
+                      <option value="PA">Panama</option>
+                      <option value="DO">Repubblica Dominicana</option>
+                      <option value="JM">Giamaica</option>
+                      <option value="TT">Trinidad e Tobago</option>
+                      <option value="BB">Barbados</option>
+                      <option value="LC">Santa Lucia</option>
+                      <option value="VC">San Vincenzo e Grenadine</option>
+                      <option value="GD">Grenada</option>
+                      <option value="AG">Antigua e Barbuda</option>
+                      <option value="DM">Dominica</option>
+                      <option value="KN">Saint Kitts e Nevis</option>
+                      <option value="BS">Bahamas</option>
+                      <option value="CU">Cuba</option>
+                      <option value="HT">Haiti</option>
+                      <option value="PR">Porto Rico</option>
+                      <option value="VI">Isole Vergini Americane</option>
+                      <option value="KY">Isole Cayman</option>
+                      <option value="BM">Bermuda</option>
+                      <option value="GL">Groenlandia</option>
+                      <option value="IS">Islanda</option>
+                      <option value="FO">Isole Faroe</option>
+                      <option value="SJ">Svalbard e Jan Mayen</option>
+                      <option value="AX">Isole Åland</option>
+                      <option value="FI">Finlandia</option>
+                      <option value="EE">Estonia</option>
+                      <option value="LV">Lettonia</option>
+                      <option value="LT">Lituania</option>
+                      <option value="BY">Bielorussia</option>
+                      <option value="UA">Ucraina</option>
+                      <option value="MD">Moldova</option>
+                      <option value="BG">Bulgaria</option>
+                      <option value="AL">Albania</option>
+                      <option value="MK">Macedonia del Nord</option>
+                      <option value="ME">Montenegro</option>
+                      <option value="BA">Bosnia ed Erzegovina</option>
+                      <option value="HR">Croazia</option>
+                      <option value="SI">Slovenia</option>
+                      <option value="SK">Slovacchia</option>
+                      <option value="LI">Liechtenstein</option>
+                      <option value="LU">Lussemburgo</option>
+                      <option value="MC">Monaco</option>
+                      <option value="AD">Andorra</option>
+                      <option value="SM">San Marino</option>
+                      <option value="VA">Città del Vaticano</option>
+                      <option value="MT">Malta</option>
+                      <option value="CY">Cipro</option>
+                      <option value="TR">Turchia</option>
+                      <option value="IL">Israele</option>
+                      <option value="LB">Libano</option>
+                      <option value="JO">Giordania</option>
+                      <option value="SY">Siria</option>
+                      <option value="IQ">Iraq</option>
+                      <option value="KW">Kuwait</option>
+                      <option value="SA">Arabia Saudita</option>
+                      <option value="BH">Bahrein</option>
+                      <option value="QA">Qatar</option>
+                      <option value="AE">Emirati Arabi Uniti</option>
+                      <option value="OM">Oman</option>
+                      <option value="YE">Yemen</option>
+                      <option value="EG">Egitto</option>
+                      <option value="LY">Libia</option>
+                      <option value="TN">Tunisia</option>
+                      <option value="DZ">Algeria</option>
+                      <option value="MA">Marocco</option>
+                      <option value="EH">Sahara Occidentale</option>
+                      <option value="MR">Mauritania</option>
+                      <option value="ML">Mali</option>
+                      <option value="SN">Senegal</option>
+                      <option value="GM">Gambia</option>
+                      <option value="GN">Guinea</option>
+                      <option value="SL">Sierra Leone</option>
+                      <option value="LR">Liberia</option>
+                      <option value="CI">Costa d'Avorio</option>
+                      <option value="GH">Ghana</option>
+                      <option value="TG">Togo</option>
+                      <option value="BJ">Benin</option>
+                      <option value="NE">Niger</option>
+                      <option value="BF">Burkina Faso</option>
+                      <option value="CV">Capo Verde</option>
+                      <option value="GW">Guinea-Bissau</option>
+                      <option value="ST">São Tomé e Príncipe</option>
+                      <option value="GQ">Guinea Equatoriale</option>
+                      <option value="GA">Gabon</option>
+                      <option value="CM">Camerun</option>
+                      <option value="TD">Ciad</option>
+                      <option value="CF">Repubblica Centrafricana</option>
+                      <option value="CG">Congo</option>
+                      <option value="CD">
+                        Repubblica Democratica del Congo
+                      </option>
+                      <option value="AO">Angola</option>
+                      <option value="BW">Botswana</option>
+                      <option value="ZW">Zimbabwe</option>
+                      <option value="MZ">Mozambico</option>
+                      <option value="MW">Malawi</option>
+                      <option value="ZM">Zambia</option>
+                      <option value="TZ">Tanzania</option>
+                      <option value="KE">Kenya</option>
+                      <option value="UG">Uganda</option>
+                      <option value="RW">Ruanda</option>
+                      <option value="BI">Burundi</option>
+                      <option value="SS">Sud Sudan</option>
+                      <option value="ET">Etiopia</option>
+                      <option value="SO">Somalia</option>
+                      <option value="DJ">Gibuti</option>
+                      <option value="ER">Eritrea</option>
+                      <option value="SD">Sudan</option>
+                      <option value="TH">Thailandia</option>
+                      <option value="VN">Vietnam</option>
+                      <option value="MY">Malesia</option>
+                      <option value="SG">Singapore</option>
+                      <option value="ID">Indonesia</option>
+                      <option value="PH">Filippine</option>
+                      <option value="BN">Brunei</option>
+                      <option value="KH">Cambogia</option>
+                      <option value="LA">Laos</option>
+                      <option value="MM">Myanmar</option>
+                      <option value="LK">Sri Lanka</option>
+                      <option value="NP">Nepal</option>
+                      <option value="BT">Bhutan</option>
+                      <option value="BD">Bangladesh</option>
+                      <option value="PK">Pakistan</option>
+                      <option value="AF">Afghanistan</option>
+                      <option value="TJ">Tagikistan</option>
+                      <option value="KG">Kirghizistan</option>
+                      <option value="UZ">Uzbekistan</option>
+                      <option value="TM">Turkmenistan</option>
+                      <option value="IR">Iran</option>
+                      <option value="AM">Armenia</option>
+                      <option value="AZ">Azerbaigian</option>
+                      <option value="GE">Georgia</option>
+                      <option value="KZ">Kazakistan</option>
+                      <option value="MN">Mongolia</option>
+                      <option value="KP">Corea del Nord</option>
+                      <option value="TW">Taiwan</option>
+                      <option value="HK">Hong Kong</option>
+                      <option value="MO">Macao</option>
+                      <option value="RU">Russia</option>
+                    </select>
+                  </div>
+                </div>
+
+                <h5 class="checkout-step-title mt-4">2. Metodo di pagamento</h5>
+                <div
+                  id="stripe-card-section"
+                  class="border p-3 rounded bg-light mb-4"
+                >
+                  <div id="card-element"></div>
+                  <div id="card-errors" class="text-danger small mt-2"></div>
+                </div>
+
+                <button
+                  type="submit"
+                  id="checkout-btn"
+                  class="btn btn-warning w-100 py-2 fw-bold shadow-sm"
+                >
+                  Conferma e Paga
+                </button>
+                <div
+                  id="checkout-message"
+                  class="mt-3"
+                  style="display: none"
+                ></div>
+              </form>
+            </div>
+          </div>
+          <div class="col-lg-4">
             <div
-              class="summary-row total border-0 p-0 m-0 d-flex justify-content-between"
+              class="checkout-sidebar summary-card shadow-sm p-4 border bg-white rounded"
             >
-              <span class="h5 fw-bold">Totale ordine:</span>
-              <span id="checkout-total-label" class="h5 fw-bold text-danger"
-                >&euro;0,00</span
+              <h5>Riepilogo Ordine</h5>
+              <div id="checkout-summary" class="mt-3 mb-3"></div>
+              <hr />
+              <div
+                class="summary-row total border-0 p-0 m-0 d-flex justify-content-between"
               >
+                <span class="h5 fw-bold">Totale ordine:</span>
+                <span id="checkout-total-label" class="h5 fw-bold text-danger"
+                  >&euro;0,00</span
+                >
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
     </main>
 
     <footer class="amazon-footer">
@@ -436,7 +443,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
-    <script src="https://js.stripe.com/v3/"></script>
     <script src="auth.js?v=20260428"></script>
     <script src="cart.js?v=20260428"></script>
     <script src="checkout.js?v=20260428"></script>

@@ -41,8 +41,20 @@ Get-Content ".env" | ForEach-Object {
 
 # Aggiungi NODE_ENV=production
 $envVars["NODE_ENV"] = "production"
-if (-not $envVars.ContainsKey("DB_PATH")) {
-    $envVars["DB_PATH"] = "/data/app.db"
+$envVars["DB_PATH"] = "/app/data/app.db"
+$envVars["UPLOADS_DIR"] = "/app/data/uploads"
+if (-not $envVars.ContainsKey("ADDRESS_LOOKUP_CONTACT_EMAIL") -and $envVars.ContainsKey("EMAIL_USER")) {
+    $envVars["ADDRESS_LOOKUP_CONTACT_EMAIL"] = $envVars["EMAIL_USER"]
+}
+if (-not $envVars.ContainsKey("ADDRESS_LOOKUP_USER_AGENT")) {
+    $contact = if ($envVars.ContainsKey("ADDRESS_LOOKUP_CONTACT_EMAIL")) { $envVars["ADDRESS_LOOKUP_CONTACT_EMAIL"] } else { "configure ADDRESS_LOOKUP_CONTACT_EMAIL" }
+    $envVars["ADDRESS_LOOKUP_USER_AGENT"] = "ShopNow/1.0 (address-autofill; $contact)"
+}
+if (-not $envVars.ContainsKey("ADDRESS_LOOKUP_TIMEOUT_MS")) {
+    $envVars["ADDRESS_LOOKUP_TIMEOUT_MS"] = "8000"
+}
+if (-not $envVars.ContainsKey("ADDRESS_LOOKUP_CACHE_TTL_MS")) {
+    $envVars["ADDRESS_LOOKUP_CACHE_TTL_MS"] = "21600000"
 }
 
 # Imposta le variabili su Railway

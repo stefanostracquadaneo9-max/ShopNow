@@ -15,6 +15,44 @@ if (!stripe) {
 const db_module = require("./db");
 const app = express();
 const PORT = process.env.PORT || 3000;
+const RAILWAY_VOLUME_MOUNT_PATH = String(
+  process.env.RAILWAY_VOLUME_MOUNT_PATH || "",
+).trim();
+const BUNDLED_UPLOADS_DIR = path.join(__dirname, "uploads");
+const RUNTIME_UPLOADS_DIR = path.resolve(
+  process.env.UPLOADS_DIR ||
+    (RAILWAY_VOLUME_MOUNT_PATH
+      ? path.join(RAILWAY_VOLUME_MOUNT_PATH, "uploads")
+      : BUNDLED_UPLOADS_DIR),
+);
+const PUBLIC_STATIC_FILES = new Set([
+  "account.html",
+  "account.js",
+  "admin.html",
+  "admin_ui.js",
+  "auth.js",
+  "auth_ui.js",
+  "cart.html",
+  "cart.js",
+  "checkout.html",
+  "checkout.js",
+  "favicon.png",
+  "forgot-password.html",
+  "forgot_password_ui.js",
+  "index.html",
+  "order-confirmation.html",
+  "orders.html",
+  "orders.js",
+  "product.html",
+  "product_ui.js",
+  "products.html",
+  "products_ui.js",
+  "register.html",
+  "reset-password.html",
+  "reset_password_ui.js",
+  "style.css",
+]);
+const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
 
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
@@ -69,36 +107,48 @@ const {
 } = db_module;
 app.use(cors());
 app.use(express.json());
+fs.mkdirSync(RUNTIME_UPLOADS_DIR, { recursive: true });
+
+function setStaticResponseHeaders(res, fileName) {
+  if (process.env.NODE_ENV !== "production" && fileName.endsWith(".js")) {
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+  }
+}
+
+function sendPublicStaticFile(res, fileName) {
+  setStaticResponseHeaders(res, fileName);
+  res.sendFile(path.join(__dirname, fileName), {
+    dotfiles: "deny",
+    maxAge: STATIC_MAX_AGE,
+  });
+}
 
 // Rotte prioritarie per Healthcheck e UI
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  sendPublicStaticFile(res, "index.html");
 });
 
-app.use(
-  express.static(__dirname, {
-    index: "index.html",
-    maxAge: process.env.NODE_ENV === "production" ? "1d" : 0,
-    etag: true,
-    lastModified: true,
-    setHeaders: (res, path, stat) => {
-      // Cache busting for .js files in development
-      if (process.env.NODE_ENV !== "production" && path.endsWith('.js')) {
-        res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.set('Pragma', 'no-cache');
-        res.set('Expires', '0');
-      }
-    }
-  }),
-);
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(RUNTIME_UPLOADS_DIR));
+if (RUNTIME_UPLOADS_DIR !== BUNDLED_UPLOADS_DIR) {
+  app.use("/uploads", express.static(BUNDLED_UPLOADS_DIR));
+}
+
+app.get("/:publicFile", (req, res, next) => {
+  const fileName = String(req.params.publicFile || "");
+  if (!PUBLIC_STATIC_FILES.has(fileName)) return next();
+  sendPublicStaticFile(res, fileName);
+});
 
 app.get("/health", (req, res) => {
   res.status(200).json({
     ok: true,
     status: "healthy",
     uptime: process.uptime(),
-    databasePath: process.env.DB_PATH || path.join(__dirname, "app.db"),
+    databasePath: db_module.DB_PATH || path.join(__dirname, "app.db"),
+    uploadsPath: RUNTIME_UPLOADS_DIR,
+    persistentVolumePath: RAILWAY_VOLUME_MOUNT_PATH || null,
   });
 });
 
@@ -269,7 +319,11 @@ function sanitizeFileSegment(value) {
 function getProductImageAbsolutePath(imagePath) {
   if (!imagePath || !String(imagePath).startsWith("uploads/")) return null;
   const relativePath = String(imagePath).replace(/^uploads[\\/]/, "");
-  return path.join(__dirname, "uploads", relativePath);
+  const runtimePath = path.join(RUNTIME_UPLOADS_DIR, relativePath);
+  if (fs.existsSync(runtimePath) || RUNTIME_UPLOADS_DIR === BUNDLED_UPLOADS_DIR) {
+    return runtimePath;
+  }
+  return null;
 }
 function ensureCheckoutUser(customerEmail, customerName) {
   let user = getUserByEmail(customerEmail);
@@ -361,9 +415,33 @@ function calculateShippingCost(subtotal) {
   );
 }
 
-const ADDRESS_LOOKUP_TIMEOUT_MS = 8000;
-const ADDRESS_LOOKUP_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const ADDRESS_LOOKUP_TIMEOUT_MS = Math.max(
+  1500,
+  Number(process.env.ADDRESS_LOOKUP_TIMEOUT_MS || 8000),
+);
+const ADDRESS_LOOKUP_CACHE_TTL_MS = Math.max(
+  60 * 1000,
+  Number(process.env.ADDRESS_LOOKUP_CACHE_TTL_MS || 6 * 60 * 60 * 1000),
+);
+const ADDRESS_LOOKUP_MAX_CACHE_ITEMS = Math.max(
+  50,
+  Number(process.env.ADDRESS_LOOKUP_MAX_CACHE_ITEMS || 500),
+);
+const ADDRESS_LOOKUP_USER_AGENT =
+  String(process.env.ADDRESS_LOOKUP_USER_AGENT || "").trim() ||
+  "ShopNow/1.0 (address-autofill; contact: configure ADDRESS_LOOKUP_CONTACT_EMAIL)";
+const ADDRESS_LOOKUP_CONTACT_EMAIL = String(
+  process.env.ADDRESS_LOOKUP_CONTACT_EMAIL || process.env.EMAIL_USER || "",
+).trim();
+const NOMINATIM_REQUEST_INTERVAL_MS = Math.max(
+  1000,
+  Number(process.env.NOMINATIM_REQUEST_INTERVAL_MS || 1000),
+);
+const ADDRESS_LOOKUP_ATTRIBUTION =
+  "Postal data from Zippopotam.us/GeoNames and OpenStreetMap contributors.";
 const addressLookupCache = new Map();
+let lastNominatimRequestAt = 0;
+let nominatimQueue = Promise.resolve();
 
 function normalizeAddressLookupCountry(country) {
   const normalized = String(country || "").trim().toUpperCase();
@@ -377,6 +455,14 @@ function normalizeAddressLookupValue(value) {
   return String(value || "").trim().replace(/\s+/g, " ");
 }
 
+function normalizeAddressLookupPostalCode(value) {
+  return normalizeAddressLookupValue(value).toUpperCase();
+}
+
+function isSafeAddressLookupText(value) {
+  return !/[\u0000-\u001f\u007f<>]/.test(String(value || ""));
+}
+
 function getAddressLookupCache(cacheKey) {
   const cached = addressLookupCache.get(cacheKey);
   if (!cached) return null;
@@ -388,6 +474,10 @@ function getAddressLookupCache(cacheKey) {
 }
 
 function setAddressLookupCache(cacheKey, value) {
+  if (addressLookupCache.size >= ADDRESS_LOOKUP_MAX_CACHE_ITEMS) {
+    const oldestKey = addressLookupCache.keys().next().value;
+    if (oldestKey) addressLookupCache.delete(oldestKey);
+  }
   addressLookupCache.set(cacheKey, {
     createdAt: Date.now(),
     value,
@@ -395,7 +485,35 @@ function setAddressLookupCache(cacheKey, value) {
   return value;
 }
 
-async function fetchAddressLookupJson(url) {
+async function waitForNominatimSlot() {
+  const previousRequest = nominatimQueue.catch(() => {});
+  let releaseSlot = () => {};
+  nominatimQueue = new Promise((resolve) => {
+    releaseSlot = resolve;
+  });
+
+  await previousRequest;
+
+  try {
+    const now = Date.now();
+    const waitMs = Math.max(
+      0,
+      NOMINATIM_REQUEST_INTERVAL_MS - (now - lastNominatimRequestAt),
+    );
+    if (waitMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+    lastNominatimRequestAt = Date.now();
+  } finally {
+    releaseSlot();
+  }
+}
+
+async function fetchAddressLookupJson(url, options = {}) {
+  if (options.rateLimit === "nominatim") {
+    await waitForNominatimSlot();
+  }
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ADDRESS_LOOKUP_TIMEOUT_MS);
 
@@ -404,7 +522,10 @@ async function fetchAddressLookupJson(url) {
       signal: controller.signal,
       headers: {
         Accept: "application/json",
-        "User-Agent": "ShopNow/1.0 address-autofill",
+        "User-Agent": ADDRESS_LOOKUP_USER_AGENT,
+        ...(ADDRESS_LOOKUP_CONTACT_EMAIL
+          ? { From: ADDRESS_LOOKUP_CONTACT_EMAIL }
+          : {}),
       },
     });
 
@@ -530,17 +651,38 @@ function normalizeZippopotamCityResult(country, region, city, data) {
 }
 
 async function lookupAddressByPostalCode(country, postalCode) {
-  const cacheKey = `postal:${country}:${postalCode.toUpperCase()}`;
+  const normalizedPostalCode = normalizeAddressLookupPostalCode(postalCode);
+  const providerAttempts = [];
+  const cacheKey = `postal:${country}:${normalizedPostalCode}`;
   const cached = getAddressLookupCache(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    return {
+      ...cached,
+      cached: true,
+    };
+  }
 
-  const zippopotamUrl = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(postalCode)}`;
-  let result = { success: false, source: "zippopotam.us", matches: [] };
+  const zippopotamUrl = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(normalizedPostalCode)}`;
+  let result = {
+    success: false,
+    source: "none",
+    matches: [],
+    providerAttempts,
+    cached: false,
+  };
 
   try {
     const data = await fetchAddressLookupJson(zippopotamUrl);
-    if (data) result = normalizeZippopotamPostalResult(country, postalCode, data);
+    providerAttempts.push("zippopotam.us");
+    if (data) {
+      result = {
+        ...normalizeZippopotamPostalResult(country, normalizedPostalCode, data),
+        providerAttempts,
+        cached: false,
+      };
+    }
   } catch (error) {
+    providerAttempts.push("zippopotam.us:error");
     console.warn("Zippopotam lookup non disponibile:", error.message);
   }
 
@@ -553,10 +695,27 @@ async function lookupAddressByPostalCode(country, postalCode) {
       nominatimUrl.searchParams.set("addressdetails", "1");
       nominatimUrl.searchParams.set("limit", "3");
       nominatimUrl.searchParams.set("countrycodes", country.toLowerCase());
-      nominatimUrl.searchParams.set("postalcode", postalCode);
-      const data = await fetchAddressLookupJson(nominatimUrl.toString());
-      if (data) result = normalizeNominatimPostalResult(country, postalCode, data);
+      nominatimUrl.searchParams.set("postalcode", normalizedPostalCode);
+      if (ADDRESS_LOOKUP_CONTACT_EMAIL) {
+        nominatimUrl.searchParams.set("email", ADDRESS_LOOKUP_CONTACT_EMAIL);
+      }
+      const data = await fetchAddressLookupJson(nominatimUrl.toString(), {
+        rateLimit: "nominatim",
+      });
+      providerAttempts.push("nominatim.openstreetmap.org");
+      if (data) {
+        result = {
+          ...normalizeNominatimPostalResult(
+            country,
+            normalizedPostalCode,
+            data,
+          ),
+          providerAttempts,
+          cached: false,
+        };
+      }
     } catch (error) {
+      providerAttempts.push("nominatim.openstreetmap.org:error");
       console.warn("Nominatim lookup non disponibile:", error.message);
     }
   }
@@ -565,15 +724,39 @@ async function lookupAddressByPostalCode(country, postalCode) {
 }
 
 async function lookupAddressByCity(country, region, city) {
-  const cacheKey = `city:${country}:${region.toUpperCase()}:${city.toUpperCase()}`;
+  const normalizedRegion = normalizeAddressLookupValue(region).toUpperCase();
+  const normalizedCity = normalizeAddressLookupValue(city);
+  const providerAttempts = [];
+  const cacheKey = `city:${country}:${normalizedRegion}:${normalizedCity.toUpperCase()}`;
   const cached = getAddressLookupCache(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    return {
+      ...cached,
+      cached: true,
+    };
+  }
 
-  const url = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(region)}/${encodeURIComponent(city)}`;
+  const url = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(normalizedRegion)}/${encodeURIComponent(normalizedCity)}`;
   const data = await fetchAddressLookupJson(url);
+  providerAttempts.push("zippopotam.us");
   const result = data
-    ? normalizeZippopotamCityResult(country, region, city, data)
-    : { success: false, source: "zippopotam.us", matches: [] };
+    ? {
+        ...normalizeZippopotamCityResult(
+          country,
+          normalizedRegion,
+          normalizedCity,
+          data,
+        ),
+        providerAttempts,
+        cached: false,
+      }
+    : {
+        success: false,
+        source: "zippopotam.us",
+        matches: [],
+        providerAttempts,
+        cached: false,
+      };
 
   return setAddressLookupCache(cacheKey, result);
 }
@@ -1265,12 +1448,17 @@ app.get("/config", (req, res) =>
     emailConfigured: Boolean(
       process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
     ),
+    addressAutofill: {
+      enabled: true,
+      providers: ["zippopotam.us", "nominatim.openstreetmap.org"],
+      cacheTtlMs: ADDRESS_LOOKUP_CACHE_TTL_MS,
+    },
   }),
 );
 app.get("/api/address-autofill", async (req, res) => {
   try {
     const country = normalizeAddressLookupCountry(req.query.country);
-    const postalCode = normalizeAddressLookupValue(req.query.postalCode);
+    const postalCode = normalizeAddressLookupPostalCode(req.query.postalCode);
     const city = normalizeAddressLookupValue(req.query.city);
     const region = normalizeAddressLookupValue(req.query.region);
 
@@ -1280,6 +1468,17 @@ app.get("/api/address-autofill", async (req, res) => {
     if (!postalCode && !city) {
       return res.status(400).json({
         error: "Inserisci un CAP o una citta da cercare",
+      });
+    }
+    if (![postalCode, city, region].every(isSafeAddressLookupText)) {
+      return res.status(400).json({ error: "Ricerca non valida" });
+    }
+    if (postalCode && !/^[A-Z0-9][A-Z0-9 -]{1,19}$/.test(postalCode)) {
+      return res.status(400).json({ error: "CAP non valido" });
+    }
+    if (city && !region) {
+      return res.status(400).json({
+        error: "Indica anche provincia, stato o regione per cercare per citta",
       });
     }
     if (postalCode.length > 20 || city.length > 120 || region.length > 120) {
@@ -1292,14 +1491,19 @@ app.get("/api/address-autofill", async (req, res) => {
         ? await lookupAddressByCity(country, region, city)
         : {
             success: false,
-            source: "zippopotam.us",
+            source: "none",
             matches: [],
+            providerAttempts: [],
+            cached: false,
           };
 
     res.json({
       success: result.success,
       source: result.source,
       matches: result.matches,
+      cached: Boolean(result.cached),
+      providerAttempts: result.providerAttempts || [],
+      attribution: ADDRESS_LOOKUP_ATTRIBUTION,
       query: {
         country,
         postalCode,
@@ -1312,6 +1516,9 @@ app.get("/api/address-autofill", async (req, res) => {
     res.status(502).json({
       error: "Auto-fill indirizzo temporaneamente non disponibile",
       matches: [],
+      cached: false,
+      providerAttempts: [],
+      attribution: ADDRESS_LOOKUP_ATTRIBUTION,
     });
   }
 });
@@ -1405,7 +1612,6 @@ app.post("/login", async (req, res) => {
     const email = String(req.body.email || "")
       .trim()
       .toLowerCase();
-    console.log("Login attempt:", email);
     const password = String(req.body.password || "").trim();
     if (!email || !password)
       return res.status(400).json({ error: "Inserisci email e password" });
@@ -2142,7 +2348,6 @@ app.put("/admin/products/:id", requireAdmin, (req, res) => {
   try {
     const productId = req.params.id;
     const updates = req.body;
-    console.log("PUT /admin/products/" + productId, "updates:", updates);
     const existingProduct = getProductById(productId);
     if (!existingProduct)
       return res.status(404).json({ error: "Prodotto non trovato" });
@@ -2167,7 +2372,6 @@ app.put("/admin/products/:id", requireAdmin, (req, res) => {
       }
     }
     const product = updateProduct(productId, updates);
-    console.log("Prodotto aggiornato:", product);
     res.json({
       success: true,
       message: "Prodotto aggiornato",
@@ -2193,7 +2397,6 @@ app.put("/api/admin/products/:id/stock", requireAdmin, (req, res) => {
     }
 
     const product = updateProduct(productId, { stock });
-    console.log("Stock prodotto aggiornato:", productId, "nuovo stock:", stock);
 
     res.json({
       success: true,
@@ -2225,11 +2428,8 @@ app.post("/admin/products/:id/image", requireAdmin, (req, res) => {
     ]);
     if (!allowedExtensions.has(extension))
       return res.status(400).json({ error: "Formato immagine non supportato" });
-    const uploadsDirectory = path.join(__dirname, "uploads");
-    if (!fs.existsSync(uploadsDirectory))
-      fs.mkdirSync(uploadsDirectory, { recursive: true });
     const safeFileName = `${sanitizeFileSegment(existingProduct.name)}_${Date.now()}${extension}`;
-    const targetAbsolutePath = path.join(uploadsDirectory, safeFileName);
+    const targetAbsolutePath = path.join(RUNTIME_UPLOADS_DIR, safeFileName);
     const fileBuffer = Buffer.from(fileDataBase64, "base64");
     fs.writeFileSync(targetAbsolutePath, fileBuffer);
     const previousImageAbsolutePath = getProductImageAbsolutePath(
