@@ -6152,10 +6152,9 @@ async function handleCheckoutSubmit(event) {
       window.getApiUrl("/api/checkout"),
       {
         method: "POST",
-        headers: window.getApiRequestHeaders({
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${typeof getSessionToken === "function" ? getSessionToken() : ""}`,
-        }),
+        headers: typeof getAuthRequestHeaders === "function"
+          ? getAuthRequestHeaders({ "Content-Type": "application/json" })
+          : window.getApiRequestHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           paymentIntentId: paymentResult.paymentIntent.id,
           items,

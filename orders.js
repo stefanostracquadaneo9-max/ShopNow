@@ -95,3 +95,18 @@ function formatOrderDate(value) {
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString("it-IT");
 }
+function formatShippingAddress(shippingAddress) {
+  if (!shippingAddress) return "";
+  let address = shippingAddress;
+  if (typeof shippingAddress === "string") {
+    try {
+      address = JSON.parse(shippingAddress);
+    } catch (error) {
+      return String(shippingAddress);
+    }
+  }
+  if (!address || typeof address !== "object") return "";
+  return [address.line1, address.postalCode, address.city, address.country]
+    .filter(Boolean)
+    .join(", ");
+}

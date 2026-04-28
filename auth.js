@@ -509,9 +509,7 @@ function prefersServerAuth() {
   }
   if (
     window.location.protocol === "file:" ||
-    window.location.hostname.includes("github.io") ||
-    window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1"
+    window.location.hostname.includes("github.io")
   ) {
     return false;
   }
@@ -1711,6 +1709,7 @@ window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
 window.getServerBaseUrl = getServerBaseUrl;
 window.getBackendRequestHeaders = getBackendRequestHeaders;
+window.getAuthRequestHeaders = getAuthRequestHeaders;
 window.ensureFallbackProducts = ensureFallbackProducts;
 window.getDefaultProducts = getDefaultProducts;
 window.changePassword = changePassword;
