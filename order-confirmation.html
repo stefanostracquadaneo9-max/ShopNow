@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>🛒 ShopNow - Conferma Ordine</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <link href="style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <header class="amazon-header">
+      <div class="container-fluid">
+        <div class="row align-items-center">
+          <div class="col-auto">
+            <a class="navbar-brand" href="products.html"
+              ><i class="fas fa-shopping-bag me-2"></i>ShopNow</a
+            >
+          </div>
+          <div class="col">
+            <div class="search-bar d-flex">
+              <input
+                type="text"
+                id="search-input"
+                class="form-control"
+                placeholder="Cerca prodotti nel catalogo ShopNow..."
+                aria-label="Cerca prodotti nel catalogo ShopNow"
+              /><button class="btn" id="search-btn" aria-label="Cerca">
+                <i class="fas fa-search"></i>
+              </button>
+            </div>
+          </div>
+          <div class="col-auto">
+            <div class="nav-icons">
+              <a href="products.html" class="nav-icon" aria-label="Torna al negozio"
+                ><i class="fas fa-store"></i> </a
+              ><a href="orders.html" class="nav-icon" aria-label="I miei ordini"
+                ><i class="fas fa-list"></i> </a
+              ><a href="cart.html" class="nav-icon" aria-label="Visualizza carrello"
+                ><i class="fas fa-shopping-cart"></i>
+                <span id="cart-count" class="cart-count">0</span> </a
+              ><a href="account.html" class="nav-icon" aria-label="Il mio profilo"
+                ><i class="fas fa-user"></i> </a
+              ><a href="#" class="nav-icon logout-link-global" aria-label="Esci"
+                ><i class="fas fa-sign-out-alt"></i></a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+    <main>
+      <div class="container content py-5">
+        <div class="row justify-content-center">
+          <div class="col-lg-8">
+            <div class="account-card text-center p-4">
+              <div class="mb-4">
+                <i class="fas fa-check-circle fa-4x text-success"></i>
+              </div>
+              <h1 class="mb-3">Ordine confermato</h1>
+              <p id="confirmation-message" class="lead text-secondary mb-4"></p>
+              <div class="d-flex flex-column flex-sm-row justify-content-center gap-3 mb-3">
+                <a href="products.html" class="btn btn-warning btn-lg px-4">
+                  Torna ai prodotti
+                </a>
+                <a id="orders-link" href="orders.html" class="btn btn-outline-secondary btn-lg px-4 d-none">
+                  Vedi i miei ordini
+                </a>
+              </div>
+              <p class="small text-muted">
+                Riceverai a breve una mail di conferma se hai fornito un indirizzo valido.
+              </p>
+              <p class="small text-muted">
+                Se hai bisogno di assistenza, visita il nostro centro supporto.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <footer class="amazon-footer">
+      <div class="container">
+        <div class="row">
+          <div class="col-md-3">
+            <h5>ShopNow</h5>
+            <p class="small">Il tuo marketplace di fiducia dal 2026</p>
+          </div>
+          <div class="col-md-3">
+            <h6>Supporto</h6>
+            <ul class="list-unstyled">
+              <li><a href="#" class="text-muted">Centro Assistenza</a></li>
+              <li><a href="#" class="text-muted">Contatti</a></li>
+            </ul>
+          </div>
+          <div class="col-md-3">
+            <h6>Account</h6>
+            <ul class="list-unstyled">
+              <li><a href="account.html" class="text-muted">Il Mio Account</a></li>
+              <li><a href="orders.html" class="text-muted">Ordini</a></li>
+              <li><a href="cart.html" class="text-muted">Carrello</a></li>
+            </ul>
+          </div>
+          <div class="col-md-3">
+            <h6>Informazioni</h6>
+            <ul class="list-unstyled">
+              <li><a href="#" class="text-muted">Privacy Policy</a></li>
+            </ul>
+          </div>
+        </div>
+        <hr />
+        <div class="text-center">
+          <p class="small text-muted mb-0">&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
+        </div>
+      </div>
+    </footer>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="auth.js?v=20260426"></script>
+    <script src="cart.js?v=20260426"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', async function () {
+        const params = new URLSearchParams(window.location.search);
+        const orderId = params.get('orderId');
+        const total = params.get('total');
+        const customerName = params.get('customerName');
+        const confirmationMessage = document.getElementById('confirmation-message');
+        let message = 'Il tuo ordine è stato ricevuto con successo.';
+        if (orderId) {
+          message = `Ordine #${orderId} confermato con successo.`;
+        }
+        if (total) {
+          const amount = Number(total);
+          if (!Number.isNaN(amount)) {
+            message += ` Importo pagato: €${amount.toFixed(2)}.`;
+          }
+        }
+        if (customerName) {
+          message = `Ciao ${customerName}, ${message}`;
+        }
+        confirmationMessage.textContent = message;
+        if (typeof getCurrentUser === 'function') {
+          const user = await getCurrentUser();
+          if (user) {
+            document.getElementById('orders-link').classList.remove('d-none');
+          }
+        }
+      });
+    </script>
+  </body>
+</html>

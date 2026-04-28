@@ -62,10 +62,10 @@ document.addEventListener("DOMContentLoaded", async function () {
         city: document.getElementById("address-city").value.trim(),
         postalCode: document.getElementById("address-postal").value.trim(),
         country: window.normalizeCountryCode(
-          // Usiamo la funzione globale
           document.getElementById("address-country").value,
         ),
         phone: document.getElementById("address-phone").value.trim(),
+        isDefault: document.getElementById("address-default")?.checked === true,
       };
       if (
         !address.line1 ||
@@ -112,6 +112,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         brand: document.getElementById("card-brand").value.trim(),
         last4: document.getElementById("card-last4").value.trim(),
         expiry: document.getElementById("card-expiry").value.trim(),
+        isDefault: document.getElementById("payment-default")?.checked === true,
       };
       if (!method.alias || !method.brand || !method.last4 || !method.expiry) {
         showMessage("danger", "Compila tutti i campi del metodo di pagamento.");
@@ -180,10 +181,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
     addressList.innerHTML = addresses
       .map(
-        (address, index) => `
+        (address, index) => {
+          const defaultBadge = address.isDefault
+            ? '<span class="badge bg-success mb-2">Predefinito</span>'
+            : "";
+          return `
             <div class="card mb-2 p-2">
                 <div class="d-flex justify-content-between align-items-start gap-3">
                     <div>
+                        ${defaultBadge}
                         <p class="mb-1"><strong>${address.line1}</strong></p>
                         <p class="mb-1">${address.postalCode} ${address.city}, ${address.country}</p>
                         <p class="mb-1">Tel: ${address.phone}</p>
@@ -191,7 +197,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <button type="button" class="btn btn-outline-danger btn-sm" data-address-index="${index}">Elimina</button>
                 </div>
             </div>
-        `,
+        `;
+        },
       )
       .join("");
   }
@@ -205,10 +212,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
     paymentList.innerHTML = methods
       .map(
-        (method, index) => `
+        (method, index) => {
+          const defaultBadge = method.isDefault
+            ? '<span class="badge bg-success mb-2">Predefinito</span>'
+            : "";
+          return `
             <div class="card mb-2 p-2">
                 <div class="d-flex justify-content-between align-items-start gap-3">
                     <div>
+                        ${defaultBadge}
                         <p class="mb-1"><strong>${method.alias}</strong></p>
                         <p class="mb-1">${method.brand} • **** ${method.last4}</p>
                         <p class="mb-0"><small>Scadenza: ${method.expiry}</small></p>
@@ -216,7 +228,8 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <button type="button" class="btn btn-outline-danger btn-sm" data-payment-index="${index}">Elimina</button>
                 </div>
             </div>
-        `,
+        `;
+        },
       )
       .join("");
   }
@@ -234,7 +247,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           ? getAllProducts()
           : getDefaultProducts();
       ordersHistory.innerHTML = orders
-        .map((order) => {
+        .map((order, index) => {
           const normalizedItems = normalizeOrderItems(order.items);
           const itemsHtml = normalizedItems
             .map((item) => {
@@ -248,10 +261,11 @@ document.addEventListener("DOMContentLoaded", async function () {
           const orderTotal = Number(order.total || 0);
           const orderStatus = order.status || "In lavorazione";
           const shippingText = formatShippingAddress(order.shippingAddress);
+          const orderSequence = order.id;
           return `
                     <div class="card mb-3">
                         <div class="card-body">
-                            <h5 class="card-title">Ordine #${order.id}</h5>
+                            <h5 class="card-title">Ordine personale #${orderSequence} <small class="text-muted">(ID: ${order.id})</small></h5>
                             <p class="mb-1"><strong>Data:</strong> ${orderDate}</p>
                             <p class="mb-1"><strong>Totale:</strong> €${orderTotal.toFixed(2)}</p>
                             <p class="mb-1"><strong>Stato:</strong> ${orderStatus}</p>
@@ -283,6 +297,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   // Funzioni di utilità locali (se non già globali, ora molte sono globali in auth.js)
   const normalizeOrderItems = (items) => {
+    if (typeof items === "string") {
+      try {
+        items = JSON.parse(items);
+      } catch (error) {
+        return [];
+      }
+    }
     if (!Array.isArray(items)) return [];
     return items
       .map((item) => ({

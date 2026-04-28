@@ -21,10 +21,12 @@ async function loadOrders() {
       ? window.getAllProducts() // Usiamo la funzione globale
       : window.DEFAULT_PRODUCTS; // Usiamo la costante globale
   ordersContainer.innerHTML = orders
-    .map((order) => renderOrderCard(order, products))
+    .map((order, index) =>
+      renderOrderCard(order, products, order.id),
+    )
     .join("");
 }
-function renderOrderCard(order, products) {
+function renderOrderCard(order, products, sequenceNumber) {
   const items = normalizeOrderItems(order.items);
   const itemsMarkup = items.length
     ? items
@@ -45,10 +47,10 @@ function renderOrderCard(order, products) {
         <div class="order-card">
             <div class="order-header d-flex flex-column flex-md-row justify-content-between gap-2">
                 <div>
-                    <h5 class="mb-1">Ordine #${window.escapeHtml(order.id ?? "")}</h5>
+                    <h5 class="mb-1">Ordine personale #${window.escapeHtml(sequenceNumber ?? "")} <small class="text-muted">(ID: ${window.escapeHtml(order.id ?? "")})</small></h5>
                     <p class="mb-1"><strong>Data:</strong> ${window.escapeHtml(formatOrderDate(order.date || order.createdAt))}</p>
-                    <p class="mb-1"><strong>Cliente:</strong> ${window.escapeHtml(order.customer || order.userName || "")}</p>
-                    <p class="mb-0"><strong>Email:</strong> ${window.escapeHtml(order.email || order.userEmail || "")}</p>
+                    <p class="mb-1"><strong>Cliente:</strong> ${window.escapeHtml(order.customerName || order.userName || order.customer || "")}</p>
+                    <p class="mb-0"><strong>Email:</strong> ${window.escapeHtml(order.customerEmail || order.userEmail || order.email || "")}</p>
                 </div>
                 <div class="text-md-end">
                     <p class="mb-1"><strong>Totale:</strong></p>

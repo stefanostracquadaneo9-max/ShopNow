@@ -185,7 +185,11 @@ function buildProfilePayload(userId) {
   const paymentMethods = getPaymentMethodsByUserId(userId).map(
     normalizeProfilePaymentMethod,
   );
-  const orders = getOrdersByUserId(userId);
+  const orders = getOrdersByUserId(userId).map((order) => ({
+    ...order,
+    customerName: user.name,
+    customerEmail: user.email,
+  }));
   return {
     id: user.id,
     email: user.email,

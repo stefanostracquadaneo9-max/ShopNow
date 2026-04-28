@@ -5,18 +5,29 @@ let stripeInstance = null;
 let stripeCardElement = null;
 let checkoutAutoFillLock = false;
 
-// Oggetto con le bandiere per ogni paese
+// Oggetto con le bandiere per alcuni paesi, usato come fallback
 const countryFlags = {
-  'IT': '🇮🇹', 'FR': '🇫🇷', 'DE': '🇩🇪', 'ES': '🇪🇸', 'GB': '🇬🇧', 'US': '🇺🇸', 'CA': '🇨🇦', 'AU': '🇦🇺', 'JP': '🇯🇵', 'CN': '🇨🇳', 'BR': '🇧🇷',
-  'AT': '🇦🇹', 'CH': '🇨🇭', 'BE': '🇧🇪', 'NL': '🇳🇱', 'PT': '🇵🇹', 'SE': '🇸🇪', 'NO': '🇳🇴', 'DK': '🇩🇰', 'IE': '🇮🇪', 'PL': '🇵🇱', 'CZ': '🇨🇿',
-  'HU': '🇭🇺', 'RO': '🇷🇴', 'GR': '🇬🇷', 'MX': '🇲🇽', 'IN': '🇮🇳', 'KR': '🇰🇷', 'ZA': '🇿🇦', 'NZ': '🇳🇿', 'AR': '🇦🇷', 'CL': '🇨🇱', 'CO': '🇨🇴'
+  IT: '🇮🇹', FR: '🇫🇷', DE: '🇩🇪', ES: '🇪🇸', GB: '🇬🇧', US: '🇺🇸', CA: '🇨🇦', AU: '🇦🇺', JP: '🇯🇵', CN: '🇨🇳', BR: '🇧🇷',
+  AT: '🇦🇹', CH: '🇨🇭', BE: '🇧🇪', NL: '🇳🇱', PT: '🇵🇹', SE: '🇸🇪', NO: '🇳🇴', DK: '🇩🇰', IE: '🇮🇪', PL: '🇵🇱', CZ: '🇨🇿',
+  HU: '🇭🇺', RO: '🇷🇴', GR: '🇬🇷', MX: '🇲🇽', IN: '🇮🇳', KR: '🇰🇷', ZA: '🇿🇦', NZ: '🇳🇿', AR: '🇦🇷', CL: '🇨🇱', CO: '🇨🇴',
 };
+
+function getCountryFlagEmoji(code) {
+  if (!code || typeof code !== 'string') return '';
+  const normalized = String(code).trim().toUpperCase();
+  if (countryFlags[normalized]) return countryFlags[normalized];
+  if (normalized.length !== 2) return '';
+  const first = normalized.codePointAt(0) - 0x41;
+  const second = normalized.codePointAt(1) - 0x41;
+  if (first < 0 || first > 25 || second < 0 || second > 25) return '';
+  return String.fromCodePoint(0x1f1e6 + first, 0x1f1e6 + second);
+}
 
 // Funzione per formattare le opzioni di Select2 con le bandiere
 function formatCountry(country) {
   if (!country.id) return country.text;
   const code = country.id.toUpperCase();
-  const flag = country.element?.dataset?.flag || countryFlags[code] || '';
+  const flag = country.element?.dataset?.flag || getCountryFlagEmoji(code) || '';
   const name = country.text;
   return $(`<span>${flag} ${name}</span>`);
 }
@@ -24,7 +35,7 @@ function formatCountry(country) {
 function formatCountrySelection(country) {
   if (!country.id) return country.text;
   const code = country.id.toUpperCase();
-  const flag = country.element?.dataset?.flag || countryFlags[code] || '';
+  const flag = country.element?.dataset?.flag || getCountryFlagEmoji(code) || '';
   const name = country.text;
   return `${flag} ${name}`.trim();
 }
@@ -49,7 +60,12 @@ setTimeout(function() {
         if (placeholder) {
           countrySelect.appendChild(placeholder);
         }
-        countryOptions.forEach((option) => countrySelect.appendChild(option));
+        countryOptions.forEach((option) => {
+          if (option.value && !option.dataset.flag) {
+            option.dataset.flag = getCountryFlagEmoji(option.value);
+          }
+          countrySelect.appendChild(option);
+        });
       }
 
       $(".select2-enable").select2({
@@ -6171,6 +6187,12 @@ async function handleCheckoutSubmit(event) {
     );
     if (typeof window.showToast === "function")
       window.showToast("Pagamento completato!");
+    const confirmationParams = new URLSearchParams({
+      orderId: String(data.order.id || ""),
+      total: String(data.order.total || total || ""),
+      customerName: String(name || ""),
+    });
+    window.location.href = `order-confirmation.html?${confirmationParams.toString()}`;
   } catch (error) {
     window.showCheckoutMessage("danger", error.message);
   } finally {

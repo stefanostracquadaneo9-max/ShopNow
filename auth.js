@@ -536,7 +536,10 @@ async function initializeLocalDB() {
 
   if (initialized === "1" && adminUser && !new URLSearchParams(window.location.search).get("reset")) {
     if (prefersServerAuth()) {
-      saveData("users", {});
+      await syncUsersFromServer().catch((error) => {
+        console.warn("Sync utenti server fallito durante inizializzazione:", error?.message || error);
+        return false;
+      });
     } else {
       await syncUsersFromServer();
     }
@@ -1365,10 +1368,27 @@ async function addAddress(address) {
       migrateUserEmailKey(users, userEntry.key, normalizedEmail) ||
       userEntry.user;
     if (!storedUser.addresses) storedUser.addresses = [];
-    storedUser.addresses.push(address);
+
+    const shouldBeDefault = Boolean(address.isDefault) || storedUser.addresses.length === 0;
+    if (shouldBeDefault) {
+      storedUser.addresses = storedUser.addresses.map((item) => ({
+        ...item,
+        isDefault: false,
+      }));
+    }
+
+    const nextId = storedUser.addresses.length
+      ? Math.max(...storedUser.addresses.map((item) => Number(item.id || 0))) + 1
+      : 1;
+    const addressToStore = {
+      ...address,
+      id: nextId,
+      isDefault: shouldBeDefault,
+    };
+    storedUser.addresses.push(addressToStore);
     users[normalizedEmail] = storedUser;
     saveData("users", users);
-    return { success: true, address: address };
+    return { success: true, address: addressToStore };
   } catch (error) {
     throw new Error("Errore aggiunta indirizzo");
   }
@@ -1407,7 +1427,10 @@ async function removeAddress(index) {
     if (index < 0 || index >= addresses.length) {
       throw new Error("Indirizzo non trovato");
     }
-    addresses.splice(index, 1);
+    const removed = addresses.splice(index, 1);
+    if (removed[0]?.isDefault && addresses.length) {
+      addresses[0] = { ...addresses[0], isDefault: true };
+    }
     storedUser.addresses = addresses;
     users[normalizedEmail] = storedUser;
     saveData("users", users);
@@ -1446,10 +1469,27 @@ async function addPaymentMethod(method) {
       migrateUserEmailKey(users, userEntry.key, normalizedEmail) ||
       userEntry.user;
     if (!storedUser.paymentMethods) storedUser.paymentMethods = [];
-    storedUser.paymentMethods.push(method);
+
+    const shouldBeDefault = Boolean(method.isDefault) || storedUser.paymentMethods.length === 0;
+    if (shouldBeDefault) {
+      storedUser.paymentMethods = storedUser.paymentMethods.map((item) => ({
+        ...item,
+        isDefault: false,
+      }));
+    }
+
+    const nextId = storedUser.paymentMethods.length
+      ? Math.max(...storedUser.paymentMethods.map((item) => Number(item.id || 0))) + 1
+      : 1;
+    const methodToStore = {
+      ...method,
+      id: nextId,
+      isDefault: shouldBeDefault,
+    };
+    storedUser.paymentMethods.push(methodToStore);
     users[normalizedEmail] = storedUser;
     saveData("users", users);
-    return { success: true, method: method };
+    return { success: true, method: methodToStore };
   } catch (error) {
     throw new Error("Errore aggiunta metodo pagamento");
   }
@@ -1490,7 +1530,10 @@ async function removePaymentMethod(index) {
     if (index < 0 || index >= methods.length) {
       throw new Error("Metodo di pagamento non trovato");
     }
-    methods.splice(index, 1);
+    const removed = methods.splice(index, 1);
+    if (removed[0]?.isDefault && methods.length) {
+      methods[0] = { ...methods[0], isDefault: true };
+    }
     storedUser.paymentMethods = methods;
     users[normalizedEmail] = storedUser;
     saveData("users", users);
@@ -1520,9 +1563,12 @@ async function saveOrderForCurrentUser(order) {
       migrateUserEmailKey(users, userEntry.key, normalizedEmail) ||
       userEntry.user;
     if (!storedUser.orders) storedUser.orders = [];
+    const nextOrderId = storedUser.orders.length
+      ? Math.max(...storedUser.orders.map((item) => Number(item.id || 0))) + 1
+      : 1;
     storedUser.orders.push({
       ...order,
-      id: storedUser.orders.length + 1,
+      id: nextOrderId,
       createdAt: new Date().toISOString(),
     });
     users[normalizedEmail] = storedUser;
@@ -1536,6 +1582,17 @@ async function getCurrentUserOrders() {
   const user = await getCurrentUser();
   if (!user) return [];
   if (prefersServerAuth()) {
+    try {
+      const response = await fetch(getAuthApiUrl("/api/orders"), {
+        headers: getAuthRequestHeaders(),
+      });
+      const data = await response.json().catch(() => null);
+      if (response.ok && Array.isArray(data?.orders)) {
+        return data.orders;
+      }
+    } catch (error) {
+      console.warn("Recupero ordini server fallito, uso cache locale:", error.message);
+    }
     return Array.isArray(user.orders) ? user.orders : [];
   }
   try {

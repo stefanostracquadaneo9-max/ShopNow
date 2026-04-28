@@ -215,11 +215,12 @@
                 </button>
               </form>
               <hr class="my-4" />
-              <div>
+              <div class="account-card">
                 <h4><i class="fas fa-shield-alt me-2"></i>Sicurezza account</h4>
-                <     <label for="current-password" class="form-label"
-                        >Password attuale</label
-                      >
+                <form id="password-form">
+                  <div class="row">
+                    <div class="col-md-4 mb-3">
+                      <label for="current-password" class="form-label">Password attuale</label>
                       <input
                         type="password"
                         id="current-password"
@@ -229,9 +230,7 @@
                       />
                     </div>
                     <div class="col-md-4 mb-3">
-                      <label for="new-password" class="form-label"
-                        >Nuova password</label
-                      >
+                      <label for="new-password" class="form-label">Nuova password</label>
                       <input
                         type="password"
                         id="new-password"
@@ -241,9 +240,7 @@
                       />
                     </div>
                     <div class="col-md-4 mb-3">
-                      <label for="confirm-new-password" class="form-label"
-                        >Conferma nuova password</label
-                      >
+                      <label for="confirm-new-password" class="form-label">Conferma nuova password</label>
                       <input
                         type="password"
                         id="confirm-new-password"
@@ -298,9 +295,7 @@
                       />
                     </div>
                     <div class="mb-3">
-                      <label for="address-country" class="form-label"
-                        >Nazione</label
-                      >
+                      <label for="address-country" class="form-label">Nazione</label>
                       <input
                         type="text"
                         id="address-country"
@@ -310,10 +305,18 @@
                         required
                       />
                     </div>
+                    <div class="form-check mb-3">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="address-default"
+                      />
+                      <label class="form-check-label" for="address-default">
+                        Imposta come indirizzo predefinito
+                      </label>
+                    </div>
                     <div class="mb-3">
-                      <label for="address-phone" class="form-label"
-                        >Telefono</label
-                      >
+                      <label for="address-phone" class="form-label">Telefono</label>
                       <input
                         type="text"
                         id="address-phone"
@@ -373,9 +376,7 @@
                       />
                     </div>
                     <div class="mb-3">
-                      <label for="card-expiry" class="form-label"
-                        >Scadenza</label
-                      >
+                      <label for="card-expiry" class="form-label">Scadenza</label>
                       <input
                         type="text"
                         id="card-expiry"
@@ -383,6 +384,16 @@
                         placeholder="12/26"
                         required
                       />
+                    </div>
+                    <div class="form-check mb-3">
+                      <input
+                        class="form-check-input"
+                        type="checkbox"
+                        id="payment-default"
+                      />
+                      <label class="form-check-label" for="payment-default">
+                        Imposta come metodo predefinito
+                      </label>
                     </div>
                     <button class="btn btn-amazon" type="submit">
                       Aggiungi metodo
