@@ -22,6 +22,15 @@ const SERVER_BASE_URL =
         ? "https://shopnow-production.up.railway.app"
         : "http://localhost:3000";
 const ADMIN_DASHBOARD_CACHE_KEY = "admin-dashboard-cache";
+const ADMIN_REFRESH_INTERVAL_MS = 30000;
+const ADMIN_REFRESH_STALE_AFTER_MS = 5000;
+const ADMIN_DATA_SECTIONS = new Set([
+  "dashboard",
+  "users",
+  "products",
+  "orders",
+  "analytics",
+]);
 
 let currentUser = null;
 let users = [];
@@ -39,6 +48,10 @@ let addUserModal = null;
 let ordersChartInstance = null;
 let salesChartInstance = null;
 let usersGrowthChartInstance = null;
+let dashboardRefreshInFlight = false;
+let dashboardRefreshPromise = null;
+let dashboardRefreshTimer = null;
+let lastDashboardRefreshAt = null;
 
 function getModalInstance(id, existingInstance) {
   if (existingInstance) {
@@ -128,15 +141,35 @@ function getAdminFetchOptions(options = {}) {
     typeof getSessionToken === "function" ? getSessionToken() : "";
   return {
     ...options,
+    cache: "no-store",
     headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
       ...(options.headers || {}),
       ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
     },
   };
 }
 
+function getNoStoreUrl(url, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    return url;
+  }
+  try {
+    const noStoreUrl = new URL(url, window.location.href);
+    noStoreUrl.searchParams.set("_admin_ts", String(Date.now()));
+    return noStoreUrl.toString();
+  } catch (error) {
+    return url;
+  }
+}
+
 async function requestJson(url, options = {}, fallbackMessage = "Errore") {
-  const response = await fetch(url, getAdminFetchOptions(options));
+  const response = await fetch(
+    getNoStoreUrl(url, options),
+    getAdminFetchOptions(options),
+  );
   const data = await parseJsonResponse(response, fallbackMessage);
   if (!response.ok) {
     throw new Error(data?.error || data?.message || fallbackMessage);
@@ -144,34 +177,11 @@ async function requestJson(url, options = {}, fallbackMessage = "Errore") {
   return data;
 }
 
-function saveDashboardCache() {
-  localStorage.setItem(
-    ADMIN_DASHBOARD_CACHE_KEY,
-    JSON.stringify({
-      users: users,
-      products: products,
-      orders: orders,
-      stripeSummary: stripeSummary,
-      updatedAt: new Date().toISOString(),
-    }),
-  );
-}
-
-function loadDashboardDataFromCache() {
+function clearLegacyDashboardCache() {
   try {
-    const cached = localStorage.getItem(ADMIN_DASHBOARD_CACHE_KEY);
-    if (!cached) {
-      return false;
-    }
-    const parsed = JSON.parse(cached);
-    users = Array.isArray(parsed.users) ? parsed.users : [];
-    products = Array.isArray(parsed.products) ? parsed.products : [];
-    orders = Array.isArray(parsed.orders) ? parsed.orders : [];
-    stripeSummary = parsed.stripeSummary || null;
-    return true;
+    localStorage.removeItem(ADMIN_DASHBOARD_CACHE_KEY);
   } catch (error) {
-    console.warn("Cache dashboard non valida:", error.message);
-    return false;
+    console.warn("Impossibile pulire la cache admin:", error.message);
   }
 }
 
@@ -188,55 +198,184 @@ function loadDashboardDataFromLocal() {
       : [],
   );
   stripeSummary = null;
-  saveDashboardCache();
 }
 
 async function loadDashboardDataFromServer() {
   if (!isServerBackedAdminMode()) {
-    return false;
+    loadDashboardDataFromLocal();
+    return;
+  }
+
+  stripeSummary = null;
+  const dashboardData = await requestJson(
+    `${SERVER_BASE_URL}/api/admin/dashboard`,
+    {},
+    "Dashboard non disponibile",
+  );
+  users = Array.isArray(dashboardData.users) ? dashboardData.users : [];
+  products = Array.isArray(dashboardData.products)
+    ? dashboardData.products
+    : [];
+  orders = Array.isArray(dashboardData.orders) ? dashboardData.orders : [];
+}
+
+async function refreshStripeSummary() {
+  if (!isServerBackedAdminMode()) {
+    stripeSummary = null;
+    return;
   }
   try {
-    const dashboardData = await requestJson(
-      `${SERVER_BASE_URL}/api/admin/dashboard`,
+    const stripeData = await requestJson(
+      `${SERVER_BASE_URL}/api/admin/stripe-summary`,
       {},
-      "Dashboard non disponibile",
+      "Riepilogo Stripe non disponibile",
     );
-    users = Array.isArray(dashboardData.users) ? dashboardData.users : [];
-    products = Array.isArray(dashboardData.products)
-      ? dashboardData.products
-      : [];
-    orders = Array.isArray(dashboardData.orders) ? dashboardData.orders : [];
-
-    try {
-      const stripeData = await requestJson(
-        `${SERVER_BASE_URL}/api/admin/stripe-summary`,
-        {},
-        "Riepilogo Stripe non disponibile",
-      );
-      stripeSummary = stripeData?.success ? stripeData : null;
-    } catch (error) {
-      stripeSummary = null;
-      console.warn("Riepilogo Stripe non disponibile:", error.message);
-    }
-
-    saveDashboardCache();
-    return true;
+    stripeSummary = stripeData?.success ? stripeData : null;
   } catch (error) {
-    console.warn("Dashboard server non disponibile:", error.message);
-    return false;
+    stripeSummary = null;
+    console.warn("Riepilogo Stripe non disponibile:", error.message);
+  }
+  updateDashboardStats();
+}
+
+function formatRefreshStatusTime(date) {
+  return date.toLocaleTimeString("it-IT", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function updateRefreshStatus(message, tone = "muted") {
+  const status = document.getElementById("admin-refresh-status");
+  if (status) {
+    const toneClass =
+      tone === "success"
+        ? "text-success"
+        : tone === "danger"
+          ? "text-danger"
+          : "text-muted";
+    status.className = `small ${toneClass}`;
+    status.textContent = message;
+  }
+
+  const refreshButton = document.getElementById("refresh-dashboard-btn");
+  if (refreshButton) {
+    const isLoading = dashboardRefreshInFlight;
+    refreshButton.disabled = isLoading;
+    refreshButton
+      .querySelector("i")
+      ?.classList.toggle("fa-spin", isLoading);
   }
 }
 
-async function loadDashboardData() {
-  const loadedFromServer = await loadDashboardDataFromServer();
-  if (!loadedFromServer && !loadDashboardDataFromCache()) {
-    loadDashboardDataFromLocal();
+function renderTableMessage(bodyId, columns, message, tone = "text-muted") {
+  const body = document.getElementById(bodyId);
+  if (!body) {
+    return;
   }
-  updateDashboardStats();
-  renderUsersTable();
-  renderProductsTable();
-  renderOrdersTable();
+  body.innerHTML = `<tr><td colspan="${columns}" class="text-center py-4 ${tone}">${escapeAdminHtml(message)}</td></tr>`;
+}
+
+function renderDashboardUnavailable(message) {
+  users = [];
+  products = [];
+  orders = [];
+  stripeSummary = null;
+
+  const stats = [
+    "total-users",
+    "total-products",
+    "total-orders",
+    "total-revenue",
+  ];
+  stats.forEach((id) => {
+    const node = document.getElementById(id);
+    if (node) {
+      node.textContent = "--";
+    }
+  });
+
+  const stripeStatusMessageElement = document.getElementById(
+    "stripe-status-message",
+  );
+  if (stripeStatusMessageElement) {
+    stripeStatusMessageElement.innerHTML = `
+        <div class="alert alert-danger d-flex align-items-center" role="alert">
+          <i class="fas fa-exclamation-triangle me-2"></i>
+          <div>${escapeAdminHtml(message)}</div>
+        </div>
+      `;
+  }
+
+  renderTableMessage("users-table-body", 7, message, "text-danger");
+  renderTableMessage("products-table-body", 6, message, "text-danger");
+  renderTableMessage("orders-table-body", 6, message, "text-danger");
   renderCharts();
+}
+
+async function loadDashboardData({ silent = false } = {}) {
+  if (dashboardRefreshPromise) {
+    return dashboardRefreshPromise;
+  }
+
+  dashboardRefreshInFlight = true;
+  dashboardRefreshPromise = (async () => {
+    let completedMessage = "Aggiornamento non riuscito";
+    let completedTone = "danger";
+    updateRefreshStatus("Aggiornamento...", "muted");
+    try {
+      await loadDashboardDataFromServer();
+      updateDashboardStats();
+      renderUsersTable();
+      renderProductsTable();
+      renderOrdersTable();
+      renderCharts();
+      lastDashboardRefreshAt = new Date();
+      completedMessage = `Aggiornato alle ${formatRefreshStatusTime(lastDashboardRefreshAt)}`;
+      completedTone = "success";
+      void refreshStripeSummary();
+      return true;
+    } catch (error) {
+      const message =
+        error.message ||
+        "Dati admin non disponibili. Aggiorna la pagina o riprova tra poco.";
+      if (!silent) {
+        console.warn("Dashboard admin non aggiornata:", message);
+      }
+      renderDashboardUnavailable(message);
+      return false;
+    } finally {
+      dashboardRefreshInFlight = false;
+      dashboardRefreshPromise = null;
+      updateRefreshStatus(completedMessage, completedTone);
+    }
+  })();
+
+  return dashboardRefreshPromise;
+}
+
+function refreshDashboardIfStale() {
+  if (!isServerBackedAdminMode() || dashboardRefreshPromise) {
+    return;
+  }
+  const age = lastDashboardRefreshAt
+    ? Date.now() - lastDashboardRefreshAt.getTime()
+    : Number.POSITIVE_INFINITY;
+  if (age > ADMIN_REFRESH_STALE_AFTER_MS) {
+    void loadDashboardData({ silent: true });
+  }
+}
+
+function startDashboardAutoRefresh() {
+  if (dashboardRefreshTimer) {
+    window.clearInterval(dashboardRefreshTimer);
+  }
+  dashboardRefreshTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible") {
+      void loadDashboardData({ silent: true });
+    }
+  }, ADMIN_REFRESH_INTERVAL_MS);
 }
 
 async function checkAdminAccess() {
@@ -332,6 +471,10 @@ function renderUsersTable(list = users) {
   if (!body) {
     return;
   }
+  if (!list.length) {
+    renderTableMessage("users-table-body", 7, "Nessun utente da mostrare.");
+    return;
+  }
   body.innerHTML = list
     .map((user) => {
       const deleteButton = canDeleteUser(user)
@@ -360,6 +503,14 @@ function renderUsersTable(list = users) {
 function renderProductsTable(list = products) {
   const body = document.getElementById("products-table-body");
   if (!body) {
+    return;
+  }
+  if (!list.length) {
+    renderTableMessage(
+      "products-table-body",
+      6,
+      "Nessun prodotto da mostrare.",
+    );
     return;
   }
   body.innerHTML = list
@@ -392,6 +543,10 @@ function renderProductsTable(list = products) {
 function renderOrdersTable(list = orders) {
   const body = document.getElementById("orders-table-body");
   if (!body) {
+    return;
+  }
+  if (!list.length) {
+    renderTableMessage("orders-table-body", 6, "Nessun ordine da mostrare.");
     return;
   }
   body.innerHTML = list
@@ -1196,7 +1351,7 @@ function renderCharts() {
   }
 }
 
-window.showSection = function (sectionName, event) {
+function showSection(sectionName, event) {
   document.querySelectorAll(".section").forEach((section) => {
     const isActive = section.id === `${sectionName}-section`;
     section.style.display = isActive ? "block" : "none";
@@ -1208,12 +1363,18 @@ window.showSection = function (sectionName, event) {
   if (event?.currentTarget) {
     event.currentTarget.classList.add("active");
   }
+  if (ADMIN_DATA_SECTIONS.has(sectionName)) {
+    refreshDashboardIfStale();
+  }
   if (sectionName === "dashboard" || sectionName === "analytics") {
     window.setTimeout(renderCharts, 120);
   }
-};
+}
 
-window.searchAdmin = function () {
+window.searchAdmin = async function () {
+  if (isServerBackedAdminMode()) {
+    await loadDashboardData({ silent: true });
+  }
   const query =
     document.getElementById("search-input")?.value.trim().toLowerCase() || "";
   if (!query) {
@@ -1269,13 +1430,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof initializeLocalDB === "function") {
     await initializeLocalDB();
   }
+  clearLegacyDashboardCache();
 
   if (!(await checkAdminAccess())) {
     return;
   }
 
   await loadDashboardData();
-  window.showSection("dashboard");
+  showSection("dashboard");
+  startDashboardAutoRefresh();
 
   const imageInput = document.getElementById("product-image");
   const fileInput = document.getElementById("product-image-file");
@@ -1309,6 +1472,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
   const searchBtn = document.getElementById("search-admin-btn");
   if (searchBtn) searchBtn.onclick = () => window.searchAdmin();
+
+  document
+    .getElementById("refresh-dashboard-btn")
+    ?.addEventListener("click", () => {
+      void loadDashboardData();
+    });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      void loadDashboardData({ silent: true });
+    }
+  });
 
   document.addEventListener("click", (e) => {
     if (e.target.closest(".logout-link-global")) {

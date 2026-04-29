@@ -53,6 +53,7 @@ const PUBLIC_STATIC_FILES = new Set([
   "style.css",
 ]);
 const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
+const NO_STORE_STATIC_FILES = new Set(["admin.html", "admin_ui.js"]);
 
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
@@ -110,11 +111,22 @@ app.use(cors());
 app.use(express.json());
 fs.mkdirSync(RUNTIME_UPLOADS_DIR, { recursive: true });
 
+function setNoStoreHeaders(res) {
+  res.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate",
+  );
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  res.set("Surrogate-Control", "no-store");
+}
+
 function setStaticResponseHeaders(res, fileName) {
-  if (process.env.NODE_ENV !== "production" && fileName.endsWith(".js")) {
-    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.set("Pragma", "no-cache");
-    res.set("Expires", "0");
+  if (
+    NO_STORE_STATIC_FILES.has(fileName) ||
+    (process.env.NODE_ENV !== "production" && fileName.endsWith(".js"))
+  ) {
+    setNoStoreHeaders(res);
   }
 }
 
@@ -122,7 +134,7 @@ function sendPublicStaticFile(res, fileName) {
   setStaticResponseHeaders(res, fileName);
   res.sendFile(path.join(__dirname, fileName), {
     dotfiles: "deny",
-    maxAge: STATIC_MAX_AGE,
+    maxAge: NO_STORE_STATIC_FILES.has(fileName) ? 0 : STATIC_MAX_AGE,
   });
 }
 
@@ -234,6 +246,25 @@ app.get("/health", (req, res) => {
     uploadsPath: RUNTIME_UPLOADS_DIR,
     persistentVolumePath: RAILWAY_VOLUME_MOUNT_PATH || null,
   });
+});
+
+function isAdminDataPath(pathname) {
+  return (
+    pathname.startsWith("/api/admin") ||
+    pathname === "/api/auth/users" ||
+    pathname === "/admin/users" ||
+    pathname.startsWith("/admin/users/") ||
+    pathname === "/admin/orders" ||
+    pathname === "/admin/products" ||
+    pathname.startsWith("/admin/products/")
+  );
+}
+
+app.use((req, res, next) => {
+  if (isAdminDataPath(req.path)) {
+    setNoStoreHeaders(res);
+  }
+  next();
 });
 
 function requireAuth(req, res, next) {
@@ -1272,10 +1303,7 @@ app.post("/create-payment-intent", async (req, res) => {
       description: customerName
         ? `Ordine da ${customerName}`
         : "Ordine ShopNow",
-      automatic_payment_methods: {
-        enabled: true,
-        allow_redirects: "never",
-      },
+      payment_method_types: ["card"],
       metadata: {
         customer_name: String(customerName || ""),
         customer_email: String(customerEmail || ""),
@@ -1432,10 +1460,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         currency: "eur",
         payment_method: "pm_card_visa",
         confirm: true,
-        automatic_payment_methods: {
-          enabled: true,
-          allow_redirects: "never",
-        },
+        payment_method_types: ["card"],
         receipt_email: customerEmail,
         description: `Ordine file mode - ${customerName}`,
         metadata: {

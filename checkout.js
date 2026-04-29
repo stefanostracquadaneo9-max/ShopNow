@@ -461,12 +461,12 @@ async function initializeStripeCheckout() {
           billingDetails: {
             name: "never",
             email: "never",
-            address: "never",
+            address: "auto",
           },
         },
         wallets: {
-          applePay: "auto",
-          googlePay: "auto",
+          applePay: "never",
+          googlePay: "never",
         },
       });
 
