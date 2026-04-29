@@ -18,7 +18,12 @@ espone la variabile del volume. Lo script `RAILWAY_DEPLOY.ps1` imposta anche:
 ```text
 DB_PATH=/app/data/app.db
 UPLOADS_DIR=/app/data/uploads
+PUBLIC_SITE_URL=https://shopnow-production.up.railway.app
 ```
+
+`PUBLIC_SITE_URL` viene usato per i link nelle email (recupero password,
+account e conferma ordine) quando Railway non fornisce gia il dominio pubblico
+tramite header o variabili runtime.
 
 Prima di un deploy importante, scarica un backup da admin usando
 `/api/admin/backup`. Non eliminare o ricreare il volume Railway se vuoi

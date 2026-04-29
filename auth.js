@@ -9,8 +9,7 @@ let usersSyncPromise = null;
 let productsSyncPromise = null;
 
 window.SHOPNOW_API_BASE_URL =
-  window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1"
+  window.location.protocol === "file:"
     ? "http://localhost:3000"
     : window.location.origin;
 
@@ -471,9 +470,13 @@ function normalizeLocalCatalogProducts(products) {
 
 function isProductCatalogUpToDate(products) {
   if (!Array.isArray(products)) return false;
-  const defaultNames = new Set(getDefaultProducts().map((product) => product.name));
+  const defaultNames = new Set(
+    getDefaultProducts().map((product) => product.name),
+  );
   // Verifica solo che i prodotti di default siano presenti, non che siano gli unici
-  return Array.from(defaultNames).every(name => products.some(p => p.name === name));
+  return Array.from(defaultNames).every((name) =>
+    products.some((p) => p.name === name),
+  );
 }
 
 function stripSensitiveUserData(user) {
@@ -528,14 +531,23 @@ async function initializeLocalDB() {
   }
   window.DB_INITIALIZING = true;
 
-  const initialized = window.localStorage.getItem(DB_KEY_PREFIX + "initialized");
+  const initialized = window.localStorage.getItem(
+    DB_KEY_PREFIX + "initialized",
+  );
   const existingUsers2 = loadData("users", {});
   const adminUser = existingUsers2["admin@gmail.com"];
 
-  if (initialized === "1" && adminUser && !new URLSearchParams(window.location.search).get("reset")) {
+  if (
+    initialized === "1" &&
+    adminUser &&
+    !new URLSearchParams(window.location.search).get("reset")
+  ) {
     if (prefersServerAuth()) {
       await syncUsersFromServer().catch((error) => {
-        console.warn("Sync utenti server fallito durante inizializzazione:", error?.message || error);
+        console.warn(
+          "Sync utenti server fallito durante inizializzazione:",
+          error?.message || error,
+        );
         return false;
       });
     } else {
@@ -608,7 +620,8 @@ async function initializeLocalDB() {
         updated = true;
       }
       if (!isProductCatalogUpToDate(existingProducts)) {
-        const defaultProducts = normalizeLocalCatalogProducts(getDefaultProducts());
+        const defaultProducts =
+          normalizeLocalCatalogProducts(getDefaultProducts());
         console.log(
           `Aggiorno il catalogo locale: prodotti locali non corrispondono al catalogo di default, sostituisco con ${defaultProducts.length} prodotti di default`,
         );
@@ -621,7 +634,8 @@ async function initializeLocalDB() {
       existingProducts.length > 0 &&
       existingProducts.length < getDefaultProducts().length
     ) {
-      const defaultProducts = normalizeLocalCatalogProducts(getDefaultProducts());
+      const defaultProducts =
+        normalizeLocalCatalogProducts(getDefaultProducts());
       console.log(
         `Aggiorno il catalogo locale: ${existingProducts.length} prodotti trovati, sostituisco con ${defaultProducts.length} prodotti di default`,
       );
@@ -1348,7 +1362,8 @@ async function addAddress(address) {
       userEntry.user;
     if (!storedUser.addresses) storedUser.addresses = [];
 
-    const shouldBeDefault = Boolean(address.isDefault) || storedUser.addresses.length === 0;
+    const shouldBeDefault =
+      Boolean(address.isDefault) || storedUser.addresses.length === 0;
     if (shouldBeDefault) {
       storedUser.addresses = storedUser.addresses.map((item) => ({
         ...item,
@@ -1357,7 +1372,8 @@ async function addAddress(address) {
     }
 
     const nextId = storedUser.addresses.length
-      ? Math.max(...storedUser.addresses.map((item) => Number(item.id || 0))) + 1
+      ? Math.max(...storedUser.addresses.map((item) => Number(item.id || 0))) +
+        1
       : 1;
     const addressToStore = {
       ...address,
@@ -1449,7 +1465,8 @@ async function addPaymentMethod(method) {
       userEntry.user;
     if (!storedUser.paymentMethods) storedUser.paymentMethods = [];
 
-    const shouldBeDefault = Boolean(method.isDefault) || storedUser.paymentMethods.length === 0;
+    const shouldBeDefault =
+      Boolean(method.isDefault) || storedUser.paymentMethods.length === 0;
     if (shouldBeDefault) {
       storedUser.paymentMethods = storedUser.paymentMethods.map((item) => ({
         ...item,
@@ -1458,7 +1475,9 @@ async function addPaymentMethod(method) {
     }
 
     const nextId = storedUser.paymentMethods.length
-      ? Math.max(...storedUser.paymentMethods.map((item) => Number(item.id || 0))) + 1
+      ? Math.max(
+          ...storedUser.paymentMethods.map((item) => Number(item.id || 0)),
+        ) + 1
       : 1;
     const methodToStore = {
       ...method,
@@ -1569,7 +1588,10 @@ async function getCurrentUserOrders() {
         return data.orders;
       }
     } catch (error) {
-      console.warn("Recupero ordini server fallito, uso cache locale:", error.message);
+      console.warn(
+        "Recupero ordini server fallito, uso cache locale:",
+        error.message,
+      );
     }
     return Array.isArray(user.orders) ? user.orders : [];
   }

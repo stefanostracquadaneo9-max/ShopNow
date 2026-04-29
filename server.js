@@ -1,4 +1,4 @@
-﻿﻿﻿﻿require("dotenv").config();
+﻿require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const nodemailer = require("nodemailer");
@@ -57,6 +57,7 @@ const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const CHECKOUT_VAT_RATE = 0.22;
+const DEFAULT_PUBLIC_SITE_URL = "https://shopnow-production.up.railway.app";
 let sentEmails = [];
 const {
   db,
@@ -123,6 +124,89 @@ function sendPublicStaticFile(res, fileName) {
     dotfiles: "deny",
     maxAge: STATIC_MAX_AGE,
   });
+}
+
+function normalizePublicBaseUrl(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return "";
+  const withProtocol = /^https?:\/\//i.test(rawValue)
+    ? rawValue
+    : `https://${rawValue}`;
+  return withProtocol.replace(/\/+$/, "");
+}
+
+function isLocalPublicBaseUrl(value) {
+  try {
+    const hostname = new URL(
+      normalizePublicBaseUrl(value),
+    ).hostname.toLowerCase();
+    return (
+      hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1"
+    );
+  } catch (error) {
+    return false;
+  }
+}
+
+function getRequestPublicBaseUrl(req) {
+  const forwardedHost = String(req?.headers?.["x-forwarded-host"] || "")
+    .split(",")[0]
+    .trim();
+  const host = forwardedHost || String(req?.headers?.host || "").trim();
+  if (!host) return "";
+  const forwardedProto = String(req?.headers?.["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim();
+  const protocol = forwardedProto || req?.protocol || "https";
+  return normalizePublicBaseUrl(`${protocol}://${host}`);
+}
+
+function getConfiguredPublicSiteBaseUrl() {
+  const railwayUrl = normalizePublicBaseUrl(
+    process.env.RAILWAY_PUBLIC_DOMAIN || process.env.RAILWAY_STATIC_URL,
+  );
+  if (railwayUrl) return railwayUrl;
+  return normalizePublicBaseUrl(
+    process.env.PUBLIC_SITE_URL ||
+      process.env.APP_URL ||
+      process.env.SHOP_URL ||
+      process.env.FRONTEND_URL ||
+      DEFAULT_PUBLIC_SITE_URL,
+  );
+}
+
+function getPublicSiteBaseUrl(req) {
+  const requestUrl = getRequestPublicBaseUrl(req);
+  if (requestUrl && !isLocalPublicBaseUrl(requestUrl)) return requestUrl;
+
+  const configuredUrl = getConfiguredPublicSiteBaseUrl();
+  if (configuredUrl && !isLocalPublicBaseUrl(configuredUrl))
+    return configuredUrl;
+
+  return requestUrl || configuredUrl || DEFAULT_PUBLIC_SITE_URL;
+}
+
+function buildPublicUrl(baseUrl, pathName = "") {
+  const normalizedBaseUrl =
+    normalizePublicBaseUrl(baseUrl) || DEFAULT_PUBLIC_SITE_URL;
+  const normalizedPath = String(pathName || "").replace(/^\/+/, "");
+  return normalizedPath
+    ? `${normalizedBaseUrl}/${normalizedPath}`
+    : normalizedBaseUrl;
+}
+
+function calculateIncludedVatAmount(grossAmount) {
+  const amount = Number(grossAmount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Number((amount - amount / (1 + CHECKOUT_VAT_RATE)).toFixed(2));
+}
+
+function isExplicitTrue(value) {
+  return value === true || String(value || "").toLowerCase() === "true";
+}
+
+function isCheckoutTestBypassAllowed() {
+  return isExplicitTrue(process.env.ALLOW_TEST_CHECKOUT_BYPASS);
 }
 
 // Rotte prioritarie per Healthcheck e UI
@@ -320,7 +404,10 @@ function getProductImageAbsolutePath(imagePath) {
   if (!imagePath || !String(imagePath).startsWith("uploads/")) return null;
   const relativePath = String(imagePath).replace(/^uploads[\\/]/, "");
   const runtimePath = path.join(RUNTIME_UPLOADS_DIR, relativePath);
-  if (fs.existsSync(runtimePath) || RUNTIME_UPLOADS_DIR === BUNDLED_UPLOADS_DIR) {
+  if (
+    fs.existsSync(runtimePath) ||
+    RUNTIME_UPLOADS_DIR === BUNDLED_UPLOADS_DIR
+  ) {
     return runtimePath;
   }
   return null;
@@ -444,7 +531,9 @@ let lastNominatimRequestAt = 0;
 let nominatimQueue = Promise.resolve();
 
 function normalizeAddressLookupCountry(country) {
-  const normalized = String(country || "").trim().toUpperCase();
+  const normalized = String(country || "")
+    .trim()
+    .toUpperCase();
   const aliases = {
     UK: "GB",
   };
@@ -452,7 +541,9 @@ function normalizeAddressLookupCountry(country) {
 }
 
 function normalizeAddressLookupValue(value) {
-  return String(value || "").trim().replace(/\s+/g, " ");
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ");
 }
 
 function normalizeAddressLookupPostalCode(value) {
@@ -515,7 +606,10 @@ async function fetchAddressLookupJson(url, options = {}) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ADDRESS_LOOKUP_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    ADDRESS_LOOKUP_TIMEOUT_MS,
+  );
 
   try {
     const response = await fetch(url, {
@@ -589,14 +683,10 @@ function normalizeNominatimPostalResult(country, postalCode, data) {
         place.name;
       return {
         city: normalizeAddressLookupValue(city),
-        postalCode: normalizeAddressLookupValue(
-          address.postcode || postalCode,
-        ),
+        postalCode: normalizeAddressLookupValue(address.postcode || postalCode),
         state: normalizeAddressLookupValue(address.state || address.region),
         stateCode: "",
-        country: normalizeAddressLookupCountry(
-          address.country_code || country,
-        ),
+        country: normalizeAddressLookupCountry(address.country_code || country),
         latitude: place.lat || "",
         longitude: place.lon || "",
         source: "nominatim.openstreetmap.org",
@@ -845,12 +935,12 @@ function buildCheckoutStockSnapshot(items) {
     });
   });
   const shipping = normalizedItems.length ? calculateShippingCost(subtotal) : 0;
-  const vat = subtotal * CHECKOUT_VAT_RATE;
-  const total = Number((subtotal + vat + shipping).toFixed(2));
+  const vat = calculateIncludedVatAmount(subtotal);
+  const total = Number((subtotal + shipping).toFixed(2));
   return {
     items: normalizedItems,
     subtotal: Number(subtotal.toFixed(2)),
-    vat: Number(vat.toFixed(2)),
+    vat: vat,
     shipping: Number(shipping.toFixed(2)),
     total: total,
   };
@@ -940,6 +1030,7 @@ async function sendOrderConfirmationEmail({
   items,
   orderDate,
   shippingAddress,
+  siteBaseUrl,
 }) {
   // Crea tabella HTML per gli articoli
   let itemsHTML = `
@@ -972,6 +1063,15 @@ async function sendOrderConfirmationEmail({
   const shippingText = shippingAddress
     ? `${shippingAddress.line1}, ${shippingAddress.postalCode} ${shippingAddress.city}, ${shippingAddress.country}`
     : "Non specificato";
+  const shippingAmount = Math.max(
+    0,
+    Number((Number(amount || 0) - subtotal).toFixed(2)),
+  );
+  const includedVat = calculateIncludedVatAmount(subtotal);
+  const publicSiteBaseUrl = siteBaseUrl || getPublicSiteBaseUrl();
+  const shopUrl = buildPublicUrl(publicSiteBaseUrl);
+  const accountUrl = buildPublicUrl(publicSiteBaseUrl, "account.html");
+  const privacyUrl = buildPublicUrl(publicSiteBaseUrl, "privacy");
   if (!isEmailConfigured || !transporter) {
     console.log(
       "[WARN] Email non configurato (mancano credenziali), ordine salvato normalmente",
@@ -1073,8 +1173,16 @@ async function sendOrderConfirmationEmail({
             <!-- Order Summary -->
             <div class="summary">
                 <div class="summary-row">
-                    <span>Subtotale:</span>
+                    <span>Subtotale prodotti (IVA inclusa):</span>
                     <span>&euro;${subtotal.toFixed(2)}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Spedizione:</span>
+                    <span>${shippingAmount > 0 ? `&euro;${shippingAmount.toFixed(2)}` : "Gratis"}</span>
+                </div>
+                <div class="summary-row">
+                    <span>Di cui IVA prodotti (22%):</span>
+                    <span>&euro;${includedVat.toFixed(2)}</span>
                 </div>
                 <div class="summary-row total">
                     <span>Totale Pagato:</span>
@@ -1111,10 +1219,10 @@ async function sendOrderConfirmationEmail({
         <div class="footer">
             <p><strong>ShopNow - Il tuo marketplace di fiducia</strong></p>
             <div class="footer-links">
-                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}">Shop</a> |
-                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/account">Account</a> |
-                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/about">Chi Siamo</a> |
-                <a href="${process.env.SHOP_URL || process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/privacy">Privacy</a>
+                <a href="${shopUrl}">Shop</a> |
+                <a href="${accountUrl}">Account</a> |
+                <a href="${shopUrl}">Chi Siamo</a> |
+                <a href="${privacyUrl}">Privacy</a>
             </div>
             <p>&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
             <p style="margin-top: 15px; opacity: 0.8;">
@@ -1158,18 +1266,29 @@ app.post("/create-payment-intent", async (req, res) => {
     if (!payableAmount || payableAmount <= 0) {
       return res.status(400).json({ error: "Amount non valido" });
     }
-    const paymentIntent = await stripeClient.paymentIntents.create({
+    const paymentIntentParams = {
       amount: Math.round(payableAmount * 100),
       currency: "eur",
-      description: `Ordine da ${customerName}`,
-      receipt_email: customerEmail,
-      metadata: {
-        customer_name: customerName,
-        customer_email: customerEmail,
+      description: customerName
+        ? `Ordine da ${customerName}`
+        : "Ordine ShopNow",
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: "never",
       },
-    });
+      metadata: {
+        customer_name: String(customerName || ""),
+        customer_email: String(customerEmail || ""),
+      },
+    };
+    if (customerEmail) {
+      paymentIntentParams.receipt_email = String(customerEmail).trim();
+    }
+    const paymentIntent =
+      await stripeClient.paymentIntents.create(paymentIntentParams);
     res.json({
       clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
       amount: payableAmount,
     });
   } catch (error) {
@@ -1227,10 +1346,25 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       skipEmail, // Nuovo parametro per saltare l'invio email nei test
       skipValidation, // Nuovo parametro per saltare la validazione completa nei test
     } = req.body;
+    const checkoutTestBypassAllowed = isCheckoutTestBypassAllowed();
+    const wantsSkipStripe = isExplicitTrue(skipStripe);
+    const wantsSkipEmail = isExplicitTrue(skipEmail);
+    const wantsSkipValidation = isExplicitTrue(skipValidation);
+    const wantsFileModeCheckout =
+      isExplicitTrue(fileModeCheckout) || !paymentIntentId;
+
+    if (
+      (wantsSkipStripe || wantsSkipValidation || wantsFileModeCheckout) &&
+      !checkoutTestBypassAllowed
+    ) {
+      return res.status(403).json({
+        error: "Modalita di test checkout disabilitata",
+      });
+    }
+
+    const shouldSkipEmail = wantsSkipEmail && checkoutTestBypassAllowed;
     const isFileModeCheckout =
-      fileModeCheckout === true ||
-      fileModeCheckout === "true" ||
-      !paymentIntentId;
+      wantsFileModeCheckout && checkoutTestBypassAllowed;
     if (
       !Array.isArray(items) ||
       !items.length ||
@@ -1246,7 +1380,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     }
     // Salta la validazione completa se richiesto per test rapidi
     let checkoutSnapshot = null;
-    if (skipValidation === true || skipValidation === "true") {
+    if (wantsSkipValidation && checkoutTestBypassAllowed) {
       console.log("[INFO] Skipping validation (test mode)");
       checkoutSnapshot = {
         items: items.map((item) => ({
@@ -1258,9 +1392,9 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
           stock: 100,
         })),
         subtotal: 200,
-        vat: 44,
+        vat: calculateIncludedVatAmount(200),
         shipping: 0,
-        total: total || 244,
+        total: total || 200,
       };
     } else {
       checkoutSnapshot = buildCheckoutStockSnapshot(items);
@@ -1277,7 +1411,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     let confirmedPaymentIntent = null;
 
     // Se skipStripe e true, salta completamente Stripe per i test
-    if (skipStripe === true || skipStripe === "true") {
+    if (wantsSkipStripe && checkoutTestBypassAllowed) {
       console.log("[INFO] Stripe bypassato tramite skipStripe flag.");
       confirmedPaymentIntent = {
         id: `pi_test_${Date.now()}`,
@@ -1313,8 +1447,9 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         },
       });
     } else {
+      const stripeClient = getStripeClient();
       const paymentIntent =
-        await stripe.paymentIntents.retrieve(paymentIntentId);
+        await stripeClient.paymentIntents.retrieve(paymentIntentId);
       if (!paymentIntent || paymentIntent.status !== "succeeded") {
         console.error(
           `[ERROR] Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`,
@@ -1345,13 +1480,13 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     }));
 
     let updatedOrder = null;
-    if (skipStripe !== true && skipStripe !== "true") {
+    if (!wantsSkipStripe || !checkoutTestBypassAllowed) {
       updatedOrder = db_module.executeCheckoutTransaction(
         checkoutUser.id,
         checkoutSnapshot.total,
         purchasedItems,
         JSON.stringify(shippingAddress),
-        confirmedPaymentIntent.id
+        confirmedPaymentIntent.id,
       );
       updateOrderStatus(updatedOrder.id, "paid");
     } else {
@@ -1368,8 +1503,10 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       };
     }
     // Invia email di conferma ordine (salta se richiesto per i test)
-    if (isEmailConfigured && skipEmail !== true && skipEmail !== "true") {
-      console.log(`[EMAIL] Inizio procedura invio email per ordine #${updatedOrder.id} a ${customerEmail}`);
+    if (isEmailConfigured && !shouldSkipEmail) {
+      console.log(
+        `[EMAIL] Inizio procedura invio email per ordine #${updatedOrder.id} a ${customerEmail}`,
+      );
       sendOrderConfirmationEmail({
         customerName: customerName,
         customerEmail: customerEmail,
@@ -1378,7 +1515,13 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         items: purchasedItems,
         orderDate: new Date(updatedOrder.createdAt).toLocaleString("it-IT"),
         shippingAddress: shippingAddress,
-      }).catch(err => console.error(`[EMAIL ERROR] Fallimento per ordine #${updatedOrder.id}:`, err.message));
+        siteBaseUrl: getPublicSiteBaseUrl(req),
+      }).catch((err) =>
+        console.error(
+          `[EMAIL ERROR] Fallimento per ordine #${updatedOrder.id}:`,
+          err.message,
+        ),
+      );
     }
     console.log(
       `[OK] Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
@@ -1386,11 +1529,11 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     res.json({
       success: true,
       order: updatedOrder,
-      emailSent: isEmailConfigured,
+      emailSent: isEmailConfigured && !shouldSkipEmail,
       paymentIntentId: confirmedPaymentIntent.id,
       // Salta l'aggiornamento prodotti se richiesto per i test
       updatedProducts:
-        skipStripe === true || skipStripe === "true" ? [] : getAllProducts(),
+        wantsSkipStripe && checkoutTestBypassAllowed ? [] : getAllProducts(),
     });
   } catch (error) {
     console.error(
@@ -1523,28 +1666,37 @@ app.get("/api/address-autofill", async (req, res) => {
   }
 });
 app.get("/login", (req, res) => {
-  res.sendFile(path.join(__dirname, "index.html"));
+  sendPublicStaticFile(res, "index.html");
 });
-app.get("/register", (req, res) => {
-  res.sendFile(path.join(__dirname, "register.html"));
+app.get(["/register", "/registrazione"], (req, res) => {
+  sendPublicStaticFile(res, "register.html");
 });
-app.get("/products", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "products.html"));
+app.get("/forgot-password", (req, res) => {
+  sendPublicStaticFile(res, "forgot-password.html");
 });
-app.get("/cart", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "cart.html"));
+app.get("/reset-password", (req, res) => {
+  sendPublicStaticFile(res, "reset-password.html");
 });
-app.get("/checkout", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "checkout.html"));
+app.get("/products", (req, res) => {
+  sendPublicStaticFile(res, "products.html");
 });
-app.get("/orders", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "orders.html"));
+app.get("/cart", (req, res) => {
+  sendPublicStaticFile(res, "cart.html");
 });
-app.get("/profile", requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, "account.html"));
+app.get("/checkout", (req, res) => {
+  sendPublicStaticFile(res, "checkout.html");
 });
-app.get("/admin", requireAdmin, (req, res) => {
-  res.sendFile(path.join(__dirname, "admin.html"));
+app.get("/orders", (req, res) => {
+  sendPublicStaticFile(res, "orders.html");
+});
+app.get(["/profile", "/account"], (req, res) => {
+  sendPublicStaticFile(res, "account.html");
+});
+app.get("/admin", (req, res) => {
+  sendPublicStaticFile(res, "admin.html");
+});
+app.get("/order-confirmation", (req, res) => {
+  sendPublicStaticFile(res, "order-confirmation.html");
 });
 app.get("/emails-view", (req, res) => {
   const emailsHtml = sentEmails
@@ -1677,7 +1829,20 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     stmt.run(tokenHash, resetTokenExpiry.toISOString(), user.id);
 
     // Invia email con link di reset
-    const resetLink = `${process.env.FRONTEND_URL || process.env.RAILWAY_STATIC_URL || "https://shopnow-production.up.railway.app"}/reset-password.html?token=${resetToken}`;
+    const resetLink = buildPublicUrl(
+      getPublicSiteBaseUrl(req),
+      `reset-password.html?token=${resetToken}`,
+    );
+
+    if (!isEmailConfigured || !transporter) {
+      console.log(
+        "[WARN] Email reset password non inviata: SMTP non configurato.",
+      );
+      return res.json({
+        message:
+          "Se l'email è presente nei nostri sistemi, riceverai a breve un link di reset.",
+      });
+    }
 
     const mailOptions = {
       from: process.env.EMAIL_FROM || "noreply@shopnow.com",
@@ -1742,8 +1907,7 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
     if (!user) {
       return res.status(400).json({
-        error:
-          "Token di reset non valido o scaduto. Richiedi un nuovo link.",
+        error: "Token di reset non valido o scaduto. Richiedi un nuovo link.",
       });
     }
 
@@ -2387,8 +2551,10 @@ app.put("/api/admin/products/:id/stock", requireAdmin, (req, res) => {
     const productId = req.params.id;
     const { stock } = req.body;
 
-    if (typeof stock !== 'number' || stock < 0) {
-      return res.status(400).json({ error: "Stock deve essere un numero positivo" });
+    if (typeof stock !== "number" || stock < 0) {
+      return res
+        .status(400)
+        .json({ error: "Stock deve essere un numero positivo" });
     }
 
     const existingProduct = getProductById(productId);

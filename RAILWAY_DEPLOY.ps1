@@ -43,6 +43,9 @@ Get-Content ".env" | ForEach-Object {
 $envVars["NODE_ENV"] = "production"
 $envVars["DB_PATH"] = "/app/data/app.db"
 $envVars["UPLOADS_DIR"] = "/app/data/uploads"
+if (-not $envVars.ContainsKey("PUBLIC_SITE_URL")) {
+    $envVars["PUBLIC_SITE_URL"] = "https://shopnow-production.up.railway.app"
+}
 if (-not $envVars.ContainsKey("ADDRESS_LOOKUP_CONTACT_EMAIL") -and $envVars.ContainsKey("EMAIL_USER")) {
     $envVars["ADDRESS_LOOKUP_CONTACT_EMAIL"] = $envVars["EMAIL_USER"]
 }

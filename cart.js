@@ -8,9 +8,9 @@ const CART_BRIDGE_KEYS = [
   "cart",
   "cart-count",
 ];
-const cartCurrencyFormatter = new Intl.NumberFormat('it-IT', {
-  style: 'currency',
-  currency: 'EUR',
+const cartCurrencyFormatter = new Intl.NumberFormat("it-IT", {
+  style: "currency",
+  currency: "EUR",
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -100,7 +100,10 @@ function getApiUrl(path) {
   const baseUrl =
     typeof getServerBaseUrl === "function"
       ? getServerBaseUrl()
-      : window.SHOPNOW_API_BASE_URL || "http://localhost:3000";
+      : window.SHOPNOW_API_BASE_URL ||
+        (window.location.protocol === "file:"
+          ? "http://localhost:3000"
+          : window.location.origin);
   return `${baseUrl}${normalizedPath}`;
 }
 function getApiRequestHeaders(extraHeaders = {}) {
@@ -305,6 +308,11 @@ function calculateShippingCost(subtotal) {
   return Number(
     (normalizedSubtotal * SHIPPING_RATE_UNDER_THRESHOLD).toFixed(2),
   );
+}
+function calculateIncludedVatAmount(grossAmount) {
+  const amount = Number(grossAmount || 0);
+  if (!Number.isFinite(amount) || amount <= 0) return 0;
+  return Number((amount - amount / (1 + VAT_RATE)).toFixed(2));
 }
 function normalizeCountryCode(value) {
   const normalized = String(value || "")
@@ -534,13 +542,13 @@ function getCartDetails() {
     });
   });
   const shipping = items.length ? calculateShippingCost(subtotal) : 0;
-  const vat = subtotal * VAT_RATE;
-  const total = Number((subtotal + vat + shipping).toFixed(2));
+  const vat = calculateIncludedVatAmount(subtotal);
+  const total = Number((subtotal + shipping).toFixed(2));
   return {
     items: items,
-    subtotal: subtotal,
+    subtotal: Number(subtotal.toFixed(2)),
     vat: vat,
-    shipping: shipping,
+    shipping: Number(shipping.toFixed(2)),
     total: total,
   };
 }
@@ -553,13 +561,21 @@ function getCartItemImageMarkup(item) {
 function renderCart() {
   const itemsContainer = document.getElementById("cart-items");
   const totalContainer = document.getElementById("cart-total");
-  const proceedToCheckoutContainer = document.getElementById("proceed-to-checkout-container");
-  const proceedToCheckoutBtn = document.getElementById("proceed-to-checkout-btn");
+  const proceedToCheckoutContainer = document.getElementById(
+    "proceed-to-checkout-container",
+  );
+  const proceedToCheckoutBtn = document.getElementById(
+    "proceed-to-checkout-btn",
+  );
 
   const { items, subtotal, vat, shipping, total } = getCartDetails();
 
   // Se siamo nella pagina di checkout, usiamo una logica di rendering diversa
-  if (document.getElementById("checkout-summary") && document.getElementById("checkout-total-label")) { // Check for elements specific to checkout.html
+  if (
+    document.getElementById("checkout-summary") &&
+    document.getElementById("checkout-total-label")
+  ) {
+    // Check for elements specific to checkout.html
     renderCheckoutSummary(items, subtotal, shipping, vat, total);
     return;
   }
@@ -572,7 +588,8 @@ function renderCart() {
       ? '<div class="alert alert-warning">Seleziona almeno un prodotto per procedere al checkout rapido.</div>'
       : "<p>Il carrello e vuoto.</p>";
     totalContainer.innerHTML = "";
-    if (proceedToCheckoutContainer) proceedToCheckoutContainer.style.display = "none";
+    if (proceedToCheckoutContainer)
+      proceedToCheckoutContainer.style.display = "none";
     if (proceedToCheckoutBtn) proceedToCheckoutBtn.disabled = true;
     return;
   }
@@ -639,14 +656,15 @@ function renderCart() {
   totalContainer.innerHTML = `
         <div class="summary-card">
             <h5 class="fw-bold mb-3">Riepilogo ordine</h5>
-            <div class="summary-row"><span>Subtotale:</span> <span>${window.formatCurrency(subtotal)}</span></div>
+            <div class="summary-row"><span>Subtotale prodotti:</span> <span>${window.formatCurrency(subtotal)}</span></div>
             <div class="summary-row"><span>Spedizione:</span> <span>${shipping > 0 ? `${window.formatCurrency(shipping)} (5% sotto ${window.formatCurrency(FREE_SHIPPING_THRESHOLD)})` : "Gratis"}</span></div>
-            <div class="summary-row"><span>IVA (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
+            <div class="summary-row"><span>Di cui IVA prodotti (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
             <hr>
             <div class="summary-row total mt-0 border-0"><span>Totale:</span> <span class="text-danger">${window.formatCurrency(total)}</span></div>
         </div>
     `;
-  if (proceedToCheckoutContainer) proceedToCheckoutContainer.style.display = "flex";
+  if (proceedToCheckoutContainer)
+    proceedToCheckoutContainer.style.display = "flex";
   if (proceedToCheckoutBtn) proceedToCheckoutBtn.disabled = false;
 }
 
@@ -668,7 +686,7 @@ function renderCheckoutSummary(items, subtotal, shipping, vat, total) {
   const detailsHtml = `
         <div class="summary-row mt-3"><span>Articoli:</span> <span>${window.formatCurrency(subtotal)}</span></div>
         <div class="summary-row"><span>Spedizione:</span> <span>${shipping > 0 ? window.formatCurrency(shipping) : "Gratis"}</span></div>
-        <div class="summary-row"><span>IVA (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
+        <div class="summary-row"><span>Di cui IVA prodotti (22%):</span> <span>${window.formatCurrency(vat)}</span></div>
     `;
   summaryContainer.innerHTML += detailsHtml;
   totalLabel.textContent = window.formatCurrency(total);

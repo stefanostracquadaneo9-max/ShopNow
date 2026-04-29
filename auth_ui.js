@@ -11,10 +11,14 @@ document.addEventListener("DOMContentLoaded", async function () {
   const currentUser = await window.getCurrentUser();
 
   if (currentUser) {
+    const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
     const isAuthPage =
-      window.location.pathname.endsWith("index.html") ||
-      window.location.pathname.endsWith("register.html") ||
-      window.location.pathname === "/";
+      currentPath.endsWith("index.html") ||
+      currentPath.endsWith("register.html") ||
+      currentPath === "/login" ||
+      currentPath === "/register" ||
+      currentPath === "/registrazione" ||
+      currentPath === "/";
     if (isAuthPage && !new URLSearchParams(window.location.search).get("msg")) {
       if (currentUser.role === "admin") window.location.href = "admin.html";
       else showSiteContent();

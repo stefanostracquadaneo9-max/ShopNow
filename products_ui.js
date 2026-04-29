@@ -170,7 +170,8 @@ const createProductCard = (product) => {
                 <span class="product-stars">${window.renderRatingStars(rating)}</span>
                 <span class="product-rating-text small text-muted">${ratingText}</span>
             </div>
-            <div class="product-price fs-5 fw-bold text-primary mb-2">${window.formatCurrency(product.price)}</div>
+            <div class="product-price fs-5 fw-bold text-primary mb-1">${window.formatCurrency(product.price)}</div>
+            <div class="small text-muted mb-2">IVA inclusa</div>
             <div class="product-availability small mb-3 ${isOutOfStock ? "text-danger" : stock <= 10 ? "text-warning" : "text-success"}">
                 ${getAvailabilityLabel(stock)}
             </div>
@@ -346,8 +347,9 @@ window.searchProducts = function () {
 
 const searchInputElement = document.getElementById("search-input");
 if (searchInputElement) {
-  searchInputElement.addEventListener("keypress", (e) =>
-    e.key === "Enter" && window.searchProducts(),
+  searchInputElement.addEventListener(
+    "keypress",
+    (e) => e.key === "Enter" && window.searchProducts(),
   );
 }
 const searchButton = document.getElementById("search-btn");

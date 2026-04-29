@@ -2,7 +2,11 @@
  * Gestione specifica della pagina Checkout
  */
 let stripeInstance = null;
-let stripeCardElement = null;
+let stripeElements = null;
+let stripePaymentElement = null;
+let stripePaymentIntentId = null;
+let stripePaymentIntentClientSecret = null;
+let stripePaymentFingerprint = "";
 let checkoutAutoFillLock = false;
 let checkoutAddressLookupTimer = null;
 let checkoutAddressLookupSequence = 0;
@@ -332,6 +336,31 @@ function setCheckoutCountryValue(countryCode) {
   }
 }
 
+function getCheckoutPaymentFingerprint(items, total) {
+  const normalizedItems = Array.isArray(items)
+    ? items
+        .map((item) => ({
+          id: Number(item.id),
+          quantity: Number(item.quantity || 0),
+        }))
+        .sort((a, b) => a.id - b.id)
+    : [];
+  return JSON.stringify({
+    total: Number(total || 0).toFixed(2),
+    items: normalizedItems,
+  });
+}
+
+function clearPaymentElementError() {
+  const errorBox = document.getElementById("payment-errors");
+  if (errorBox) errorBox.textContent = "";
+}
+
+function showPaymentElementError(message) {
+  const errorBox = document.getElementById("payment-errors");
+  if (errorBox) errorBox.textContent = message || "";
+}
+
 async function initializeStripeCheckout() {
   if (
     typeof window.isStaticCheckoutMode === "function" &&
@@ -365,16 +394,54 @@ async function initializeStripeCheckout() {
     }
 
     const checkoutForm = document.getElementById("checkout-form");
-    const cardElementContainer = document.getElementById("card-element");
+    const paymentElementContainer = document.getElementById("payment-element");
 
-    if (checkoutForm && cardElementContainer) {
+    if (checkoutForm && paymentElementContainer) {
+      const { items, total } = window.getCartDetails();
+      if (!items || !items.length || !total) {
+        const submitBtn = document.getElementById("checkout-btn");
+        if (submitBtn) submitBtn.disabled = true;
+        return;
+      }
+
+      const paymentFingerprint = getCheckoutPaymentFingerprint(items, total);
       stripeInstance = window.Stripe(config.stripePublicKey);
-      cardElementContainer.classList.add("stripe-card-element");
+      paymentElementContainer.classList.add("stripe-payment-element");
 
-      const elements = stripeInstance.elements({
+      const intentResponse = await window.fetchWithTimeout(
+        window.getApiUrl("/create-payment-intent"),
+        {
+          method: "POST",
+          headers: window.getApiRequestHeaders({
+            "Content-Type": "application/json",
+          }),
+          body: JSON.stringify({
+            amount: total,
+            items,
+            customerName: document
+              .getElementById("checkout-name")
+              ?.value.trim(),
+            customerEmail: document
+              .getElementById("checkout-email")
+              ?.value.trim(),
+          }),
+        },
+      );
+      const intentData = await intentResponse.json();
+      if (!intentResponse.ok || !intentData.clientSecret) {
+        throw new Error(
+          intentData.error || "Errore inizializzazione pagamento.",
+        );
+      }
+
+      stripePaymentIntentClientSecret = intentData.clientSecret;
+      stripePaymentIntentId = intentData.paymentIntentId;
+      stripePaymentFingerprint = paymentFingerprint;
+      stripeElements = stripeInstance.elements({
+        clientSecret: stripePaymentIntentClientSecret,
         locale: "it",
         appearance: {
-          theme: "none",
+          theme: "stripe",
           variables: {
             colorPrimary: "#e77600",
             colorBackground: "#ffffff",
@@ -385,21 +452,41 @@ async function initializeStripeCheckout() {
         },
       });
 
-      stripeCardElement = elements.create("card", {
-        hidePostalCode: true,
-        style: { base: { fontSize: "16px", color: "#111" } },
+      if (stripePaymentElement) {
+        stripePaymentElement.destroy();
+      }
+      paymentElementContainer.replaceChildren();
+      stripePaymentElement = stripeElements.create("payment", {
+        fields: {
+          billingDetails: {
+            name: "never",
+            email: "never",
+            address: "never",
+          },
+        },
+        wallets: {
+          applePay: "auto",
+          googlePay: "auto",
+        },
       });
 
-      stripeCardElement.mount(cardElementContainer);
-      stripeCardElement.on("focus", () =>
-        cardElementContainer.classList.add("stripe-card-element--focus"),
+      stripePaymentElement.mount(paymentElementContainer);
+      stripePaymentElement.on("focus", () =>
+        paymentElementContainer.classList.add("stripe-payment-element--focus"),
       );
-      stripeCardElement.on("blur", () =>
-        cardElementContainer.classList.remove("stripe-card-element--focus"),
+      stripePaymentElement.on("blur", () =>
+        paymentElementContainer.classList.remove(
+          "stripe-payment-element--focus",
+        ),
       );
     }
   } catch (err) {
     console.error("Errore Stripe:", err);
+    const submitBtn = document.getElementById("checkout-btn");
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Pagamento non disponibile";
+    }
     window.showCheckoutMessage(
       "danger",
       "Impossibile caricare il sistema di pagamento.",
@@ -449,38 +536,36 @@ async function handleCheckoutSubmit(event) {
       throw new Error("Stripe richiede un backend attivo.");
     }
 
-    if (!stripeInstance || !stripeCardElement) {
+    if (!stripeInstance || !stripeElements || !stripePaymentElement) {
       throw new Error(
         "Pagamento non disponibile. Ricarica la pagina e riprova.",
       );
     }
 
-    // 1. Creazione Payment Intent sul server
-    const intentResponse = await window.fetchWithTimeout(
-      window.getApiUrl("/create-payment-intent"),
-      {
-        method: "POST",
-        headers: window.getApiRequestHeaders({
-          "Content-Type": "application/json",
-        }),
-        body: JSON.stringify({
-          amount: total,
-          items,
-          customerName: name,
-          customerEmail: email,
-        }),
-      },
+    clearPaymentElementError();
+    const currentPaymentFingerprint = getCheckoutPaymentFingerprint(
+      items,
+      total,
     );
-    const intentData = await intentResponse.json();
-    if (!intentResponse.ok)
-      throw new Error(intentData.error || "Errore inizializzazione pagamento.");
+    if (currentPaymentFingerprint !== stripePaymentFingerprint) {
+      throw new Error(
+        "Il carrello e cambiato. Ricarica il checkout e riprova.",
+      );
+    }
 
-    // 2. Conferma pagamento con Stripe
-    const paymentResult = await stripeInstance.confirmCardPayment(
-      intentData.clientSecret,
-      {
-        payment_method: {
-          card: stripeCardElement,
+    const submitResult = await stripeElements.submit();
+    if (submitResult.error) {
+      showPaymentElementError(submitResult.error.message);
+      throw new Error(submitResult.error.message);
+    }
+
+    // 1. Conferma pagamento con Stripe Payment Element
+    const paymentResult = await stripeInstance.confirmPayment({
+      elements: stripeElements,
+      redirect: "if_required",
+      confirmParams: {
+        return_url: `${window.location.origin}/order-confirmation.html`,
+        payment_method_data: {
           billing_details: {
             name,
             email,
@@ -493,11 +578,24 @@ async function handleCheckoutSubmit(event) {
           },
         },
       },
-    );
+    });
 
-    if (paymentResult.error) throw new Error(paymentResult.error.message);
+    if (paymentResult.error) {
+      showPaymentElementError(paymentResult.error.message);
+      throw new Error(paymentResult.error.message);
+    }
 
-    // 3. Registrazione ordine nel DB
+    if (!paymentResult.paymentIntent) {
+      throw new Error("Pagamento non confermato da Stripe.");
+    }
+
+    if (paymentResult.paymentIntent.status !== "succeeded") {
+      throw new Error(
+        "Pagamento in elaborazione. Attendi la conferma prima di riprovare.",
+      );
+    }
+
+    // 2. Registrazione ordine nel DB
     const checkoutResponse = await window.fetchWithTimeout(
       window.getApiUrl("/api/checkout"),
       {
@@ -509,7 +607,8 @@ async function handleCheckoutSubmit(event) {
                 "Content-Type": "application/json",
               }),
         body: JSON.stringify({
-          paymentIntentId: paymentResult.paymentIntent.id,
+          paymentIntentId:
+            paymentResult.paymentIntent.id || stripePaymentIntentId,
           items,
           total,
           shippingAddress: { line1: street, city, postalCode, country },

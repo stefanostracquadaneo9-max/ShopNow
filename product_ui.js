@@ -252,12 +252,14 @@ function renderProductDetail(product) {
                         <span class="ms-2">${Number(product.rating || 0).toFixed(1)} · ${reviewsLabel}</span>
                     </div>
                     <div class="product-detail-price">${formatCurrency(product.price)}</div>
+                    <div class="small text-muted mb-3">IVA inclusa</div>
                     <p class="product-detail-description">${escapeHtml(product.description || "")}</p>
                 </div>
             </div>
             <div class="col-xl-3 col-lg-3">
                 <div class="product-buy-box amazon-buy-box">
                     <div class="product-buy-price">${formatCurrency(product.price)}</div>
+                    <div class="small text-muted mb-2">IVA inclusa</div>
                     <div class="product-buy-stock ${stock <= 0 ? "out-of-stock" : ""}">${getStockLabel(stock)}</div>
                     <div class="mb-3">
                         <label class="form-label">Quantità</label>
