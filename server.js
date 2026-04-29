@@ -149,6 +149,37 @@ function sendPublicStaticFile(res, fileName) {
   });
 }
 
+function setCacheClearHeaders(res) {
+  setNoStoreHeaders(res);
+  res.set("Clear-Site-Data", '"cache"');
+}
+
+function sendCacheResetPage(req, res) {
+  setCacheClearHeaders(res);
+  const targetPath = String(req.query.to || "/");
+  const safeTargetPath = targetPath.startsWith("/") ? targetPath : "/";
+  const redirectUrl = `${safeTargetPath}${safeTargetPath.includes("?") ? "&" : "?"}cacheReset=${Date.now()}`;
+  res.type("html").send(`<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta http-equiv="refresh" content="1;url=${escapeSvgText(redirectUrl)}" />
+    <title>ShopNow - Aggiornamento cache</title>
+  </head>
+  <body style="font-family: Arial, sans-serif; padding: 32px; color: #111;">
+    <h1>Sto aggiornando il sito...</h1>
+    <p>La cache del browser per ShopNow viene svuotata. Verrai riportato alla pagina corretta tra un secondo.</p>
+    <p><a href="${escapeSvgText(redirectUrl)}">Continua su ShopNow</a></p>
+    <script>
+      window.setTimeout(function () {
+        window.location.replace(${JSON.stringify(redirectUrl)});
+      }, 300);
+    </script>
+  </body>
+</html>`);
+}
+
 function escapeSvgText(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -272,7 +303,12 @@ function getCheckoutPaymentMethodTypes() {
 }
 
 // Rotte prioritarie per Healthcheck e UI
+app.get("/cache-reset", sendCacheResetPage);
+
 app.get("/", (req, res) => {
+  if (req.query.cacheReset) {
+    setCacheClearHeaders(res);
+  }
   sendPublicStaticFile(res, "index.html");
 });
 
