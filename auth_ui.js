@@ -101,11 +101,16 @@ document.addEventListener("DOMContentLoaded", async function () {
   });
 
   document.addEventListener("click", function (event) {
+    if (event.shopnowLogoutHandled) {
+      return;
+    }
     if (event.target.id === "logout-link") {
+      event.shopnowLogoutHandled = true;
       event.preventDefault();
       window.logout();
     }
     if (event.target.closest(".logout-link-global")) {
+      event.shopnowLogoutHandled = true;
       event.preventDefault();
       window.logout();
     }

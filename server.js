@@ -41,6 +41,7 @@ const PUBLIC_STATIC_FILES = new Set([
   "forgot_password_ui.js",
   "index.html",
   "order-confirmation.html",
+  "order_confirmation.js",
   "orders.html",
   "orders.js",
   "product.html",
@@ -123,6 +124,7 @@ function setNoStoreHeaders(res) {
 
 function setStaticResponseHeaders(res, fileName) {
   if (
+    fileName.endsWith(".html") ||
     NO_STORE_STATIC_FILES.has(fileName) ||
     (process.env.NODE_ENV !== "production" && fileName.endsWith(".js"))
   ) {
@@ -134,8 +136,35 @@ function sendPublicStaticFile(res, fileName) {
   setStaticResponseHeaders(res, fileName);
   res.sendFile(path.join(__dirname, fileName), {
     dotfiles: "deny",
-    maxAge: NO_STORE_STATIC_FILES.has(fileName) ? 0 : STATIC_MAX_AGE,
+    maxAge:
+      fileName.endsWith(".html") || NO_STORE_STATIC_FILES.has(fileName)
+        ? 0
+        : STATIC_MAX_AGE,
   });
+}
+
+function escapeSvgText(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function sendMissingUploadPlaceholder(req, res) {
+  const label = escapeSvgText(
+    path.basename(String(req.params.fileName || "Immagine prodotto")),
+  );
+  res.set("Cache-Control", STATIC_MAX_AGE ? `public, max-age=86400` : "no-store");
+  res.type("image/svg+xml").send(`<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Immagine prodotto non disponibile">
+  <rect width="640" height="480" fill="#f3f4f6"/>
+  <rect x="72" y="72" width="496" height="336" rx="18" fill="#ffffff" stroke="#d5d9d9" stroke-width="3"/>
+  <path d="M174 326h292l-88-104-62 72-42-48-100 80z" fill="#e3e6e6"/>
+  <circle cx="238" cy="174" r="34" fill="#ff9900"/>
+  <text x="320" y="374" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#565959">Immagine non disponibile</text>
+  <text x="320" y="406" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#8a8f94">${label}</text>
+</svg>`);
 }
 
 function normalizePublicBaseUrl(value) {
@@ -221,6 +250,21 @@ function isCheckoutTestBypassAllowed() {
   return isExplicitTrue(process.env.ALLOW_TEST_CHECKOUT_BYPASS);
 }
 
+function isStripeTestSecretKey() {
+  return /^sk_test_/i.test(stripeSecretKey);
+}
+
+function isPaypalPaymentEnabled() {
+  return (
+    isExplicitTrue(process.env.ENABLE_PAYPAL) ||
+    (isExplicitTrue(process.env.ENABLE_PAYPAL_TEST) && isStripeTestSecretKey())
+  );
+}
+
+function getCheckoutPaymentMethodTypes() {
+  return isPaypalPaymentEnabled() ? ["card", "paypal"] : ["card"];
+}
+
 // Rotte prioritarie per Healthcheck e UI
 app.get("/", (req, res) => {
   sendPublicStaticFile(res, "index.html");
@@ -230,6 +274,7 @@ app.use("/uploads", express.static(RUNTIME_UPLOADS_DIR));
 if (RUNTIME_UPLOADS_DIR !== BUNDLED_UPLOADS_DIR) {
   app.use("/uploads", express.static(BUNDLED_UPLOADS_DIR));
 }
+app.get("/uploads/:fileName", sendMissingUploadPlaceholder);
 
 app.get("/:publicFile", (req, res, next) => {
   const fileName = String(req.params.publicFile || "");
@@ -1303,7 +1348,7 @@ app.post("/create-payment-intent", async (req, res) => {
       description: customerName
         ? `Ordine da ${customerName}`
         : "Ordine ShopNow",
-      payment_method_types: ["card"],
+      payment_method_types: getCheckoutPaymentMethodTypes(),
       metadata: {
         customer_name: String(customerName || ""),
         customer_email: String(customerEmail || ""),
@@ -1318,6 +1363,7 @@ app.post("/create-payment-intent", async (req, res) => {
       clientSecret: paymentIntent.client_secret,
       paymentIntentId: paymentIntent.id,
       amount: payableAmount,
+      paymentMethodTypes: paymentIntent.payment_method_types,
     });
   } catch (error) {
     console.error("Errore Payment Intent:", error);
@@ -1496,6 +1542,25 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     const authUser = getOptionalAuthUser(req);
     const checkoutUser =
       authUser || ensureCheckoutUser(customerEmail, customerName);
+    const existingOrder = getOrderByStripePaymentIntentId(
+      confirmedPaymentIntent.id,
+    );
+    if (existingOrder) {
+      if (authUser && Number(existingOrder.userId) !== Number(authUser.id)) {
+        return res.status(409).json({
+          error: "Pagamento gia associato a un altro ordine",
+        });
+      }
+      return res.json({
+        success: true,
+        order: existingOrder,
+        alreadyProcessed: true,
+        emailSent: false,
+        paymentIntentId: confirmedPaymentIntent.id,
+        updatedProducts:
+          wantsSkipStripe && checkoutTestBypassAllowed ? [] : getAllProducts(),
+      });
+    }
     const purchasedItems = checkoutSnapshot.items.map((item) => ({
       id: item.id,
       name: item.name,
@@ -1513,7 +1578,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         JSON.stringify(shippingAddress),
         confirmedPaymentIntent.id,
       );
-      updateOrderStatus(updatedOrder.id, "paid");
+      updatedOrder = updateOrderStatus(updatedOrder.id, "paid");
     } else {
       // Crea ordine fittizio per i test
       updatedOrder = {
@@ -1620,6 +1685,13 @@ app.get("/config", (req, res) =>
       enabled: true,
       providers: ["zippopotam.us", "nominatim.openstreetmap.org"],
       cacheTtlMs: ADDRESS_LOOKUP_CACHE_TTL_MS,
+    },
+    paymentMethods: {
+      types: getCheckoutPaymentMethodTypes(),
+      paypalEnabled: isPaypalPaymentEnabled(),
+      paypalTestMode:
+        isExplicitTrue(process.env.ENABLE_PAYPAL_TEST) &&
+        isStripeTestSecretKey(),
     },
   }),
 );

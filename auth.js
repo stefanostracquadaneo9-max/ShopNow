@@ -289,6 +289,32 @@ let isRefreshing = false;
 let refreshPromise = null;
 const MAX_REFRESH_RETRIES = 1;
 
+function getCurrentPathname() {
+  if (!isBrowser || !window.location) {
+    return "/";
+  }
+  return window.location.pathname.replace(/\/+$/, "") || "/";
+}
+
+function isAuthPagePath(pathname = getCurrentPathname()) {
+  return (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/register" ||
+    pathname === "/registrazione" ||
+    pathname === "/forgot-password" ||
+    pathname === "/reset-password" ||
+    pathname.endsWith("index.html") ||
+    pathname.endsWith("register.html") ||
+    pathname.endsWith("forgot-password.html") ||
+    pathname.endsWith("reset-password.html")
+  );
+}
+
+function isAdminPagePath(pathname = getCurrentPathname()) {
+  return pathname === "/admin" || pathname.endsWith("admin.html");
+}
+
 if (isBrowser && typeof window.fetch === "function") {
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
@@ -333,13 +359,15 @@ if (isBrowser && typeof window.fetch === "function") {
         }
       }
 
-      const isAuthPage =
-        window.location.pathname.includes("index.html") ||
-        window.location.pathname === "/" ||
-        window.location.pathname.endsWith("index.html");
+      const isAuthPage = isAuthPagePath();
 
       // Reindirizza solo se non siamo già sulla pagina di login o chiamando endpoint di auth
-      if (!isAuthPage && !isAuthEndpoint) {
+      if (isAuthPage && !isAuthEndpoint) {
+        clearSessionToken();
+        if (typeof updateAuthNav === "function") {
+          updateAuthNav();
+        }
+      } else if (!isAuthEndpoint) {
         console.warn(
           "Sessione scaduta o non valida (401). Reindirizzamento al login...",
         );
@@ -521,6 +549,15 @@ function prefersServerAuth() {
 function isStaticHostedMode() {
   return !prefersServerAuth();
 }
+function finishLocalDBInitialization() {
+  if (!isBrowser) return;
+  window.DB_INITIALIZING = false;
+  if (typeof window.localDBReadyResolve === "function") {
+    window.localDBReadyResolve();
+    window.localDBReadyResolve = null;
+  }
+  window.dispatchEvent(new Event("shopnow-localdb-ready"));
+}
 async function initializeLocalDB() {
   if (!isBrowser) return;
   if (window.DB_INITIALIZING) {
@@ -554,12 +591,7 @@ async function initializeLocalDB() {
       await syncUsersFromServer();
     }
     await syncProductsFromServer();
-    window.DB_INITIALIZING = false;
-    if (typeof window.localDBReadyResolve === "function") {
-      window.localDBReadyResolve();
-      window.localDBReadyResolve = null;
-    }
-    window.dispatchEvent(new Event("shopnow-localdb-ready"));
+    finishLocalDBInitialization();
     return false;
   }
 
@@ -658,12 +690,7 @@ async function initializeLocalDB() {
     }
     saveData("users", {});
     await syncProductsFromServer();
-    window.DB_INITIALIZING = false;
-    if (typeof window.localDBReadyResolve === "function") {
-      window.localDBReadyResolve();
-      window.localDBReadyResolve = null;
-    }
-    window.dispatchEvent(new Event("shopnow-localdb-ready"));
+    finishLocalDBInitialization();
     return false;
   }
   const expectedAdminShaHash =
@@ -707,12 +734,7 @@ async function initializeLocalDB() {
 
   await syncUsersFromServer();
   await syncProductsFromServer();
-  window.DB_INITIALIZING = false;
-  if (typeof window.localDBReadyResolve === "function") {
-    window.localDBReadyResolve();
-    window.localDBReadyResolve = null;
-  }
-  window.dispatchEvent(new Event("shopnow-localdb-ready"));
+  finishLocalDBInitialization();
 }
 function saveData(key, data) {
   try {
@@ -915,6 +937,9 @@ async function tryServerLogin(email, password) {
 }
 async function syncUsersFromServer() {
   if (!prefersServerAuth()) {
+    return false;
+  }
+  if (!isAdminPagePath() || !getSessionToken()) {
     return false;
   }
   if (usersSyncPromise) {
@@ -1641,6 +1666,17 @@ async function logout() {
     window.location.href = "index.html";
   }
 }
+function handleGlobalLogoutClick(event) {
+  const logoutTarget = event.target?.closest?.(
+    "#logout-link, .logout-link-global",
+  );
+  if (!logoutTarget || event.shopnowLogoutHandled) {
+    return;
+  }
+  event.shopnowLogoutHandled = true;
+  event.preventDefault();
+  void logout();
+}
 function searchProducts() {
   const input = document.getElementById("search-input");
   const query = String(input?.value || "")
@@ -1694,6 +1730,8 @@ if (typeof document !== "undefined") {
       await initializeLocalDB();
     } catch (e) {
       console.warn("Errore durante l'inizializzazione del DB:", e);
+      finishLocalDBInitialization();
+      ensureFallbackProducts();
     } finally {
       if (typeof window.updateCartCount === "function")
         window.updateCartCount();
@@ -1702,6 +1740,7 @@ if (typeof document !== "undefined") {
       clearTimeout(forceShow);
     }
   });
+  document.addEventListener("click", handleGlobalLogoutClick);
 }
 window.logout = logout;
 window.login = loginUser;

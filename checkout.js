@@ -15,6 +15,8 @@ let checkoutPageInitialized = false;
 let stripeScriptPromise = null;
 const CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS = 350;
 const CHECKOUT_ADDRESS_LOOKUP_CACHE = new Map();
+const PENDING_CHECKOUT_KEY = "shopnow-pending-checkout";
+const PENDING_CHECKOUT_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
 function getCountryFlagEmoji(code) {
   if (!code || typeof code !== "string") return "";
@@ -361,6 +363,110 @@ function showPaymentElementError(message) {
   if (errorBox) errorBox.textContent = message || "";
 }
 
+function buildCheckoutPayload({
+  paymentIntentId,
+  items,
+  total,
+  shippingAddress,
+  customerName,
+  customerEmail,
+}) {
+  return {
+    paymentIntentId,
+    items,
+    total,
+    shippingAddress,
+    customerName,
+    customerEmail,
+    createdAt: Date.now(),
+  };
+}
+
+function savePendingCheckout(payload) {
+  try {
+    window.localStorage.setItem(PENDING_CHECKOUT_KEY, JSON.stringify(payload));
+  } catch (error) {
+    console.warn("Impossibile salvare il checkout in sospeso:", error);
+  }
+}
+
+function loadPendingCheckout(paymentIntentId = "") {
+  try {
+    const raw = window.localStorage.getItem(PENDING_CHECKOUT_KEY);
+    if (!raw) return null;
+    const payload = JSON.parse(raw);
+    if (!payload || typeof payload !== "object") return null;
+    if (
+      payload.createdAt &&
+      Date.now() - Number(payload.createdAt) > PENDING_CHECKOUT_MAX_AGE_MS
+    ) {
+      window.localStorage.removeItem(PENDING_CHECKOUT_KEY);
+      return null;
+    }
+    if (
+      paymentIntentId &&
+      payload.paymentIntentId &&
+      payload.paymentIntentId !== paymentIntentId
+    ) {
+      return null;
+    }
+    return payload;
+  } catch (error) {
+    window.localStorage.removeItem(PENDING_CHECKOUT_KEY);
+    return null;
+  }
+}
+
+function clearPendingCheckout(paymentIntentId = "") {
+  const pending = loadPendingCheckout();
+  if (!paymentIntentId || pending?.paymentIntentId === paymentIntentId) {
+    window.localStorage.removeItem(PENDING_CHECKOUT_KEY);
+  }
+}
+
+function getCheckoutRequestHeaders(extraHeaders = {}) {
+  return typeof getAuthRequestHeaders === "function"
+    ? getAuthRequestHeaders(extraHeaders)
+    : window.getApiRequestHeaders(extraHeaders);
+}
+
+async function registerCheckoutOrder(payload) {
+  const checkoutResponse = await window.fetchWithTimeout(
+    window.getApiUrl("/api/checkout"),
+    {
+      method: "POST",
+      headers: getCheckoutRequestHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(payload),
+    },
+  );
+
+  const data = await checkoutResponse.json();
+  if (!checkoutResponse.ok) {
+    throw new Error(data.error || "Errore registrazione ordine.");
+  }
+  return data;
+}
+
+function clearCheckoutCartAfterSuccess() {
+  if (typeof clearLocalCart === "function") clearLocalCart();
+  try {
+    window.sessionStorage.removeItem("shopnow-buy-now-cart");
+  } catch (error) {
+    // Non bloccare la conferma ordine per un errore di storage locale.
+  }
+  if (typeof renderCart === "function") renderCart();
+  if (typeof updateCartCount === "function") updateCartCount();
+}
+
+function redirectToOrderConfirmation(order, total, customerName) {
+  const confirmationParams = new URLSearchParams({
+    orderId: String(order?.id || ""),
+    total: String(order?.total || total || ""),
+    customerName: String(customerName || ""),
+  });
+  window.location.href = `order-confirmation.html?${confirmationParams.toString()}`;
+}
+
 async function initializeStripeCheckout() {
   if (
     typeof window.isStaticCheckoutMode === "function" &&
@@ -553,18 +659,30 @@ async function handleCheckoutSubmit(event) {
       );
     }
 
+    const shippingAddress = { line1: street, city, postalCode, country };
+    const checkoutPayload = buildCheckoutPayload({
+      paymentIntentId: stripePaymentIntentId,
+      items,
+      total,
+      shippingAddress,
+      customerName: name,
+      customerEmail: email,
+    });
+
     const submitResult = await stripeElements.submit();
     if (submitResult.error) {
       showPaymentElementError(submitResult.error.message);
       throw new Error(submitResult.error.message);
     }
 
+    savePendingCheckout(checkoutPayload);
+
     // 1. Conferma pagamento con Stripe Payment Element
     const paymentResult = await stripeInstance.confirmPayment({
       elements: stripeElements,
       redirect: "if_required",
       confirmParams: {
-        return_url: `${window.location.origin}/order-confirmation.html`,
+        return_url: `${window.location.origin}/order-confirmation.html?checkout_return=1`,
         payment_method_data: {
           billing_details: {
             name,
@@ -581,6 +699,7 @@ async function handleCheckoutSubmit(event) {
     });
 
     if (paymentResult.error) {
+      clearPendingCheckout(checkoutPayload.paymentIntentId);
       showPaymentElementError(paymentResult.error.message);
       throw new Error(paymentResult.error.message);
     }
@@ -595,42 +714,17 @@ async function handleCheckoutSubmit(event) {
       );
     }
 
-    // 2. Registrazione ordine nel DB
-    const checkoutResponse = await window.fetchWithTimeout(
-      window.getApiUrl("/api/checkout"),
-      {
-        method: "POST",
-        headers:
-          typeof getAuthRequestHeaders === "function"
-            ? getAuthRequestHeaders({ "Content-Type": "application/json" })
-            : window.getApiRequestHeaders({
-                "Content-Type": "application/json",
-              }),
-        body: JSON.stringify({
-          paymentIntentId:
-            paymentResult.paymentIntent.id || stripePaymentIntentId,
-          items,
-          total,
-          shippingAddress: { line1: street, city, postalCode, country },
-          customerName: name,
-          customerEmail: email,
-        }),
-      },
-    );
-
-    const data = await checkoutResponse.json();
-    if (!checkoutResponse.ok)
-      throw new Error(data.error || "Errore registrazione ordine.");
+    checkoutPayload.paymentIntentId =
+      paymentResult.paymentIntent.id || stripePaymentIntentId;
+    const data = await registerCheckoutOrder(checkoutPayload);
+    clearPendingCheckout(checkoutPayload.paymentIntentId);
 
     // Successo!
-    if (typeof clearLocalCart === "function") clearLocalCart();
+    clearCheckoutCartAfterSuccess();
 
     document.getElementById("prog-step-1")?.classList.add("completed");
     document.getElementById("prog-step-2")?.classList.add("completed");
     document.getElementById("prog-step-3")?.classList.add("active");
-
-    if (typeof renderCart === "function") renderCart();
-    if (typeof updateCartCount === "function") updateCartCount();
 
     window.showCheckoutMessage(
       "success",
@@ -638,12 +732,7 @@ async function handleCheckoutSubmit(event) {
     );
     if (typeof window.showToast === "function")
       window.showToast("Pagamento completato!");
-    const confirmationParams = new URLSearchParams({
-      orderId: String(data.order.id || ""),
-      total: String(data.order.total || total || ""),
-      customerName: String(name || ""),
-    });
-    window.location.href = `order-confirmation.html?${confirmationParams.toString()}`;
+    redirectToOrderConfirmation(data.order, total, name);
   } catch (error) {
     window.showCheckoutMessage("danger", error.message);
   } finally {
