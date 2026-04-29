@@ -51,6 +51,7 @@ ngrok-*.log
 test-*.js
 calculate-*.js
 check-*.js
+.tmp-*/
 
 # Development docs
 CHECKOUT_OPTIMIZATIONS.md

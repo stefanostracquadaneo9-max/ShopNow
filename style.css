@@ -1298,7 +1298,7 @@ main {
 }
 
 /* Utility e Modali */
-.initially-hidden { display: none; }
+.initially-hidden { display: block; }
 .modal-preview-img { max-height: 75vh; object-fit: contain; }
 .modal-zoom-img { max-height: 80vh; object-fit: contain; }
 .admin-preview-img { max-height: 180px; object-fit: contain; }
@@ -1370,4 +1370,4 @@ main {
 
 .newsletter-signup .btn-amazon:hover {
     background: #e68900;
-} 
+}

@@ -54,7 +54,13 @@ const PUBLIC_STATIC_FILES = new Set([
   "style.css",
 ]);
 const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
-const NO_STORE_STATIC_FILES = new Set(["admin.html", "admin_ui.js"]);
+const NO_STORE_STATIC_FILES = new Set([
+  "admin.html",
+  "admin_ui.js",
+  "auth.js",
+  "auth_ui.js",
+  "style.css",
+]);
 
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
