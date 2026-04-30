@@ -39,7 +39,10 @@ Write-Host "[2/4] Caricando variabili d'ambiente..." -ForegroundColor Yellow
 $envVars = @{}
 Get-Content ".env" | ForEach-Object {
     if ($_ -match "^([^=]+)=(.+)$") {
-        $envVars[$matches[1]] = $matches[2]
+        $key = $matches[1].Trim()
+        if ($key -ne "SHOP_URL") {
+            $envVars[$key] = $matches[2]
+        }
     }
 }
 

@@ -25,6 +25,9 @@ PUBLIC_SITE_URL=https://shopnow-production.up.railway.app
 account e conferma ordine) quando Railway non fornisce gia il dominio pubblico
 tramite header o variabili runtime.
 
+Usa `PUBLIC_SITE_URL` come URL canonico del sito. `SHOP_URL` era un vecchio
+fallback verso GitHub Pages e non deve essere configurato in produzione.
+
 Prima di un deploy importante, scarica un backup da admin usando
 `/api/admin/backup`. Non eliminare o ricreare il volume Railway se vuoi
 conservare i dati.
