@@ -381,9 +381,15 @@ function requireAdmin(req, res, next) {
   });
 }
 let transporter = null;
-let isEmailConfigured = Boolean(
+const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
+const EMAIL_FROM_ADDRESS = String(
+  process.env.EMAIL_FROM || process.env.EMAIL_USER || "",
+).trim();
+const hasSmtpCredentials = Boolean(
   process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
 );
+const hasResendCredentials = Boolean(RESEND_API_KEY && EMAIL_FROM_ADDRESS);
+let isEmailConfigured = hasSmtpCredentials || hasResendCredentials;
 let emailReady = false;
 let lastEmailError = null;
 let lastEmailCheckAt = null;
@@ -444,7 +450,48 @@ function markEmailFailure(error) {
   lastEmailCheckAt = new Date().toISOString();
 }
 
-if (isEmailConfigured) {
+async function sendResendEmail(mailOptions) {
+  const response = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: mailOptions.from,
+      to: [mailOptions.to],
+      subject: mailOptions.subject,
+      html: mailOptions.html,
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(
+      data?.message || data?.error || "Invio email Resend non riuscito",
+    );
+  }
+  return data;
+}
+
+async function sendMailMessage(mailOptions) {
+  if (hasResendCredentials) {
+    await sendResendEmail(mailOptions);
+    return "resend";
+  }
+  if (!transporter) {
+    throw new Error("Email non configurata");
+  }
+  await transporter.sendMail(mailOptions);
+  return "smtp";
+}
+
+if (hasResendCredentials) {
+  emailReady = true;
+  lastEmailError = null;
+  lastEmailCheckAt = new Date().toISOString();
+}
+
+if (hasSmtpCredentials && !hasResendCredentials) {
   transporter = nodemailer.createTransport(buildEmailTransportOptions());
   transporter.verify((error, success) => {
     if (error) {
@@ -1248,7 +1295,7 @@ async function sendOrderConfirmationEmail({
   const shopUrl = buildPublicUrl(publicSiteBaseUrl);
   const accountUrl = buildPublicUrl(publicSiteBaseUrl, "account.html");
   const privacyUrl = buildPublicUrl(publicSiteBaseUrl, "privacy");
-  if (!isEmailConfigured || !transporter) {
+  if (!isEmailConfigured) {
     console.log(
       "[WARN] Email non configurato (mancano credenziali), ordine salvato normalmente",
     );
@@ -1259,7 +1306,7 @@ async function sendOrderConfirmationEmail({
     };
   }
   const mailOptions = {
-    from: process.env.EMAIL_USER,
+    from: EMAIL_FROM_ADDRESS,
     to: customerEmail,
     subject: `Ordine Confermato #${orderId} - ShopNow`,
     html: `
@@ -1410,7 +1457,7 @@ async function sendOrderConfirmationEmail({
 </html>
         `,
   };
-  await transporter.sendMail(mailOptions);
+  const emailProvider = await sendMailMessage(mailOptions);
   emailReady = true;
   lastEmailError = null;
   lastEmailCheckAt = new Date().toISOString();
@@ -1420,8 +1467,9 @@ async function sendOrderConfirmationEmail({
     text: `Ordine #${orderId} confermato - Totale EUR ${amount.toFixed(2)}`,
     timestamp: new Date().toLocaleString("it-IT"),
     orderId: orderId,
+    provider: emailProvider,
   });
-  console.log(`[OK] Email inviata a ${customerEmail}`);
+  console.log(`[OK] Email inviata a ${customerEmail} via ${emailProvider}`);
   return {
     success: true,
     emailSent: true,
@@ -1827,15 +1875,19 @@ app.get("/config", (req, res) =>
     emailLastError: lastEmailError ? "Email non pronta" : null,
     emailLastCheckedAt: lastEmailCheckAt,
     emailTransport: {
-      service: EMAIL_SERVICE || "smtp",
-      host:
-        process.env.SMTP_HOST ||
-        process.env.EMAIL_HOST ||
-        (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : null),
+      provider: hasResendCredentials ? "resend" : "smtp",
+      service: hasResendCredentials ? null : EMAIL_SERVICE || "smtp",
+      host: hasResendCredentials
+        ? "api.resend.com"
+        : process.env.SMTP_HOST ||
+          process.env.EMAIL_HOST ||
+          (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : null),
       port: Number(
-        process.env.SMTP_PORT ||
-          process.env.EMAIL_PORT ||
-          (EMAIL_SERVICE === "gmail" ? 587 : 465),
+        hasResendCredentials
+          ? 443
+          : process.env.SMTP_PORT ||
+              process.env.EMAIL_PORT ||
+              (EMAIL_SERVICE === "gmail" ? 587 : 465),
       ),
     },
     addressAutofill: {
