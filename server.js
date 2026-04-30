@@ -424,6 +424,7 @@ function buildEmailTransportOptions() {
     connectionTimeout: SMTP_TIMEOUT_MS,
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
+    family: 4,
   };
 
   if (smtpHost) {
@@ -438,7 +439,12 @@ function buildEmailTransportOptions() {
   }
 
   if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
-    options.tls = { rejectUnauthorized: false };
+    options.tls = {
+      rejectUnauthorized: false,
+      servername: smtpHost || undefined,
+    };
+  } else if (smtpHost) {
+    options.tls = { servername: smtpHost };
   }
 
   return options;
