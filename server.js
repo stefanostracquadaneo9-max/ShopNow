@@ -114,7 +114,6 @@ const {
   getCart,
   updateCart,
   clearCart,
-  hashPassword,
 } = db_module;
 app.use(cors());
 app.use(express.json());
@@ -2239,11 +2238,17 @@ app.post("/api/auth/reset-password", async (req, res) => {
     // Hash del token ricevuto
     const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
 
+    const passwordError = validatePasswordStrength(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ error: passwordError });
+    }
+
     // Trova l'utente con il token di reset
+    const nowIso = new Date().toISOString();
     const stmt = db.prepare(
-      "SELECT * FROM users WHERE resetToken = ? AND resetTokenExpiry > datetime('now')",
+      "SELECT * FROM users WHERE resetToken = ? AND resetTokenExpiry > ?",
     );
-    const user = stmt.get(tokenHash);
+    const user = stmt.get(tokenHash, nowIso);
 
     if (!user) {
       return res.status(400).json({
@@ -2251,14 +2256,11 @@ app.post("/api/auth/reset-password", async (req, res) => {
       });
     }
 
-    // Hash della nuova password usando la funzione del db
-    const passwordHash = hashPassword(newPassword);
-
-    // Aggiorna la password e pulisce i token
-    const updateStmt = db.prepare(
-      "UPDATE users SET passwordHash = ?, resetToken = NULL, resetTokenExpiry = NULL, passwordUpdatedAt = datetime('now') WHERE id = ?",
-    );
-    updateStmt.run(passwordHash, user.id);
+    // Aggiorna la password, invalida le sessioni e pulisce il token.
+    updateUserPassword(user.id, newPassword);
+    db.prepare(
+      "UPDATE users SET resetToken = NULL, resetTokenExpiry = NULL WHERE id = ?",
+    ).run(user.id);
 
     res.json({
       success: true,
