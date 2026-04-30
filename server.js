@@ -516,12 +516,32 @@ function getOptionalAuthUser(req) {
   if (!token) return null;
   return getUserBySessionToken(token) || null;
 }
+
+function combineStreetLine(street, streetNumber) {
+  return [street, streetNumber]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function splitLegacyStreetLine(value) {
+  const line = String(value || "").trim();
+  const match = line.match(/^(.*?)[,\s]+(\d+[A-Za-z]?(?:\/[A-Za-z0-9]+)?)$/);
+  if (!match) {
+    return { street: line, streetNumber: "" };
+  }
+  return { street: match[1].trim(), streetNumber: match[2].trim() };
+}
+
 function normalizeProfileAddress(address) {
   if (!address) return null;
+  const street = String(address.street || address.line1 || "").trim();
+  const streetNumber = String(address.streetNumber || "").trim();
   return {
     id: address.id,
-    line1: address.street || address.line1 || "",
-    street: address.street || address.line1 || "",
+    line1: combineStreetLine(street, streetNumber),
+    street: street,
+    streetNumber: streetNumber,
     city: address.city || "",
     postalCode: address.postalCode || "",
     country: address.country || "",
@@ -2431,19 +2451,25 @@ app.get("/api/orders", requireAuth, (req, res) => {
 app.post("/api/profile/addresses", requireAuth, (req, res) => {
   try {
     const line1 = String(req.body.line1 || req.body.street || "").trim();
+    const legacyAddress = splitLegacyStreetLine(line1);
+    const street = String(req.body.street || legacyAddress.street).trim();
+    const streetNumber = String(
+      req.body.streetNumber || legacyAddress.streetNumber,
+    ).trim();
     const city = String(req.body.city || "").trim();
     const postalCode = String(req.body.postalCode || "").trim();
     const country = String(req.body.country || "").trim();
     const phone = String(req.body.phone || "").trim();
     const isDefault = Boolean(req.body.isDefault);
-    if (!line1 || !city || !postalCode || !country)
+    if (!street || !streetNumber || !city || !postalCode || !country)
       return res
         .status(400)
         .json({ error: "Compila tutti i campi dell'indirizzo" });
     const address = normalizeProfileAddress(
       addAddress(
         req.user.id,
-        line1,
+        street,
+        streetNumber,
         city,
         postalCode,
         country,
@@ -2478,13 +2504,27 @@ app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
   try {
     const alias = String(req.body.alias || "").trim();
     const brand = String(req.body.brand || "").trim();
-    const last4 = String(req.body.last4 || "").trim();
-    const expiry = String(req.body.expiry || "").trim();
+    const last4 = String(req.body.last4 || "")
+      .replace(/\D/g, "")
+      .slice(-4);
+    const expiry = String(req.body.expiry || "")
+      .replace(/[^\d/]/g, "")
+      .trim();
     const isDefault = Boolean(req.body.isDefault);
     if (!alias || !brand || !last4 || !expiry)
       return res.status(400).json({
         error: "Compila tutti i campi del metodo di pagamento",
       });
+    if (!/^\d{4}$/.test(last4)) {
+      return res.status(400).json({
+        error: "Inserisci esattamente le ultime 4 cifre della carta",
+      });
+    }
+    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) {
+      return res.status(400).json({
+        error: "Inserisci una scadenza valida nel formato MM/AA",
+      });
+    }
     const paymentMethod = normalizeProfilePaymentMethod(
       addPaymentMethod(
         req.user.id,

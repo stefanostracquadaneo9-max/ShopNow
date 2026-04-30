@@ -16,6 +16,76 @@ document.addEventListener("DOMContentLoaded", async function () {
   let addressAutofillSequence = 0;
   let lastAutoFilledAddressCity = "";
 
+  function combineStreetLine(street, streetNumber) {
+    return [street, streetNumber]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function getAddressStreet(address) {
+    const street = String(address?.street || address?.line1 || "").trim();
+    const streetNumber = String(address?.streetNumber || "").trim();
+    if (streetNumber && street.endsWith(` ${streetNumber}`)) {
+      return street.slice(0, -streetNumber.length).trim();
+    }
+    if (!streetNumber) {
+      const legacyMatch = street.match(
+        /^(.*?)[,\s]+(\d+[A-Za-z]?(?:\/[A-Za-z0-9]+)?)$/,
+      );
+      if (legacyMatch) return legacyMatch[1].trim();
+    }
+    return street;
+  }
+
+  function getAddressStreetNumber(address) {
+    const streetNumber = String(address?.streetNumber || "").trim();
+    if (streetNumber) return streetNumber;
+    const street = String(address?.street || address?.line1 || "").trim();
+    const legacyMatch = street.match(
+      /^(.*?)[,\s]+(\d+[A-Za-z]?(?:\/[A-Za-z0-9]+)?)$/,
+    );
+    return legacyMatch ? legacyMatch[2].trim() : "";
+  }
+
+  function normalizeCardLast4(value) {
+    return String(value || "")
+      .replace(/\D/g, "")
+      .slice(-4);
+  }
+
+  function normalizeCardExpiry(value) {
+    const digits = String(value || "")
+      .replace(/\D/g, "")
+      .slice(0, 4);
+    if (digits.length <= 2) return digits;
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+
+  function isValidCardExpiry(value) {
+    const match = String(value || "").match(/^(0[1-9]|1[0-2])\/(\d{2})$/);
+    if (!match) return false;
+    const month = Number(match[1]);
+    const year = 2000 + Number(match[2]);
+    const lastDay = new Date(year, month, 0);
+    const today = new Date();
+    today.setDate(1);
+    today.setHours(0, 0, 0, 0);
+    return lastDay >= today;
+  }
+
+  function initPaymentMethodInputs() {
+    const last4Input = document.getElementById("card-last4");
+    const expiryInput = document.getElementById("card-expiry");
+
+    last4Input?.addEventListener("input", () => {
+      last4Input.value = normalizeCardLast4(last4Input.value);
+    });
+    expiryInput?.addEventListener("input", () => {
+      expiryInput.value = normalizeCardExpiry(expiryInput.value);
+    });
+  }
+
   function getAddressAutofillUrl(country, postalCode) {
     const query = new URLSearchParams({ country, postalCode });
     const path = `/api/address-autofill?${query.toString()}`;
@@ -40,7 +110,9 @@ document.addEventListener("DOMContentLoaded", async function () {
     const country =
       typeof window.normalizeCountryCode === "function"
         ? window.normalizeCountryCode(countryInput.value)
-        : String(countryInput.value || "").trim().toUpperCase();
+        : String(countryInput.value || "")
+            .trim()
+            .toUpperCase();
     const postalCode = postalInput.value.trim();
     if (!country || postalCode.length < 3) return;
 
@@ -95,6 +167,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   initAddressAutofill();
+  initPaymentMethodInputs();
 
   if (currentUser) showProfile(currentUser);
   else showAuthSection(); // showAuthSection è una funzione locale
@@ -141,8 +214,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     addressForm.addEventListener("submit", async function (event) {
       event.preventDefault();
       clearMessage();
+      const street = document.getElementById("address-street").value.trim();
+      const streetNumber = document
+        .getElementById("address-street-number")
+        .value.trim();
       const address = {
-        line1: document.getElementById("address-line1").value.trim(),
+        line1: combineStreetLine(street, streetNumber),
+        street: street,
+        streetNumber: streetNumber,
         city: document.getElementById("address-city").value.trim(),
         postalCode: document.getElementById("address-postal").value.trim(),
         country: window.normalizeCountryCode(
@@ -152,6 +231,8 @@ document.addEventListener("DOMContentLoaded", async function () {
         isDefault: document.getElementById("address-default")?.checked === true,
       };
       if (
+        !address.street ||
+        !address.streetNumber ||
         !address.line1 ||
         !address.city ||
         !address.postalCode ||
@@ -194,12 +275,25 @@ document.addEventListener("DOMContentLoaded", async function () {
       const method = {
         alias: document.getElementById("card-alias").value.trim(),
         brand: document.getElementById("card-brand").value.trim(),
-        last4: document.getElementById("card-last4").value.trim(),
-        expiry: document.getElementById("card-expiry").value.trim(),
+        last4: normalizeCardLast4(document.getElementById("card-last4").value),
+        expiry: normalizeCardExpiry(
+          document.getElementById("card-expiry").value,
+        ),
         isDefault: document.getElementById("payment-default")?.checked === true,
       };
       if (!method.alias || !method.brand || !method.last4 || !method.expiry) {
         showMessage("danger", "Compila tutti i campi del metodo di pagamento.");
+        return;
+      }
+      if (!/^\d{4}$/.test(method.last4)) {
+        showMessage("danger", "Inserisci esattamente le ultime 4 cifre.");
+        return;
+      }
+      if (!isValidCardExpiry(method.expiry)) {
+        showMessage(
+          "danger",
+          "Inserisci una scadenza valida nel formato MM/AA.",
+        );
         return;
       }
       try {
@@ -264,17 +358,16 @@ document.addEventListener("DOMContentLoaded", async function () {
       return;
     }
     addressList.innerHTML = addresses
-      .map(
-        (address, index) => {
-          const defaultBadge = address.isDefault
-            ? '<span class="badge bg-success mb-2">Predefinito</span>'
-            : "";
-          return `
+      .map((address, index) => {
+        const defaultBadge = address.isDefault
+          ? '<span class="badge bg-success mb-2">Predefinito</span>'
+          : "";
+        return `
             <div class="card mb-2 p-2">
                 <div class="d-flex justify-content-between align-items-start gap-3">
                     <div>
                         ${defaultBadge}
-                        <p class="mb-1"><strong>${address.line1}</strong></p>
+                        <p class="mb-1"><strong>${combineStreetLine(getAddressStreet(address), getAddressStreetNumber(address))}</strong></p>
                         <p class="mb-1">${address.postalCode} ${address.city}, ${address.country}</p>
                         <p class="mb-1">Tel: ${address.phone}</p>
                     </div>
@@ -282,8 +375,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 </div>
             </div>
         `;
-        },
-      )
+      })
       .join("");
   }
   function renderPaymentMethods(methods) {
@@ -295,12 +387,11 @@ document.addEventListener("DOMContentLoaded", async function () {
       return;
     }
     paymentList.innerHTML = methods
-      .map(
-        (method, index) => {
-          const defaultBadge = method.isDefault
-            ? '<span class="badge bg-success mb-2">Predefinito</span>'
-            : "";
-          return `
+      .map((method, index) => {
+        const defaultBadge = method.isDefault
+          ? '<span class="badge bg-success mb-2">Predefinito</span>'
+          : "";
+        return `
             <div class="card mb-2 p-2">
                 <div class="d-flex justify-content-between align-items-start gap-3">
                     <div>
@@ -313,8 +404,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                 </div>
             </div>
         `;
-        },
-      )
+      })
       .join("");
   }
   async function renderOrders(orders) {
@@ -413,7 +503,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         ? JSON.parse(shippingAddress)
         : shippingAddress;
     if (!address || typeof address !== "object") return "";
-    return [address.line1, address.postalCode, address.city, address.country]
+    const line1 = combineStreetLine(
+      getAddressStreet(address),
+      getAddressStreetNumber(address),
+    );
+    return [line1, address.postalCode, address.city, address.country]
       .filter(Boolean)
       .join(", ");
   };

@@ -46,7 +46,7 @@ function setConfirmationMessage(message) {
   if (confirmationMessage) confirmationMessage.textContent = message;
 }
 
-function buildConfirmationMessage({ orderId, total, customerName, emailSent }) {
+function buildConfirmationMessage({ orderId, total, customerName }) {
   let message = "Il tuo ordine \u00e8 stato ricevuto con successo.";
   if (orderId) {
     message = `Ordine #${orderId} confermato con successo.`;
@@ -59,10 +59,6 @@ function buildConfirmationMessage({ orderId, total, customerName, emailSent }) {
   }
   if (customerName) {
     message = `Ciao ${customerName}, ${message}`;
-  }
-  if (emailSent === false) {
-    message +=
-      " L'ordine e presente nel tuo account, ma l'email di conferma non e stata inviata.";
   }
   return message;
 }
@@ -120,7 +116,6 @@ async function finalizeReturnedCheckout(params) {
     orderId: String(order.id || ""),
     total: String(order.total || pendingCheckout.total || ""),
     customerName: String(pendingCheckout.customerName || ""),
-    emailSent: data.emailSent ? "1" : "0",
   });
   window.history.replaceState(
     {},
@@ -131,7 +126,6 @@ async function finalizeReturnedCheckout(params) {
     orderId: order.id,
     total: order.total || pendingCheckout.total,
     customerName: pendingCheckout.customerName,
-    emailSent: Boolean(data.emailSent),
   };
 }
 

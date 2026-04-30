@@ -21,7 +21,7 @@
     ></script>
     <script src="auth.js?v=20260430-authfix3" defer></script>
     <script src="cart.js?v=20260430" defer></script>
-    <script src="account.js?v=20260428" defer></script>
+    <script src="account.js?v=20260430-accountfix1" defer></script>
   </head>
   <body>
     <header class="amazon-header">
@@ -281,14 +281,28 @@
                     <div id="address-list" class="mb-3"></div>
                     <form id="address-form">
                       <div class="mb-3">
-                        <label for="address-line1" class="form-label"
+                        <label for="address-street" class="form-label"
                           >Indirizzo</label
                         >
                         <input
                           type="text"
-                          id="address-line1"
+                          id="address-street"
                           class="form-control"
-                          placeholder="Via Roma 1"
+                          placeholder="Via Roma"
+                          autocomplete="address-line1"
+                          required
+                        />
+                      </div>
+                      <div class="mb-3">
+                        <label for="address-street-number" class="form-label"
+                          >Numero civico</label
+                        >
+                        <input
+                          type="text"
+                          id="address-street-number"
+                          class="form-control"
+                          placeholder="12/A"
+                          autocomplete="address-line2"
                           required
                         />
                       </div>
@@ -400,6 +414,8 @@
                           id="card-last4"
                           class="form-control"
                           placeholder="4242"
+                          inputmode="numeric"
+                          pattern="[0-9]{4}"
                           maxlength="4"
                           required
                         />
@@ -413,6 +429,8 @@
                           id="card-expiry"
                           class="form-control"
                           placeholder="12/26"
+                          inputmode="numeric"
+                          pattern="(0[1-9]|1[0-2])/[0-9]{2}"
                           required
                         />
                       </div>

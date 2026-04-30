@@ -126,6 +126,38 @@ function normalizeCheckoutCountryCode(value) {
     .toUpperCase();
 }
 
+function combineStreetLine(street, streetNumber) {
+  return [street, streetNumber]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+}
+
+function getAddressStreet(address) {
+  const street = String(address?.street || address?.line1 || "").trim();
+  const streetNumber = String(address?.streetNumber || "").trim();
+  if (streetNumber && street.endsWith(` ${streetNumber}`)) {
+    return street.slice(0, -streetNumber.length).trim();
+  }
+  if (!streetNumber) {
+    const legacyMatch = street.match(
+      /^(.*?)[,\s]+(\d+[A-Za-z]?(?:\/[A-Za-z0-9]+)?)$/,
+    );
+    if (legacyMatch) return legacyMatch[1].trim();
+  }
+  return street;
+}
+
+function getAddressStreetNumber(address) {
+  const streetNumber = String(address?.streetNumber || "").trim();
+  if (streetNumber) return streetNumber;
+  const street = String(address?.street || address?.line1 || "").trim();
+  const legacyMatch = street.match(
+    /^(.*?)[,\s]+(\d+[A-Za-z]?(?:\/[A-Za-z0-9]+)?)$/,
+  );
+  return legacyMatch ? legacyMatch[2].trim() : "";
+}
+
 function canReplaceCheckoutCity(cityInput) {
   const currentCity = cityInput.value.trim();
   return !currentCity || currentCity === checkoutLastAutoFilledCity;
@@ -460,12 +492,11 @@ function clearCheckoutCartAfterSuccess() {
   if (typeof updateCartCount === "function") updateCartCount();
 }
 
-function redirectToOrderConfirmation(order, total, customerName, emailSent) {
+function redirectToOrderConfirmation(order, total, customerName) {
   const confirmationParams = new URLSearchParams({
     orderId: String(order?.id || ""),
     total: String(order?.total || total || ""),
     customerName: String(customerName || ""),
-    emailSent: emailSent ? "1" : "0",
   });
   window.location.href = `order-confirmation.html?${confirmationParams.toString()}`;
 }
@@ -624,12 +655,23 @@ async function handleCheckoutSubmit(event) {
 
   const name = document.getElementById("checkout-name")?.value.trim();
   const email = document.getElementById("checkout-email")?.value.trim();
-  const street = document.getElementById("checkout-address")?.value.trim();
+  const street = document.getElementById("checkout-street")?.value.trim();
+  const streetNumber = document
+    .getElementById("checkout-street-number")
+    ?.value.trim();
   const city = document.getElementById("checkout-city")?.value.trim();
   const postalCode = document.getElementById("checkout-postal")?.value.trim();
   const country = document.getElementById("checkout-country")?.value;
 
-  if (!name || !email || !street || !city || !postalCode || !country) {
+  if (
+    !name ||
+    !email ||
+    !street ||
+    !streetNumber ||
+    !city ||
+    !postalCode ||
+    !country
+  ) {
     window.showCheckoutMessage("danger", "Tutti i campi sono obbligatori.");
     return;
   }
@@ -662,7 +704,15 @@ async function handleCheckoutSubmit(event) {
       );
     }
 
-    const shippingAddress = { line1: street, city, postalCode, country };
+    const line1 = combineStreetLine(street, streetNumber);
+    const shippingAddress = {
+      line1,
+      street,
+      streetNumber,
+      city,
+      postalCode,
+      country: normalizeCheckoutCountryCode(country),
+    };
     const checkoutPayload = buildCheckoutPayload({
       paymentIntentId: stripePaymentIntentId,
       items,
@@ -691,7 +741,7 @@ async function handleCheckoutSubmit(event) {
             name,
             email,
             address: {
-              line1: street,
+              line1,
               city: city,
               postal_code: postalCode,
               country: normalizeCheckoutCountryCode(country),
@@ -735,7 +785,7 @@ async function handleCheckoutSubmit(event) {
     );
     if (typeof window.showToast === "function")
       window.showToast("Pagamento completato!");
-    redirectToOrderConfirmation(data.order, total, name, data.emailSent);
+    redirectToOrderConfirmation(data.order, total, name);
   } catch (error) {
     window.showCheckoutMessage("danger", error.message);
   } finally {
@@ -755,7 +805,8 @@ async function prefillCheckoutForm() {
 
   if (user.addresses && user.addresses.length > 0) {
     const addr = user.addresses[0];
-    fields["checkout-address"] = addr.line1 || addr.street;
+    fields["checkout-street"] = getAddressStreet(addr);
+    fields["checkout-street-number"] = getAddressStreetNumber(addr);
     fields["checkout-city"] = addr.city;
     fields["checkout-postal"] = addr.postalCode;
 

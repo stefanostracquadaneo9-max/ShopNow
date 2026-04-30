@@ -121,16 +121,32 @@
                 </div>
                 <div class="row">
                   <div class="col-md-8 mb-3">
-                    <label for="checkout-address" class="form-label"
+                    <label for="checkout-street" class="form-label"
                       >Indirizzo</label
                     >
                     <input
                       type="text"
-                      id="checkout-address"
+                      id="checkout-street"
                       class="form-control"
+                      placeholder="Via Roma"
                       required
                     />
                   </div>
+                  <div class="col-md-4 mb-3">
+                    <label for="checkout-street-number" class="form-label"
+                      >Numero civico</label
+                    >
+                    <input
+                      type="text"
+                      id="checkout-street-number"
+                      class="form-control"
+                      placeholder="12/A"
+                      autocomplete="address-line2"
+                      required
+                    />
+                  </div>
+                </div>
+                <div class="row">
                   <div class="col-md-4 mb-3">
                     <label for="checkout-postal" class="form-label">CAP</label>
                     <input
@@ -147,9 +163,7 @@
                       Dati CAP: Zippopotam.us e OpenStreetMap contributors.
                     </div>
                   </div>
-                </div>
-                <div class="row">
-                  <div class="col-md-6 mb-3">
+                  <div class="col-md-4 mb-3">
                     <label for="checkout-city" class="form-label"
                       >Citt&agrave;</label
                     >
@@ -160,7 +174,7 @@
                       required
                     />
                   </div>
-                  <div class="col-md-6 mb-3">
+                  <div class="col-md-4 mb-3">
                     <label for="checkout-country" class="form-label"
                       >Paese</label
                     >
@@ -446,6 +460,6 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
     <script src="auth.js?v=20260430-authfix3"></script>
     <script src="cart.js?v=20260430"></script>
-    <script src="checkout.js?v=20260430-emailfix1"></script>
+    <script src="checkout.js?v=20260430-addressfix1"></script>
   </body>
 </html>

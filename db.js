@@ -4,7 +4,9 @@ const fs = require("fs");
 const path = require("path");
 
 // Configurazione percorso database (evita conflitti con DATABASE_URL di Railway se è Postgres)
-const volumeMountPath = String(process.env.RAILWAY_VOLUME_MOUNT_PATH || "").trim();
+const volumeMountPath = String(
+  process.env.RAILWAY_VOLUME_MOUNT_PATH || "",
+).trim();
 const volumeDbPath = volumeMountPath
   ? path.join(volumeMountPath, "app.db")
   : "app.db";
@@ -537,6 +539,7 @@ function initializeDatabase() {
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             userId INTEGER NOT NULL,
             street TEXT NOT NULL,
+            streetNumber TEXT,
             city TEXT NOT NULL,
             postalCode TEXT NOT NULL,
             country TEXT NOT NULL,
@@ -586,14 +589,11 @@ function initializeDatabase() {
     "resetPasswordExpires DATETIME",
   );
   ensureColumn("users", "resetToken", "resetToken TEXT");
-  ensureColumn(
-    "users",
-    "resetTokenExpiry",
-    "resetTokenExpiry DATETIME",
-  );
+  ensureColumn("users", "resetTokenExpiry", "resetTokenExpiry DATETIME");
   ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
   ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
   ensureColumn("orders", "stripePaymentIntentId", "stripePaymentIntentId TEXT");
+  ensureColumn("addresses", "streetNumber", "streetNumber TEXT");
   ensureColumn("paymentMethods", "alias", "alias TEXT");
   ensureColumn("paymentMethods", "brand", "brand TEXT");
   ensureColumn("paymentMethods", "last4", "last4 TEXT");
@@ -1218,17 +1218,40 @@ function getAddressesByUserId(userId) {
 function addAddress(
   userId,
   street,
+  streetNumber,
   city,
   postalCode,
   country,
   phone = "",
   isDefault = false,
 ) {
+  const args = Array.from(arguments);
+  const isLegacySignature = args.length <= 7;
+  const normalizedStreet = String(street || "").trim();
+  const normalizedStreetNumber = isLegacySignature
+    ? ""
+    : String(streetNumber || "").trim();
+  const normalizedCity = String(
+    isLegacySignature ? args[2] || "" : city || "",
+  ).trim();
+  const normalizedPostalCode = String(
+    isLegacySignature ? args[3] || "" : postalCode || "",
+  ).trim();
+  const normalizedCountry = String(
+    isLegacySignature ? args[4] || "" : country || "",
+  )
+    .trim()
+    .toUpperCase();
+  const normalizedPhone = String(
+    isLegacySignature ? args[5] || "" : phone || "",
+  ).trim();
+  const normalizedIsDefault = Boolean(isLegacySignature ? args[6] : isDefault);
+
   return db.transaction(() => {
     const hasExisting = db
       .prepare("SELECT id FROM addresses WHERE userId = ? LIMIT 1")
       .get(userId);
-    const shouldBeDefault = Boolean(isDefault) || !hasExisting;
+    const shouldBeDefault = normalizedIsDefault || !hasExisting;
 
     if (shouldBeDefault) {
       db.prepare("UPDATE addresses SET isDefault = 0 WHERE userId = ?").run(
@@ -1237,18 +1260,17 @@ function addAddress(
     }
 
     const stmt = db.prepare(`
-            INSERT INTO addresses (userId, street, city, postalCode, country, phone, isDefault)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO addresses (userId, street, streetNumber, city, postalCode, country, phone, isDefault)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
     const result = stmt.run(
       userId,
-      String(street || "").trim(),
-      String(city || "").trim(),
-      String(postalCode || "").trim(),
-      String(country || "")
-        .trim()
-        .toUpperCase(),
-      String(phone || "").trim(),
+      normalizedStreet,
+      normalizedStreetNumber,
+      normalizedCity,
+      normalizedPostalCode,
+      normalizedCountry,
+      normalizedPhone,
       shouldBeDefault ? 1 : 0,
     );
     return getAddressById(result.lastInsertRowid);
@@ -1317,8 +1339,12 @@ function addPaymentMethod(userId, method, isDefault = false) {
 
     const alias = String(method?.alias || method?.cardHolder || "").trim();
     const brand = String(method?.brand || "").trim();
-    const last4 = String(method?.last4 || method?.cardNumber || "").trim();
-    const expiry = String(method?.expiry || method?.expiryDate || "").trim();
+    const last4 = String(method?.last4 || method?.cardNumber || "")
+      .replace(/\D/g, "")
+      .slice(-4);
+    const expiry = String(method?.expiry || method?.expiryDate || "")
+      .replace(/[^\d/]/g, "")
+      .trim();
 
     const payload = {
       userId: userId,
@@ -1475,22 +1501,33 @@ function seedDatabase() {
         "UPDATE users SET role = 'admin', updatedAt = CURRENT_TIMESTAMP WHERE id = ?",
       ).run(configuredAdmin.id);
     }
-    
+
     // Forza sempre la password del .env se l'utente esiste
     const currentHash = hashPassword(ADMIN_PASSWORD);
-    db.prepare("UPDATE users SET passwordHash = ? WHERE email = ?").run(currentHash, ADMIN_EMAIL);
-    console.log(`[SEED] Password per ${ADMIN_EMAIL} sincronizzata con successo.`);
+    db.prepare("UPDATE users SET passwordHash = ? WHERE email = ?").run(
+      currentHash,
+      ADMIN_EMAIL,
+    );
+    console.log(
+      `[SEED] Password per ${ADMIN_EMAIL} sincronizzata con successo.`,
+    );
   } else {
-    console.log(`[SEED] Creazione account admin configurato: ${ADMIN_EMAIL}...`);
+    console.log(
+      `[SEED] Creazione account admin configurato: ${ADMIN_EMAIL}...`,
+    );
     createUser(ADMIN_EMAIL, ADMIN_NAME, ADMIN_PASSWORD || "admin", "admin");
   }
 
   // Verifica e forza la sincronizzazione della password per l'admin configurato
   const finalAdmin = getUserByEmail(ADMIN_EMAIL);
-  if (finalAdmin && ADMIN_PASSWORD && !verifyPassword(ADMIN_PASSWORD, finalAdmin.passwordHash).valid) {
+  if (
+    finalAdmin &&
+    ADMIN_PASSWORD &&
+    !verifyPassword(ADMIN_PASSWORD, finalAdmin.passwordHash).valid
+  ) {
     console.log(`[SEED] Sincronizzazione password per ${ADMIN_EMAIL}...`);
     db.prepare(
-      "UPDATE users SET passwordHash = ?, passwordUpdatedAt = CURRENT_TIMESTAMP WHERE id = ?"
+      "UPDATE users SET passwordHash = ?, passwordUpdatedAt = CURRENT_TIMESTAMP WHERE id = ?",
     ).run(hashPassword(ADMIN_PASSWORD), finalAdmin.id);
   }
 
@@ -1565,9 +1602,10 @@ function seedDatabase() {
       row.id,
     );
 
-    db.prepare(
-      "DELETE FROM products WHERE name = ? AND id != ?",
-    ).run(canonicalProduct.name, row.id);
+    db.prepare("DELETE FROM products WHERE name = ? AND id != ?").run(
+      canonicalProduct.name,
+      row.id,
+    );
 
     existingNames.delete(row.name);
     existingNames.add(canonicalProduct.name);
@@ -1584,9 +1622,9 @@ function seedDatabase() {
 
   if (staleIdsToDelete.length > 0) {
     const placeholders = staleIdsToDelete.map(() => "?").join(",");
-    db.prepare(
-      `DELETE FROM products WHERE id IN (${placeholders})`,
-    ).run(...staleIdsToDelete);
+    db.prepare(`DELETE FROM products WHERE id IN (${placeholders})`).run(
+      ...staleIdsToDelete,
+    );
     console.log(
       `[SEED] Rimosso ${staleIdsToDelete.length} prodotti obsoleti non referenziati da ordini.`,
     );
@@ -1659,13 +1697,19 @@ function restoreBackup(data) {
   })();
 }
 
-function executeCheckoutTransaction(userId, total, items, shippingAddress, stripeId) {
+function executeCheckoutTransaction(
+  userId,
+  total,
+  items,
+  shippingAddress,
+  stripeId,
+) {
   return db.transaction(() => {
     // 1. Consuma lo stock
     const updateStockStmt = db.prepare(
-      "UPDATE products SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND stock >= ?"
+      "UPDATE products SET stock = stock - ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND stock >= ?",
     );
-    
+
     for (const item of items) {
       const result = updateStockStmt.run(item.quantity, item.id, item.quantity);
       if (result.changes === 0) {
@@ -1675,7 +1719,7 @@ function executeCheckoutTransaction(userId, total, items, shippingAddress, strip
 
     // 2. Crea l'ordine
     const order = createOrder(userId, total, items, shippingAddress, stripeId);
-    
+
     // 3. Pulisce il carrello se l'utente è loggato
     if (userId) {
       db.prepare("DELETE FROM cartItems WHERE userId = ?").run(userId);
@@ -1738,5 +1782,5 @@ module.exports = {
   getUserByRefreshToken,
   exportFullBackup,
   restoreBackup,
-  executeCheckoutTransaction
+  executeCheckoutTransaction,
 };
