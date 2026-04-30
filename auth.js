@@ -573,6 +573,7 @@ async function initializeLocalDB() {
   );
   const existingUsers2 = loadData("users", {});
   const adminUser = existingUsers2["admin@gmail.com"];
+  const shouldUseServerAuth = prefersServerAuth();
 
   if (
     initialized === "1" &&
@@ -599,7 +600,7 @@ async function initializeLocalDB() {
     AUTH_STORAGE_VERSION_KEY,
   );
   if (currentStorageVersion !== AUTH_STORAGE_VERSION) {
-    migrateAuthStorage();
+    migrateAuthStorage({ preserveServerSession: shouldUseServerAuth });
   }
   const forceReset =
     window.location &&
@@ -625,7 +626,6 @@ async function initializeLocalDB() {
   const existingUsers3 = loadData("users", {});
   const adminUser2 = existingUsers3["admin@gmail.com"];
   let existingProducts = loadData("products", []);
-  const shouldUseServerAuth = prefersServerAuth();
   if (existingProducts.length > 0) {
     let updated = false;
     existingProducts.forEach((product) => {
@@ -845,7 +845,8 @@ function clearLocalSessionReferences(tokenToClear = "") {
     console.error("Errore pulizia sessione locale:", error);
   }
 }
-function migrateAuthStorage() {
+function migrateAuthStorage(options = {}) {
+  const preserveServerSession = Boolean(options.preserveServerSession);
   try {
     const users = loadData("users", {});
     const migratedUsers = {};
@@ -867,7 +868,7 @@ function migrateAuthStorage() {
       const hasMatchingSession = Object.values(migratedUsers).some(
         (user) => user && user.sessionToken === token,
       );
-      if (!hasMatchingSession) {
+      if (!hasMatchingSession && !preserveServerSession) {
         clearSessionToken();
       }
     }
@@ -1049,11 +1050,17 @@ async function syncProductsFromServer() {
   return productsSyncPromise;
 }
 function ensureFallbackProducts() {
-  const existingProducts = getAllProducts();
+  const existingProducts = loadData("products", []);
   if (existingProducts && existingProducts.length > 0) {
     console.log(`📦 Usando ${existingProducts.length} prodotti locali`);
-    return;
+    return existingProducts;
   }
+  const fallbackProducts = normalizeLocalCatalogProducts(getDefaultProducts());
+  saveData("products", fallbackProducts);
+  console.log(
+    `Catalogo fallback caricato: ${fallbackProducts.length} prodotti`,
+  );
+  return fallbackProducts;
 }
 
 function findUserEntryByEmail(users, email) {

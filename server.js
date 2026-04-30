@@ -51,6 +51,7 @@ const PUBLIC_STATIC_FILES = new Set([
   "register.html",
   "reset-password.html",
   "reset_password_ui.js",
+  "site_boot.js",
   "style.css",
 ]);
 const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
@@ -59,6 +60,7 @@ const NO_STORE_STATIC_FILES = new Set([
   "admin_ui.js",
   "auth.js",
   "auth_ui.js",
+  "site_boot.js",
   "style.css",
 ]);
 
@@ -135,6 +137,9 @@ function setStaticResponseHeaders(res, fileName) {
     (process.env.NODE_ENV !== "production" && fileName.endsWith(".js"))
   ) {
     setNoStoreHeaders(res);
+    if (fileName.endsWith(".html")) {
+      res.set("Clear-Site-Data", '"cache"');
+    }
   }
 }
 
@@ -192,7 +197,10 @@ function sendMissingUploadPlaceholder(req, res) {
   const label = escapeSvgText(
     path.basename(String(req.params.fileName || "Immagine prodotto")),
   );
-  res.set("Cache-Control", STATIC_MAX_AGE ? `public, max-age=86400` : "no-store");
+  res.set(
+    "Cache-Control",
+    STATIC_MAX_AGE ? `public, max-age=86400` : "no-store",
+  );
   res.type("image/svg+xml").send(`<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480" role="img" aria-label="Immagine prodotto non disponibile">
   <rect width="640" height="480" fill="#f3f4f6"/>

@@ -13,7 +13,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
       rel="stylesheet"
     />
-    <link href="style.css?v=20260430" rel="stylesheet" />
+    <link href="style.css?v=20260430-blankfix1" rel="stylesheet" />
+    <script src="site_boot.js?v=20260430-blankfix1"></script>
   </head>
   <body>
     <header class="amazon-header">
@@ -67,27 +68,27 @@
 
     <main>
       <div class="container my-4">
-      <nav aria-label="breadcrumb" class="mb-3">
-        <ol class="breadcrumb">
-          <li class="breadcrumb-item">
-            <a href="products.html">Home</a>
-          </li>
-          <li class="breadcrumb-item">
-            <a href="products.html" id="product-category-link">Prodotti</a>
-          </li>
-          <li class="breadcrumb-item active" id="product-breadcrumb-name">
-            Dettaglio prodotto
-          </li>
-        </ol>
-      </nav>
+        <nav aria-label="breadcrumb" class="mb-3">
+          <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+              <a href="products.html">Home</a>
+            </li>
+            <li class="breadcrumb-item">
+              <a href="products.html" id="product-category-link">Prodotti</a>
+            </li>
+            <li class="breadcrumb-item active" id="product-breadcrumb-name">
+              Dettaglio prodotto
+            </li>
+          </ol>
+        </nav>
 
-      <div id="product-detail-container" class="loading">
-        <div class="spinner-border" role="status">
-          <span class="sr-only">Caricamento...</span>
+        <div id="product-detail-container" class="loading">
+          <div class="spinner-border" role="status">
+            <span class="sr-only">Caricamento...</span>
+          </div>
+          <p class="mt-2">Caricamento prodotto...</p>
         </div>
-        <p class="mt-2">Caricamento prodotto...</p>
       </div>
-    </div>
     </main>
 
     <footer class="amazon-footer">
@@ -197,7 +198,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="auth.js?v=20260430-authfix2"></script>
+    <script src="auth.js?v=20260430-authfix3"></script>
     <script src="cart.js?v=20260430"></script>
     <script src="product_ui.js?v=20260430"></script>
   </body>

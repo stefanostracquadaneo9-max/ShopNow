@@ -5,10 +5,20 @@ document.addEventListener("DOMContentLoaded", async function () {
   const siteContent = document.getElementById("site-content");
   const siteHeader = document.getElementById("site-header");
   const siteFooter = document.getElementById("site-footer");
+  const authPanel = loginForm?.closest(".row") || registerForm?.closest(".row");
 
   document.body.classList.remove("initially-hidden");
 
-  const currentUser = await window.getCurrentUser();
+  let currentUser = null;
+  try {
+    currentUser =
+      typeof window.getCurrentUser === "function"
+        ? await window.getCurrentUser()
+        : null;
+  } catch (error) {
+    console.warn("Sessione non recuperabile, mostro il login:", error);
+    currentUser = null;
+  }
 
   if (currentUser) {
     const currentPath = window.location.pathname.replace(/\/+$/, "") || "/";
@@ -21,7 +31,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       currentPath === "/";
     if (isAuthPage && !new URLSearchParams(window.location.search).get("msg")) {
       if (currentUser.role === "admin") window.location.href = "admin.html";
-      else showSiteContent();
+      else window.location.href = "products.html";
     }
   } else {
     // Utente non loggato
@@ -74,14 +84,22 @@ document.addEventListener("DOMContentLoaded", async function () {
   // Funzioni helper sicure
   function showAuthSection() {
     if (authSection) authSection.style.display = "block";
-    if (siteContent) siteContent.style.display = "none";
+    if (authPanel) authPanel.style.display = "";
+    if (siteContent) {
+      siteContent.classList.add("d-none");
+      siteContent.style.display = "none";
+    }
     if (siteHeader) siteHeader.style.display = "none";
     if (siteFooter) siteFooter.style.display = "none";
   }
 
   function showSiteContent() {
-    if (authSection) authSection.style.display = "none";
-    if (siteContent) siteContent.style.display = "block";
+    if (authSection) authSection.style.display = "block";
+    if (authPanel) authPanel.style.display = "none";
+    if (siteContent) {
+      siteContent.classList.remove("d-none");
+      siteContent.style.display = "block";
+    }
     if (siteHeader) siteHeader.style.display = "block";
     if (siteFooter) siteFooter.style.display = "block";
   }

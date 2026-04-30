@@ -1,9 +1,12 @@
 // Protezione immediata della pagina admin
 (function () {
-  const role = localStorage.getItem("user-role");
-  const hasSession = !!localStorage.getItem("ecommerce-session-token");
-  if (!hasSession || role !== "admin") {
-    window.location.href = "products.html";
+  try {
+    const hasSession = !!localStorage.getItem("ecommerce-session-token");
+    if (!hasSession) {
+      window.location.href = "index.html?msg=login_required";
+    }
+  } catch (error) {
+    console.warn("Impossibile leggere la sessione admin:", error);
   }
 })();
 
@@ -263,9 +266,7 @@ function updateRefreshStatus(message, tone = "muted") {
   if (refreshButton) {
     const isLoading = dashboardRefreshInFlight;
     refreshButton.disabled = isLoading;
-    refreshButton
-      .querySelector("i")
-      ?.classList.toggle("fa-spin", isLoading);
+    refreshButton.querySelector("i")?.classList.toggle("fa-spin", isLoading);
   }
 }
 
@@ -432,10 +433,12 @@ function updateDashboardStats() {
         : "Ricavi Totali";
   }
 
-  const stripeStatusMessageElement = document.getElementById("stripe-status-message");
+  const stripeStatusMessageElement = document.getElementById(
+    "stripe-status-message",
+  );
   if (stripeStatusMessageElement) {
     if (stripeSummary && Number.isFinite(Number(stripeSummary.revenue))) {
-      stripeStatusMessageElement.innerHTML = ''; // Clear any previous message
+      stripeStatusMessageElement.innerHTML = ""; // Clear any previous message
     } else {
       stripeStatusMessageElement.innerHTML = `
         <div class="alert alert-warning d-flex align-items-center" role="alert">
