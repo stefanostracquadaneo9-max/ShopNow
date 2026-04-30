@@ -193,6 +193,10 @@ function escapeSvgText(value) {
     .replace(/"/g, "&quot;");
 }
 
+function escapeHtml(value) {
+  return escapeSvgText(value).replace(/'/g, "&#39;");
+}
+
 function sendMissingUploadPlaceholder(req, res) {
   const label = escapeSvgText(
     path.basename(String(req.params.fileName || "Immagine prodotto")),
@@ -2160,7 +2164,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       `reset-password.html?token=${resetToken}`,
     );
 
-    if (!isEmailConfigured || !transporter) {
+    if (!isEmailConfigured || (!hasResendCredentials && !transporter)) {
       console.log(
         "[WARN] Email reset password non inviata: SMTP non configurato.",
       );
@@ -2171,24 +2175,24 @@ app.post("/api/auth/forgot-password", async (req, res) => {
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || "noreply@shopnow.com",
+      from: EMAIL_FROM_ADDRESS,
       to: user.email,
-      subject: "🔐 ShopNow - Ripristina la tua password",
+      subject: "ShopNow - Ripristina la tua password",
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
           <div style="background: linear-gradient(135deg, #FF9900 0%, #146EB4 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
             <h2 style="margin: 0;">Recupero Password</h2>
           </div>
           <div style="padding: 30px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
-            <p>Ciao ${user.name || "Utente"},</p>
+            <p>Ciao ${escapeHtml(user.name || "Utente")},</p>
             <p>Hai richiesto di ripristinare la tua password. Clicca il link qui sotto entro 1 ora:</p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${resetLink}" style="background-color: #FF9900; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
+              <a href="${escapeHtml(resetLink)}" style="background-color: #FF9900; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
                 Ripristina Password
               </a>
             </div>
             <p style="color: #666; font-size: 12px;">Se il pulsante non funziona, copia questo link nel browser:</p>
-            <p style="color: #0066cc; font-size: 11px; word-break: break-all;">${resetLink}</p>
+            <p style="color: #0066cc; font-size: 11px; word-break: break-all;">${escapeHtml(resetLink)}</p>
             <p style="color: #666; font-size: 12px; margin-top: 20px;">Non hai richiesto questo? Ignora questo email.</p>
             <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
             <p style="color: #999; font-size: 11px; text-align: center;">© ShopNow - Il tuo negozio online</p>
@@ -2197,11 +2201,21 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       `,
     };
 
-    transporter.sendMail(mailOptions, (err) => {
-      if (err) {
-        console.error("Errore invio email reset:", err);
-      }
-    });
+    try {
+      const emailProvider = await sendMailMessage(mailOptions);
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      console.log(
+        `[OK] Email reset password inviata a ${user.email} via ${emailProvider}`,
+      );
+    } catch (error) {
+      markEmailFailure(error);
+      console.error(
+        `[EMAIL ERROR] Reset password non inviato a ${user.email}:`,
+        error.message,
+      );
+    }
 
     res.json({
       message:
