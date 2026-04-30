@@ -400,20 +400,23 @@ const SMTP_TIMEOUT_MS = Math.max(
   Number(process.env.SMTP_TIMEOUT_MS || process.env.EMAIL_TIMEOUT_MS || 12000),
 );
 
+function getExplicitSmtpHost() {
+  return String(process.env.SMTP_HOST || process.env.EMAIL_HOST || "").trim();
+}
+
+function getExplicitSmtpPort() {
+  const value = String(process.env.SMTP_PORT || process.env.EMAIL_PORT || "");
+  const port = Number(value.trim());
+  return Number.isFinite(port) && port > 0 ? port : null;
+}
+
 function buildEmailTransportOptions() {
-  const smtpHost =
-    process.env.SMTP_HOST ||
-    process.env.EMAIL_HOST ||
-    (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : "");
-  const smtpPort = Number(
-    process.env.SMTP_PORT ||
-      process.env.EMAIL_PORT ||
-      (EMAIL_SERVICE === "gmail" ? 587 : 465),
-  );
+  const smtpHost = getExplicitSmtpHost();
+  const smtpPort = getExplicitSmtpPort() || (smtpHost ? 465 : null);
   const smtpSecure =
     process.env.SMTP_SECURE !== undefined
       ? isExplicitTrue(process.env.SMTP_SECURE)
-      : smtpPort === 465;
+      : smtpPort === null || smtpPort === 465;
 
   const options = {
     auth: {
@@ -428,7 +431,7 @@ function buildEmailTransportOptions() {
 
   if (smtpHost) {
     options.host = smtpHost;
-    options.port = smtpPort;
+    options.port = smtpPort || 465;
     options.secure = smtpSecure;
     if (!smtpSecure) {
       options.requireTLS = true;
@@ -1904,16 +1907,8 @@ app.get("/config", (req, res) =>
       service: hasResendCredentials ? null : EMAIL_SERVICE || "smtp",
       host: hasResendCredentials
         ? "api.resend.com"
-        : process.env.SMTP_HOST ||
-          process.env.EMAIL_HOST ||
-          (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : null),
-      port: Number(
-        hasResendCredentials
-          ? 443
-          : process.env.SMTP_PORT ||
-              process.env.EMAIL_PORT ||
-              (EMAIL_SERVICE === "gmail" ? 587 : 465),
-      ),
+        : getExplicitSmtpHost() || null,
+      port: hasResendCredentials ? 443 : getExplicitSmtpPort(),
     },
     addressAutofill: {
       enabled: true,
