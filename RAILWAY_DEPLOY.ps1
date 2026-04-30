@@ -15,7 +15,11 @@ $ENVIRONMENT_NAME = if ($env:RAILWAY_ENVIRONMENT) {
 } else {
     "production"
 }
-$SERVICE_NAME = $env:RAILWAY_SERVICE
+$SERVICE_NAME = if ($env:RAILWAY_SERVICE) {
+    $env:RAILWAY_SERVICE
+} else {
+    "ShopNow"
+}
 
 if ([string]::IsNullOrWhiteSpace($RAILWAY_TOKEN)) {
     throw "Imposta la variabile d'ambiente RAILWAY_TOKEN prima di eseguire questo script."

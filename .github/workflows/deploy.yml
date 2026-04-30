@@ -41,11 +41,8 @@ jobs:
 
           project_id="${RAILWAY_PROJECT_ID:-4f69a0a3-1d8b-4806-bca3-1d8eaf51e272}"
           environment_name="${RAILWAY_ENVIRONMENT:-production}"
+          service_name="${RAILWAY_SERVICE:-ShopNow}"
 
-          command=(railway up --ci --project "$project_id" --environment "$environment_name")
-
-          if [ -n "$RAILWAY_SERVICE" ]; then
-            command+=(--service "$RAILWAY_SERVICE")
-          fi
+          command=(railway up --ci --project "$project_id" --environment "$environment_name" --service "$service_name")
 
           "${command[@]}"
