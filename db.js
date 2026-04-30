@@ -1420,6 +1420,24 @@ function deletePaymentMethod(paymentMethodId) {
   })();
 }
 
+function setDefaultPaymentMethod(userId, paymentMethodId) {
+  return db.transaction(() => {
+    const method = getPaymentMethodById(paymentMethodId);
+    if (!method || Number(method.userId) !== Number(userId)) {
+      return null;
+    }
+
+    db.prepare("UPDATE paymentMethods SET isDefault = 0 WHERE userId = ?").run(
+      userId,
+    );
+    db.prepare("UPDATE paymentMethods SET isDefault = 1 WHERE id = ?").run(
+      paymentMethodId,
+    );
+
+    return getPaymentMethodById(paymentMethodId);
+  })();
+}
+
 function getCart(userId) {
   const stmt = db.prepare("SELECT * FROM cartItems WHERE userId = ?");
   const cart = stmt.get(userId);
@@ -1772,6 +1790,7 @@ module.exports = {
   getPaymentMethodById,
   getPaymentMethodsByUserId,
   deletePaymentMethod,
+  setDefaultPaymentMethod,
   getReviewsByProductId,
   addOrUpdateProductReview,
   getCart,

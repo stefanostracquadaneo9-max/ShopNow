@@ -11,10 +11,20 @@ document.addEventListener("DOMContentLoaded", async function () {
   const addressList = document.getElementById("address-list");
   const paymentForm = document.getElementById("payment-form-account");
   const paymentList = document.getElementById("payment-list");
+  const paymentCount = document.getElementById("payment-count");
   const logoutButton = document.getElementById("logout-button");
   let addressAutofillTimer = null;
   let addressAutofillSequence = 0;
   let lastAutoFilledAddressCity = "";
+
+  function escapeAccountHtml(value) {
+    return String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
 
   function combineStreetLine(street, streetNumber) {
     return [street, streetNumber]
@@ -72,6 +82,48 @@ document.addEventListener("DOMContentLoaded", async function () {
     today.setDate(1);
     today.setHours(0, 0, 0, 0);
     return lastDay >= today;
+  }
+
+  function normalizePaymentBrand(value) {
+    const normalized = String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+    const brands = {
+      visa: "Visa",
+      mastercard: "Mastercard",
+      "master card": "Mastercard",
+      amex: "American Express",
+      "american express": "American Express",
+      maestro: "Maestro",
+      carta: "Carta",
+    };
+    return brands[normalized] || String(value || "").trim();
+  }
+
+  function getPaymentBrandClass(brand) {
+    const normalized = String(brand || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+    if (
+      ["visa", "mastercard", "american-express", "maestro"].includes(normalized)
+    ) {
+      return normalized;
+    }
+    return "generic";
+  }
+
+  function getPaymentBrandMark(brand) {
+    const normalizedBrand = normalizePaymentBrand(brand);
+    if (normalizedBrand === "American Express") return "AMEX";
+    if (normalizedBrand === "Mastercard") return "MC";
+    return normalizedBrand ? normalizedBrand.slice(0, 4).toUpperCase() : "CARD";
+  }
+
+  function getPaymentCountLabel(count) {
+    if (count === 1) return "1 carta";
+    return `${count} carte`;
   }
 
   function initPaymentMethodInputs() {
@@ -272,9 +324,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     paymentForm.addEventListener("submit", async function (event) {
       event.preventDefault();
       clearMessage();
+      const submitButton = paymentForm.querySelector('button[type="submit"]');
       const method = {
         alias: document.getElementById("card-alias").value.trim(),
-        brand: document.getElementById("card-brand").value.trim(),
+        brand: normalizePaymentBrand(
+          document.getElementById("card-brand").value,
+        ),
         last4: normalizeCardLast4(document.getElementById("card-last4").value),
         expiry: normalizeCardExpiry(
           document.getElementById("card-expiry").value,
@@ -297,6 +352,11 @@ document.addEventListener("DOMContentLoaded", async function () {
         return;
       }
       try {
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.innerHTML =
+            '<i class="fas fa-circle-notch fa-spin me-2"></i>Salvataggio...';
+        }
         await addPaymentMethod(method);
         const user = await getCurrentUser();
         showProfile(user);
@@ -304,19 +364,38 @@ document.addEventListener("DOMContentLoaded", async function () {
         showMessage("success", "Metodo di pagamento salvato.");
       } catch (error) {
         showMessage("danger", error.message);
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML =
+            '<i class="fas fa-plus me-2"></i>Aggiungi metodo';
+        }
       }
     });
   }
   if (paymentList) {
     paymentList.addEventListener("click", async function (event) {
-      const deleteButton = event.target.closest("[data-payment-index]");
-      if (!deleteButton) return;
+      const actionButton = event.target.closest("[data-payment-action]");
+      if (!actionButton) return;
+      const paymentIndex = Number(actionButton.dataset.paymentIndex);
+      const paymentAction = actionButton.dataset.paymentAction;
       clearMessage();
       try {
-        await removePaymentMethod(Number(deleteButton.dataset.paymentIndex));
+        if (paymentAction === "default") {
+          await setDefaultPaymentMethod(paymentIndex);
+        } else if (paymentAction === "delete") {
+          await removePaymentMethod(paymentIndex);
+        } else {
+          return;
+        }
         const user = await getCurrentUser();
         showProfile(user);
-        showMessage("success", "Metodo di pagamento eliminato.");
+        showMessage(
+          "success",
+          paymentAction === "default"
+            ? "Metodo di pagamento predefinito aggiornato."
+            : "Metodo di pagamento eliminato.",
+        );
       } catch (error) {
         showMessage("danger", error.message);
       }
@@ -381,26 +460,47 @@ document.addEventListener("DOMContentLoaded", async function () {
   function renderPaymentMethods(methods) {
     const paymentList = document.getElementById("payment-list");
     if (!paymentList) return;
+    if (paymentCount) {
+      paymentCount.textContent = getPaymentCountLabel(methods.length);
+    }
     if (methods.length === 0) {
       paymentList.innerHTML =
-        '<p class="text-muted">Nessun metodo di pagamento salvato.</p>';
+        '<div class="payment-empty-state"><i class="fas fa-credit-card"></i><span>Nessun metodo di pagamento salvato.</span></div>';
       return;
     }
     paymentList.innerHTML = methods
       .map((method, index) => {
+        const alias = escapeAccountHtml(method.alias || "Carta salvata");
+        const brand = normalizePaymentBrand(method.brand || "Carta");
+        const brandText = escapeAccountHtml(brand);
+        const last4 = escapeAccountHtml(normalizeCardLast4(method.last4));
+        const expiry = escapeAccountHtml(normalizeCardExpiry(method.expiry));
+        const brandClass = getPaymentBrandClass(brand);
+        const brandMark = escapeAccountHtml(getPaymentBrandMark(brand));
         const defaultBadge = method.isDefault
-          ? '<span class="badge bg-success mb-2">Predefinito</span>'
+          ? '<span class="payment-default-badge"><i class="fas fa-check"></i>Predefinito</span>'
           : "";
+        const defaultAction = method.isDefault
+          ? ""
+          : `<button type="button" class="btn btn-link payment-action-link" data-payment-action="default" data-payment-index="${index}">Imposta come predefinito</button>`;
         return `
-            <div class="card mb-2 p-2">
-                <div class="d-flex justify-content-between align-items-start gap-3">
-                    <div>
+            <div class="payment-method-row ${method.isDefault ? "is-default" : ""}">
+                <div class="payment-card-mark ${brandClass}" aria-hidden="true">${brandMark}</div>
+                <div class="payment-method-main">
+                    <div class="payment-method-title">
+                        <strong>${alias}</strong>
                         ${defaultBadge}
-                        <p class="mb-1"><strong>${method.alias}</strong></p>
-                        <p class="mb-1">${method.brand} • **** ${method.last4}</p>
-                        <p class="mb-0"><small>Scadenza: ${method.expiry}</small></p>
                     </div>
-                    <button type="button" class="btn btn-outline-danger btn-sm" data-payment-index="${index}">Elimina</button>
+                    <div class="payment-method-meta">
+                        ${brandText} terminante in ${last4}
+                    </div>
+                    <div class="payment-method-expiry">
+                        Scadenza ${expiry}
+                    </div>
+                    <div class="payment-method-actions">
+                        ${defaultAction}
+                        <button type="button" class="btn btn-link payment-action-link text-danger" data-payment-action="delete" data-payment-index="${index}">Rimuovi</button>
+                    </div>
                 </div>
             </div>
         `;

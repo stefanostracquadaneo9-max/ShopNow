@@ -1572,6 +1572,56 @@ async function removePaymentMethod(index) {
     throw new Error(error.message || "Errore rimozione metodo pagamento");
   }
 }
+async function setDefaultPaymentMethod(index) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error("Utente non autenticato");
+  const methods = Array.isArray(user.paymentMethods) ? user.paymentMethods : [];
+  const targetMethod = methods[index];
+  if (!targetMethod) {
+    throw new Error("Metodo di pagamento non trovato");
+  }
+  if (prefersServerAuth()) {
+    if (!targetMethod.id) {
+      throw new Error("Metodo di pagamento non trovato");
+    }
+    const response = await fetch(
+      getAuthApiUrl(`/api/profile/payment-methods/${targetMethod.id}/default`),
+      { method: "PUT", headers: getAuthRequestHeaders() },
+    );
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(data?.error || "Errore aggiornamento metodo pagamento");
+    }
+    await fetchCurrentUserFromServer(getSessionToken());
+    return { success: true };
+  }
+  try {
+    const users = loadData("users", {});
+    const userEntry = findUserEntryByEmail(users, user.email);
+    if (!userEntry) throw new Error("Utente non trovato");
+    const normalizedEmail = String(user.email || "")
+      .trim()
+      .toLowerCase();
+    const storedUser =
+      migrateUserEmailKey(users, userEntry.key, normalizedEmail) ||
+      userEntry.user;
+    const storedMethods = Array.isArray(storedUser.paymentMethods)
+      ? storedUser.paymentMethods
+      : [];
+    if (index < 0 || index >= storedMethods.length) {
+      throw new Error("Metodo di pagamento non trovato");
+    }
+    storedUser.paymentMethods = storedMethods.map((method, methodIndex) => ({
+      ...method,
+      isDefault: methodIndex === index,
+    }));
+    users[normalizedEmail] = storedUser;
+    saveData("users", users);
+    return { success: true };
+  } catch (error) {
+    throw new Error(error.message || "Errore aggiornamento metodo pagamento");
+  }
+}
 async function saveOrderForCurrentUser(order) {
   const user = await getCurrentUser();
   if (!user) {

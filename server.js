@@ -111,6 +111,7 @@ const {
   getPaymentMethodById,
   getPaymentMethodsByUserId,
   deletePaymentMethod,
+  setDefaultPaymentMethod,
   getCart,
   updateCart,
   clearCart,
@@ -557,16 +558,57 @@ function normalizeProfileAddress(address) {
 }
 function normalizeProfilePaymentMethod(method) {
   if (!method) return null;
+  const brand = normalizePaymentBrand(method.brand);
   return {
     id: method.id,
     alias: method.alias || method.cardHolder || "",
-    brand: method.brand || "",
-    last4: method.last4 || method.cardNumber || "",
-    expiry: method.expiry || method.expiryDate || "",
+    brand: brand || method.brand || "",
+    last4: String(method.last4 || method.cardNumber || "")
+      .replace(/\D/g, "")
+      .slice(-4),
+    expiry: normalizePaymentExpiry(method.expiry || method.expiryDate),
     isDefault: Boolean(method.isDefault),
     createdAt: method.createdAt,
   };
 }
+
+function normalizePaymentBrand(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  const brands = {
+    visa: "Visa",
+    mastercard: "Mastercard",
+    "master card": "Mastercard",
+    amex: "American Express",
+    "american express": "American Express",
+    maestro: "Maestro",
+    discover: "Discover",
+    diners: "Diners Club",
+    "diners club": "Diners Club",
+    carta: "Carta",
+  };
+  return brands[normalized] || String(value || "").trim();
+}
+
+function normalizePaymentExpiry(value) {
+  const digits = String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 4);
+  if (digits.length !== 4) return "";
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function isFuturePaymentExpiry(value) {
+  const match = String(value || "").match(/^(0[1-9]|1[0-2])\/(\d{2})$/);
+  if (!match) return false;
+  const month = Number(match[1]);
+  const year = 2000 + Number(match[2]);
+  const lastDay = new Date(year, month, 0, 23, 59, 59, 999);
+  return lastDay >= new Date();
+}
+
 function buildProfilePayload(userId) {
   const user = getUserById(userId);
   const addresses = getAddressesByUserId(userId).map(normalizeProfileAddress);
@@ -2513,13 +2555,9 @@ app.delete("/api/profile/addresses/:addressId", requireAuth, (req, res) => {
 app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
   try {
     const alias = String(req.body.alias || "").trim();
-    const brand = String(req.body.brand || "").trim();
-    const last4 = String(req.body.last4 || "")
-      .replace(/\D/g, "")
-      .slice(-4);
-    const expiry = String(req.body.expiry || "")
-      .replace(/[^\d/]/g, "")
-      .trim();
+    const brand = normalizePaymentBrand(req.body.brand);
+    const last4 = String(req.body.last4 || "").replace(/\D/g, "");
+    const expiry = normalizePaymentExpiry(req.body.expiry);
     const isDefault = Boolean(req.body.isDefault);
     if (!alias || !brand || !last4 || !expiry)
       return res.status(400).json({
@@ -2530,7 +2568,7 @@ app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
         error: "Inserisci esattamente le ultime 4 cifre della carta",
       });
     }
-    if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(expiry)) {
+    if (!isFuturePaymentExpiry(expiry)) {
       return res.status(400).json({
         error: "Inserisci una scadenza valida nel formato MM/AA",
       });
@@ -2570,6 +2608,31 @@ app.delete(
       });
     } catch (error) {
       console.error("Errore eliminazione metodo pagamento:", error);
+      res.status(500).json({ error: "Errore interno del server" });
+    }
+  },
+);
+app.put(
+  "/api/profile/payment-methods/:paymentMethodId/default",
+  requireAuth,
+  (req, res) => {
+    try {
+      const paymentMethodId = Number(req.params.paymentMethodId);
+      const paymentMethod = normalizeProfilePaymentMethod(
+        setDefaultPaymentMethod(req.user.id, paymentMethodId),
+      );
+      if (!paymentMethod) {
+        return res
+          .status(404)
+          .json({ error: "Metodo di pagamento non trovato" });
+      }
+      res.json({
+        success: true,
+        message: "Metodo di pagamento predefinito aggiornato",
+        paymentMethod: paymentMethod,
+      });
+    } catch (error) {
+      console.error("Errore metodo pagamento predefinito:", error);
       res.status(500).json({ error: "Errore interno del server" });
     }
   },
