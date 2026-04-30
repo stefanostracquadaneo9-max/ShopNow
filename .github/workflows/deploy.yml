@@ -17,6 +17,7 @@ jobs:
       RAILWAY_PROJECT_ID: "${{ vars.RAILWAY_PROJECT_ID }}"
       RAILWAY_ENVIRONMENT: "${{ vars.RAILWAY_ENVIRONMENT }}"
       RAILWAY_SERVICE: "${{ vars.RAILWAY_SERVICE }}"
+      RAILWAY_TOKEN: "${{ secrets.RAILWAY_TOKEN }}"
 
     steps:
       - name: Checkout code
@@ -28,17 +29,16 @@ jobs:
           node-version: 20
 
       - name: Install Railway CLI
+        if: ${{ env.RAILWAY_TOKEN != '' }}
         run: npm install --global @railway/cli
 
-      - name: Deploy to Railway
-        env:
-          RAILWAY_TOKEN: "${{ secrets.RAILWAY_TOKEN }}"
-        run: |
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "Missing GitHub secret RAILWAY_TOKEN" >&2
-            exit 1
-          fi
+      - name: Skip Railway CLI deploy
+        if: ${{ env.RAILWAY_TOKEN == '' }}
+        run: echo "RAILWAY_TOKEN secret is not configured; Railway GitHub integration will handle deploys."
 
+      - name: Deploy to Railway
+        if: ${{ env.RAILWAY_TOKEN != '' }}
+        run: |
           project_id="${RAILWAY_PROJECT_ID:-4f69a0a3-1d8b-4806-bca3-1d8eaf51e272}"
           environment_name="${RAILWAY_ENVIRONMENT:-production}"
           service_name="${RAILWAY_SERVICE:-ShopNow}"
