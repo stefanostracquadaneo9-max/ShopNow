@@ -5,6 +5,14 @@ const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
+const dns = require("dns");
+
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch (error) {
+  console.log("[WARN] Impossibile preferire DNS IPv4:", error.message);
+}
+
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
 const stripe = stripeSecretKey ? require("stripe")(stripeSecretKey) : null;
 if (!stripe) {
