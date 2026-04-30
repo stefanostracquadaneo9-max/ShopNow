@@ -150,6 +150,7 @@
         const orderId = params.get("orderId");
         const total = params.get("total");
         const customerName = params.get("customerName");
+        const emailSent = params.get("emailSent");
         const confirmationMessage = document.getElementById(
           "confirmation-message",
         );
@@ -166,6 +167,10 @@
         if (customerName) {
           message = `Ciao ${customerName}, ${message}`;
         }
+        if (emailSent === "0") {
+          message +=
+            " L'ordine e presente nel tuo account, ma l'email di conferma non e stata inviata.";
+        }
         confirmationMessage.textContent = message;
         if (typeof getCurrentUser === "function") {
           const user = await getCurrentUser();
@@ -175,6 +180,6 @@
         }
       });
     </script>
-    <script src="order_confirmation.js?v=20260430-paypaltest"></script>
+    <script src="order_confirmation.js?v=20260430-emailfix1"></script>
   </body>
 </html>

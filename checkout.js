@@ -435,7 +435,9 @@ async function registerCheckoutOrder(payload) {
     window.getApiUrl("/api/checkout"),
     {
       method: "POST",
-      headers: getCheckoutRequestHeaders({ "Content-Type": "application/json" }),
+      headers: getCheckoutRequestHeaders({
+        "Content-Type": "application/json",
+      }),
       body: JSON.stringify(payload),
     },
   );
@@ -458,11 +460,12 @@ function clearCheckoutCartAfterSuccess() {
   if (typeof updateCartCount === "function") updateCartCount();
 }
 
-function redirectToOrderConfirmation(order, total, customerName) {
+function redirectToOrderConfirmation(order, total, customerName, emailSent) {
   const confirmationParams = new URLSearchParams({
     orderId: String(order?.id || ""),
     total: String(order?.total || total || ""),
     customerName: String(customerName || ""),
+    emailSent: emailSent ? "1" : "0",
   });
   window.location.href = `order-confirmation.html?${confirmationParams.toString()}`;
 }
@@ -732,7 +735,7 @@ async function handleCheckoutSubmit(event) {
     );
     if (typeof window.showToast === "function")
       window.showToast("Pagamento completato!");
-    redirectToOrderConfirmation(data.order, total, name);
+    redirectToOrderConfirmation(data.order, total, name, data.emailSent);
   } catch (error) {
     window.showCheckoutMessage("danger", error.message);
   } finally {

@@ -384,27 +384,77 @@ let transporter = null;
 let isEmailConfigured = Boolean(
   process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
 );
-if (isEmailConfigured) {
-  const transporterOptions = {
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
+let emailReady = false;
+let lastEmailError = null;
+let lastEmailCheckAt = null;
+const EMAIL_SERVICE = String(process.env.EMAIL_SERVICE || "gmail")
+  .trim()
+  .toLowerCase();
+const SMTP_TIMEOUT_MS = Math.max(
+  5000,
+  Number(process.env.SMTP_TIMEOUT_MS || process.env.EMAIL_TIMEOUT_MS || 12000),
+);
+
+function buildEmailTransportOptions() {
+  const smtpHost =
+    process.env.SMTP_HOST ||
+    process.env.EMAIL_HOST ||
+    (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : "");
+  const smtpPort = Number(
+    process.env.SMTP_PORT ||
+      process.env.EMAIL_PORT ||
+      (EMAIL_SERVICE === "gmail" ? 587 : 465),
+  );
+  const smtpSecure =
+    process.env.SMTP_SECURE !== undefined
+      ? isExplicitTrue(process.env.SMTP_SECURE)
+      : smtpPort === 465;
+
+  const options = {
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASSWORD,
     },
+    connectionTimeout: SMTP_TIMEOUT_MS,
+    greetingTimeout: SMTP_TIMEOUT_MS,
+    socketTimeout: SMTP_TIMEOUT_MS,
   };
-  if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
-    transporterOptions.tls = { rejectUnauthorized: false };
+
+  if (smtpHost) {
+    options.host = smtpHost;
+    options.port = smtpPort;
+    options.secure = smtpSecure;
+    if (!smtpSecure) {
+      options.requireTLS = true;
+    }
+  } else if (EMAIL_SERVICE) {
+    options.service = EMAIL_SERVICE;
   }
-  transporter = nodemailer.createTransport(transporterOptions);
+
+  if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+    options.tls = { rejectUnauthorized: false };
+  }
+
+  return options;
+}
+
+function markEmailFailure(error) {
+  emailReady = false;
+  lastEmailError = error?.message || String(error || "Errore email");
+  lastEmailCheckAt = new Date().toISOString();
+}
+
+if (isEmailConfigured) {
+  transporter = nodemailer.createTransport(buildEmailTransportOptions());
   transporter.verify((error, success) => {
     if (error) {
       console.log("[WARN] Errore configurazione email (SMTP):", error.message);
-      isEmailConfigured = false;
+      markEmailFailure(error);
     } else {
       console.log("[OK] Email configurato e pronto");
-      isEmailConfigured = true;
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
     }
   });
 }
@@ -1361,6 +1411,9 @@ async function sendOrderConfirmationEmail({
         `,
   };
   await transporter.sendMail(mailOptions);
+  emailReady = true;
+  lastEmailError = null;
+  lastEmailCheckAt = new Date().toISOString();
   sentEmails.push({
     subject: mailOptions.subject,
     to: customerEmail,
@@ -1375,6 +1428,24 @@ async function sendOrderConfirmationEmail({
     message: "Email inviata con successo",
   };
 }
+
+async function sendOrderConfirmationEmailSafely(payload) {
+  try {
+    return await sendOrderConfirmationEmail(payload);
+  } catch (error) {
+    markEmailFailure(error);
+    console.error(
+      `[EMAIL ERROR] Fallimento per ordine #${payload.orderId}:`,
+      error.message,
+    );
+    return {
+      success: false,
+      emailSent: false,
+      message: error.message || "Email non inviata",
+    };
+  }
+}
+
 app.post("/create-payment-intent", async (req, res) => {
   try {
     const { amount, customerName, customerEmail, items } = req.body;
@@ -1592,6 +1663,13 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     const authUser = getOptionalAuthUser(req);
     const checkoutUser =
       authUser || ensureCheckoutUser(customerEmail, customerName);
+    const purchasedItems = checkoutSnapshot.items.map((item) => ({
+      id: item.id,
+      name: item.name,
+      price: item.price,
+      quantity: item.quantity,
+      image: item.image,
+    }));
     const existingOrder = getOrderByStripePaymentIntentId(
       confirmedPaymentIntent.id,
     );
@@ -1601,23 +1679,36 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
           error: "Pagamento gia associato a un altro ordine",
         });
       }
+      let emailResult = {
+        success: true,
+        emailSent: false,
+        message: "Ordine gia registrato",
+      };
+      if (isEmailConfigured && !shouldSkipEmail) {
+        emailResult = await sendOrderConfirmationEmailSafely({
+          customerName: customerName,
+          customerEmail: customerEmail,
+          orderId: existingOrder.id,
+          amount: Number(existingOrder.total || checkoutSnapshot.total),
+          items: existingOrder.items?.length
+            ? existingOrder.items
+            : purchasedItems,
+          orderDate: new Date(existingOrder.createdAt).toLocaleString("it-IT"),
+          shippingAddress: shippingAddress,
+          siteBaseUrl: getPublicSiteBaseUrl(req),
+        });
+      }
       return res.json({
         success: true,
         order: existingOrder,
         alreadyProcessed: true,
-        emailSent: false,
+        emailSent: Boolean(emailResult.emailSent),
+        emailMessage: emailResult.message,
         paymentIntentId: confirmedPaymentIntent.id,
         updatedProducts:
           wantsSkipStripe && checkoutTestBypassAllowed ? [] : getAllProducts(),
       });
     }
-    const purchasedItems = checkoutSnapshot.items.map((item) => ({
-      id: item.id,
-      name: item.name,
-      price: item.price,
-      quantity: item.quantity,
-      image: item.image,
-    }));
 
     let updatedOrder = null;
     if (!wantsSkipStripe || !checkoutTestBypassAllowed) {
@@ -1643,11 +1734,18 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       };
     }
     // Invia email di conferma ordine (salta se richiesto per i test)
+    let emailResult = {
+      success: true,
+      emailSent: false,
+      message: shouldSkipEmail
+        ? "Email saltata in modalita test"
+        : "Email non configurata",
+    };
     if (isEmailConfigured && !shouldSkipEmail) {
       console.log(
         `[EMAIL] Inizio procedura invio email per ordine #${updatedOrder.id} a ${customerEmail}`,
       );
-      sendOrderConfirmationEmail({
+      emailResult = await sendOrderConfirmationEmailSafely({
         customerName: customerName,
         customerEmail: customerEmail,
         orderId: updatedOrder.id,
@@ -1656,12 +1754,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         orderDate: new Date(updatedOrder.createdAt).toLocaleString("it-IT"),
         shippingAddress: shippingAddress,
         siteBaseUrl: getPublicSiteBaseUrl(req),
-      }).catch((err) =>
-        console.error(
-          `[EMAIL ERROR] Fallimento per ordine #${updatedOrder.id}:`,
-          err.message,
-        ),
-      );
+      });
     }
     console.log(
       `[OK] Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
@@ -1669,7 +1762,8 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     res.json({
       success: true,
       order: updatedOrder,
-      emailSent: isEmailConfigured && !shouldSkipEmail,
+      emailSent: Boolean(emailResult.emailSent),
+      emailMessage: emailResult.message,
       paymentIntentId: confirmedPaymentIntent.id,
       // Salta l'aggiornamento prodotti se richiesto per i test
       updatedProducts:
@@ -1728,9 +1822,22 @@ app.post("/send-order-email", async (req, res) => {
 app.get("/config", (req, res) =>
   res.json({
     stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "pk_test_placeholder",
-    emailConfigured: Boolean(
-      process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
-    ),
+    emailConfigured: isEmailConfigured,
+    emailReady: emailReady,
+    emailLastError: lastEmailError ? "Email non pronta" : null,
+    emailLastCheckedAt: lastEmailCheckAt,
+    emailTransport: {
+      service: EMAIL_SERVICE || "smtp",
+      host:
+        process.env.SMTP_HOST ||
+        process.env.EMAIL_HOST ||
+        (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : null),
+      port: Number(
+        process.env.SMTP_PORT ||
+          process.env.EMAIL_PORT ||
+          (EMAIL_SERVICE === "gmail" ? 587 : 465),
+      ),
+    },
     addressAutofill: {
       enabled: true,
       providers: ["zippopotam.us", "nominatim.openstreetmap.org"],
@@ -2250,7 +2357,13 @@ app.post("/api/profile/password", requireAuth, (req, res) => {
 });
 app.get("/api/orders", requireAuth, (req, res) => {
   try {
-    const orders = getOrdersByUserId(req.user.id);
+    const orders = getOrdersByUserId(req.user.id).map((order) => ({
+      ...order,
+      customerName: req.user.name,
+      customerEmail: req.user.email,
+      userName: req.user.name,
+      userEmail: req.user.email,
+    }));
     res.json({ success: true, orders: orders });
   } catch (error) {
     console.error("Errore recupero ordini utente:", error);
