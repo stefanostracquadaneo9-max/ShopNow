@@ -21,14 +21,11 @@ document.addEventListener("DOMContentLoaded", () => {
           typeof getAuthApiUrl === "function"
             ? getAuthApiUrl("/api/auth/forgot-password")
             : `${window.SHOPNOW_API_BASE_URL}/api/auth/forgot-password`;
-        const response = await fetch(
-          resetUrl,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email }),
-          },
-        );
+        const response = await fetch(resetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
 
         const data = await response.json().catch(() => ({}));
         if (!response.ok) {

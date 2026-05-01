@@ -715,6 +715,16 @@ function updatePaypalCheckoutNote() {
   const paypalEnabled = Boolean(checkoutPaymentConfig?.paypalEnabled);
   const isPaypalSelected = checkoutSelectedPaymentType === "paypal";
   note.style.display = paypalEnabled && isPaypalSelected ? "flex" : "none";
+  if (!isPaypalSelected) {
+    note.classList.remove("is-active");
+    const title = note.querySelector(".paypal-payment-note-title");
+    const text = note.querySelector(".paypal-payment-note-text");
+    if (title) title.textContent = "PayPal protetto da ShopNow";
+    if (text) {
+      text.textContent =
+        "Ti accompagneremo alla pagina sicura di autorizzazione e tornerai qui dopo il pagamento.";
+    }
+  }
 }
 
 function handlePaymentElementChange(event) {
@@ -727,10 +737,13 @@ function showPaypalRedirectState() {
   if (note) {
     note.style.display = "flex";
     note.classList.add("is-active");
-    note.querySelector(".paypal-payment-note-title").textContent =
-      "Apro PayPal in modo sicuro";
-    note.querySelector(".paypal-payment-note-text").textContent =
-      "Completa l'autorizzazione nella finestra sicura. Poi tornerai su ShopNow per la conferma.";
+    const title = note.querySelector(".paypal-payment-note-title");
+    const text = note.querySelector(".paypal-payment-note-text");
+    if (title) title.textContent = "Apro PayPal in modo sicuro";
+    if (text) {
+      text.textContent =
+        "Completa l'autorizzazione nella finestra sicura. Poi tornerai su ShopNow per la conferma.";
+    }
   }
 }
 
