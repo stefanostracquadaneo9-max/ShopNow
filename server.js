@@ -118,7 +118,7 @@ const {
   clearCart,
 } = db_module;
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "12mb" }));
 fs.mkdirSync(RUNTIME_UPLOADS_DIR, { recursive: true });
 
 function setNoStoreHeaders(res) {
@@ -499,8 +499,18 @@ async function sendMailMessage(mailOptions) {
   if (!transporter) {
     throw new Error("Email non configurata");
   }
-  await transporter.sendMail(mailOptions);
-  return "smtp";
+  try {
+    await transporter.sendMail(mailOptions);
+    return "smtp";
+  } catch (error) {
+    markEmailFailure(error);
+    if (hasSmtpCredentials && !hasResendCredentials) {
+      transporter = nodemailer.createTransport(buildEmailTransportOptions());
+      await transporter.sendMail(mailOptions);
+      return "smtp";
+    }
+    throw error;
+  }
 }
 
 if (hasResendCredentials) {
@@ -2518,6 +2528,7 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       from: EMAIL_FROM_ADDRESS,
       to: user.email,
       subject: "ShopNow - Ripristina la tua password",
+      text: `Ciao ${user.name || "Utente"},\n\nUsa questo link entro 1 ora per ripristinare la password del tuo account ShopNow:\n${resetLink}\n\nSe non hai richiesto tu il reset, ignora questa email.`,
       html: `
         <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
           <div style="background: linear-gradient(135deg, #FF9900 0%, #146EB4 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
@@ -2555,6 +2566,10 @@ app.post("/api/auth/forgot-password", async (req, res) => {
         `[EMAIL ERROR] Reset password non inviato a ${user.email}:`,
         error.message,
       );
+      return res.status(503).json({
+        error:
+          "Servizio email temporaneamente non disponibile. Riprova tra qualche minuto.",
+      });
     }
 
     res.json({
@@ -3561,6 +3576,12 @@ app.post("/admin/products/:id/image", requireAdmin, (req, res) => {
     const safeFileName = `${sanitizeFileSegment(existingProduct.name)}_${Date.now()}${extension}`;
     const targetAbsolutePath = path.join(RUNTIME_UPLOADS_DIR, safeFileName);
     const fileBuffer = Buffer.from(fileDataBase64, "base64");
+    const maxImageBytes = 8 * 1024 * 1024;
+    if (!fileBuffer.length || fileBuffer.length > maxImageBytes) {
+      return res.status(400).json({
+        error: "Immagine troppo grande. Carica un file fino a 8 MB.",
+      });
+    }
     fs.writeFileSync(targetAbsolutePath, fileBuffer);
     const previousImageAbsolutePath = getProductImageAbsolutePath(
       existingProduct.image,

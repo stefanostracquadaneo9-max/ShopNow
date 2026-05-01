@@ -16,6 +16,8 @@ let checkoutPageInitialized = false;
 let stripeScriptPromise = null;
 let checkoutCurrentUser = null;
 let checkoutSavedPaymentMethods = [];
+let checkoutPaymentConfig = null;
+let checkoutSelectedPaymentType = "";
 const CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS = 350;
 const CHECKOUT_ADDRESS_LOOKUP_CACHE = new Map();
 const PENDING_CHECKOUT_KEY = "shopnow-pending-checkout";
@@ -707,6 +709,31 @@ function showPaymentElementError(message) {
   if (errorBox) errorBox.textContent = message || "";
 }
 
+function updatePaypalCheckoutNote() {
+  const note = document.getElementById("paypal-payment-note");
+  if (!note) return;
+  const paypalEnabled = Boolean(checkoutPaymentConfig?.paypalEnabled);
+  const isPaypalSelected = checkoutSelectedPaymentType === "paypal";
+  note.style.display = paypalEnabled && isPaypalSelected ? "flex" : "none";
+}
+
+function handlePaymentElementChange(event) {
+  checkoutSelectedPaymentType = String(event?.value?.type || "");
+  updatePaypalCheckoutNote();
+}
+
+function showPaypalRedirectState() {
+  const note = document.getElementById("paypal-payment-note");
+  if (note) {
+    note.style.display = "flex";
+    note.classList.add("is-active");
+    note.querySelector(".paypal-payment-note-title").textContent =
+      "Apro PayPal in modo sicuro";
+    note.querySelector(".paypal-payment-note-text").textContent =
+      "Completa l'autorizzazione nella finestra sicura. Poi tornerai su ShopNow per la conferma.";
+  }
+}
+
 function escapeCheckoutHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -1021,6 +1048,7 @@ async function initializeStripeCheckout() {
       },
     );
     const config = await configResponse.json();
+    checkoutPaymentConfig = config?.paymentMethods || null;
 
     if (
       !configResponse.ok ||
@@ -1121,6 +1149,7 @@ async function initializeStripeCheckout() {
           "stripe-payment-element--focus",
         ),
       );
+      stripePaymentElement.on("change", handlePaymentElementChange);
     }
   } catch (err) {
     console.error("Errore Stripe:", err);
@@ -1253,6 +1282,9 @@ async function handleCheckoutSubmit(event) {
       if (submitResult.error) {
         showPaymentElementError(submitResult.error.message);
         throw new Error(submitResult.error.message);
+      }
+      if (checkoutSelectedPaymentType === "paypal") {
+        showPaypalRedirectState();
       }
 
       // 1. Conferma pagamento con Stripe Payment Element

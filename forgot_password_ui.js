@@ -17,8 +17,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       try {
+        const resetUrl =
+          typeof getAuthApiUrl === "function"
+            ? getAuthApiUrl("/api/auth/forgot-password")
+            : `${window.SHOPNOW_API_BASE_URL}/api/auth/forgot-password`;
         const response = await fetch(
-          `${window.SHOPNOW_API_BASE_URL}/api/auth/forgot-password`,
+          resetUrl,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -26,7 +30,12 @@ document.addEventListener("DOMContentLoaded", () => {
           },
         );
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(
+            data.error || "Invio email non disponibile. Riprova piu tardi.",
+          );
+        }
 
         if (messageBox) {
           messageBox.className = "alert alert-success";
