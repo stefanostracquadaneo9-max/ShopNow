@@ -314,6 +314,11 @@ function getCheckoutPaymentMethodTypes() {
   return isPaypalPaymentEnabled() ? ["card", "paypal"] : ["card"];
 }
 
+function getPaypalPreferredLocale() {
+  const locale = String(process.env.PAYPAL_PREFERRED_LOCALE || "it-IT").trim();
+  return /^[a-z]{2}-[A-Z]{2}$/.test(locale) ? locale : "it-IT";
+}
+
 // Rotte prioritarie per Healthcheck e UI
 app.get("/cache-reset", sendCacheResetPage);
 
@@ -1684,6 +1689,13 @@ app.post("/create-payment-intent", async (req, res) => {
     };
     if (customerEmail) {
       paymentIntentParams.receipt_email = String(customerEmail).trim();
+    }
+    if (isPaypalPaymentEnabled()) {
+      paymentIntentParams.payment_method_options = {
+        paypal: {
+          preferred_locale: getPaypalPreferredLocale(),
+        },
+      };
     }
     if (authUser) {
       paymentIntentParams.customer =
