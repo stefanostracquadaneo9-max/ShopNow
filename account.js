@@ -183,6 +183,30 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (errorBox) errorBox.textContent = message || "";
   }
 
+  function normalizeAccountBillingCountry(value) {
+    const normalized =
+      typeof window.normalizeCountryCode === "function"
+        ? window.normalizeCountryCode(value)
+        : String(value || "")
+            .trim()
+            .toUpperCase();
+    return /^[A-Z]{2}$/.test(normalized) ? normalized : "IT";
+  }
+
+  async function getAccountBillingCountry() {
+    const user =
+      typeof getCurrentUser === "function"
+        ? await getCurrentUser()
+        : currentUser;
+    const addresses = Array.isArray(user?.addresses) ? user.addresses : [];
+    const defaultAddress =
+      addresses.find((address) => address.isDefault) || addresses[0];
+    return normalizeAccountBillingCountry(
+      defaultAddress?.country ||
+        document.getElementById("address-country")?.value,
+    );
+  }
+
   async function initializeAccountPaymentElement() {
     const paymentElementContainer = document.getElementById(
       "account-payment-element",
@@ -277,6 +301,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       throw new Error(submitResult.error.message);
     }
 
+    const billingCountry = await getAccountBillingCountry();
     const setupResult = await accountStripeInstance.confirmSetup({
       elements: accountStripeElements,
       redirect: "if_required",
@@ -285,6 +310,9 @@ document.addEventListener("DOMContentLoaded", async function () {
           billing_details: {
             name: method.alias,
             email: currentUser.email,
+            address: {
+              country: billingCountry,
+            },
           },
         },
       },
