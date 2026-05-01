@@ -193,7 +193,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     return /^[A-Z]{2}$/.test(normalized) ? normalized : "IT";
   }
 
-  async function getAccountBillingCountry() {
+  async function getAccountBillingAddress() {
     const user =
       typeof getCurrentUser === "function"
         ? await getCurrentUser()
@@ -201,10 +201,36 @@ document.addEventListener("DOMContentLoaded", async function () {
     const addresses = Array.isArray(user?.addresses) ? user.addresses : [];
     const defaultAddress =
       addresses.find((address) => address.isDefault) || addresses[0];
-    return normalizeAccountBillingCountry(
-      defaultAddress?.country ||
-        document.getElementById("address-country")?.value,
-    );
+    const formStreet = document.getElementById("address-street")?.value;
+    const formStreetNumber = document.getElementById(
+      "address-street-number",
+    )?.value;
+    const street = getAddressStreet(defaultAddress) || formStreet;
+    const streetNumber =
+      getAddressStreetNumber(defaultAddress) || formStreetNumber;
+
+    const billingAddress = {
+      country: normalizeAccountBillingCountry(
+        defaultAddress?.country ||
+          document.getElementById("address-country")?.value,
+      ),
+      postal_code: String(
+        defaultAddress?.postalCode ||
+          document.getElementById("address-postal")?.value ||
+          "",
+      ).trim(),
+      city: String(
+        defaultAddress?.city ||
+          document.getElementById("address-city")?.value ||
+          "",
+      ).trim(),
+      line1: combineStreetLine(street, streetNumber),
+    };
+
+    Object.keys(billingAddress).forEach((key) => {
+      if (!billingAddress[key]) delete billingAddress[key];
+    });
+    return billingAddress;
   }
 
   async function initializeAccountPaymentElement() {
@@ -272,7 +298,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           billingDetails: {
             name: "never",
             email: "never",
-            address: "never",
+            address: "auto",
           },
         },
         wallets: {
@@ -301,7 +327,7 @@ document.addEventListener("DOMContentLoaded", async function () {
       throw new Error(submitResult.error.message);
     }
 
-    const billingCountry = await getAccountBillingCountry();
+    const billingAddress = await getAccountBillingAddress();
     const setupResult = await accountStripeInstance.confirmSetup({
       elements: accountStripeElements,
       redirect: "if_required",
@@ -310,9 +336,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           billing_details: {
             name: method.alias,
             email: currentUser.email,
-            address: {
-              country: billingCountry,
-            },
+            address: billingAddress,
           },
         },
       },
