@@ -1840,6 +1840,149 @@ async function sendOrderConfirmationEmailSafely(payload) {
   }
 }
 
+async function sendPasswordResetEmail({
+  customerName,
+  customerEmail,
+  resetLink,
+  siteBaseUrl,
+}) {
+  const publicSiteBaseUrl = siteBaseUrl || getPublicSiteBaseUrl();
+  const shopUrl = buildPublicUrl(publicSiteBaseUrl);
+  const accountUrl = buildPublicUrl(publicSiteBaseUrl, "account.html");
+  if (!isEmailConfigured) {
+    console.log(
+      "[WARN] Email non configurato (mancano credenziali), reset password non inviato",
+    );
+    return {
+      success: true,
+      emailSent: false,
+      message: "Email non configurata",
+    };
+  }
+
+  const safeName = customerName || "Utente";
+  const mailOptions = {
+    from: EMAIL_FROM_ADDRESS,
+    to: customerEmail,
+    subject: "ShopNow - Ripristina la tua password",
+    text: `Ciao ${safeName},\n\nUsa questo link entro 1 ora per ripristinare la password del tuo account ShopNow:\n${resetLink}\n\nSe non hai richiesto tu il reset, ignora questa email.`,
+    html: `
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; color: #131921; background-color: #f3f3f3; }
+        .email-container { max-width: 600px; margin: 0 auto; background-color: white; }
+        .header { background: linear-gradient(135deg, #ff9900 0%, #ff7700 100%); color: white; padding: 30px 20px; text-align: center; }
+        .header h1 { font-size: 28px; margin-bottom: 5px; font-weight: 700; }
+        .header p { font-size: 14px; opacity: 0.95; }
+        .content { padding: 30px 20px; }
+        .greeting { font-size: 16px; color: #131921; margin-bottom: 20px; line-height: 1.5; }
+        .status-badge { background-color: #146eb4; color: white; padding: 12px 20px; border-radius: 5px; display: inline-block; font-weight: 600; margin: 10px 0; }
+        .reset-box { background-color: #f8f9fa; border-left: 4px solid #ff9900; padding: 20px; border-radius: 5px; margin: 20px 0; }
+        .cta-button { background-color: #ff9900; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block; margin: 15px 0; font-weight: 600; }
+        .link-copy { color: #007185; font-size: 12px; word-break: break-all; line-height: 1.5; }
+        .security-note { background-color: #fff7df; border-left: 4px solid #f0c14b; padding: 16px; border-radius: 5px; margin: 20px 0; color: #5f4500; font-size: 14px; line-height: 1.5; }
+        .footer { background-color: #232f3e; color: #b0b0b0; padding: 30px 20px; text-align: center; font-size: 12px; border-top: 1px solid #ddd; }
+        .footer p { margin: 8px 0; line-height: 1.5; }
+        .footer-links { margin: 15px 0; }
+        .footer-links a { color: #b0b0b0; text-decoration: none; margin: 0 10px; }
+        .divider { border-top: 1px solid #ddd; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <div class="header">
+            <h1>ShopNow</h1>
+            <p>Recupero password</p>
+        </div>
+
+        <div class="content">
+            <div class="greeting">
+                Ciao <strong>${escapeHtml(safeName)}</strong>,
+                <div class="status-badge">Link sicuro generato</div>
+            </div>
+
+            <p style="color: #424242; margin-bottom: 15px; line-height: 1.6;">
+                Hai richiesto di ripristinare la password del tuo account ShopNow. Usa il pulsante qui sotto entro 1 ora.
+            </p>
+
+            <div class="reset-box">
+                <h3 style="color: #131921; margin-bottom: 12px; font-size: 16px;">Ripristina la password</h3>
+                <p style="color: #424242; line-height: 1.6;">Questo link funziona una sola volta e scade automaticamente.</p>
+                <div style="text-align: center; margin: 24px 0;">
+                    <a href="${escapeHtml(resetLink)}" class="cta-button">Ripristina Password</a>
+                </div>
+                <p style="color: #565959; font-size: 12px; margin-bottom: 8px;">Se il pulsante non funziona, copia questo link nel browser:</p>
+                <p class="link-copy">${escapeHtml(resetLink)}</p>
+            </div>
+
+            <div class="security-note">
+                Se non hai richiesto tu il reset, ignora questa email. La tua password attuale rester&agrave; invariata.
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="footer">
+            <p><strong>ShopNow - Il tuo marketplace di fiducia</strong></p>
+            <div class="footer-links">
+                <a href="${shopUrl}">Shop</a> |
+                <a href="${accountUrl}">Account</a>
+            </div>
+            <p>&copy; 2026 ShopNow. Tutti i diritti riservati.</p>
+            <p style="margin-top: 15px; opacity: 0.8;">
+                Questa &egrave; una email automatica. Non rispondere direttamente a questo indirizzo.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
+        `,
+  };
+
+  const emailProvider = await sendMailMessage(mailOptions);
+  emailReady = true;
+  lastEmailError = null;
+  lastEmailCheckAt = new Date().toISOString();
+  sentEmails.push({
+    subject: mailOptions.subject,
+    to: customerEmail,
+    text: "Richiesta recupero password ShopNow",
+    timestamp: new Date().toLocaleString("it-IT"),
+    type: "password-reset",
+    provider: emailProvider,
+  });
+  console.log(
+    `[OK] Email reset password inviata a ${customerEmail} via ${emailProvider}`,
+  );
+  return {
+    success: true,
+    emailSent: true,
+    message: "Email inviata con successo",
+  };
+}
+
+async function sendPasswordResetEmailSafely(payload) {
+  try {
+    return await sendPasswordResetEmail(payload);
+  } catch (error) {
+    markEmailFailure(error);
+    console.error(
+      `[EMAIL ERROR] Reset password non inviato a ${payload.customerEmail}:`,
+      error.message,
+    );
+    return {
+      success: false,
+      emailSent: false,
+      message: error.message || "Email reset password non inviata",
+    };
+  }
+}
+
 app.post("/create-payment-intent", async (req, res) => {
   try {
     const { amount, customerName, customerEmail, items } = req.body;
@@ -2514,60 +2657,17 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       `reset-password.html?token=${resetToken}`,
     );
 
-    if (!isEmailConfigured || (!hasResendCredentials && !transporter)) {
-      console.log(
-        "[WARN] Email reset password non inviata: SMTP non configurato.",
-      );
-      return res.json({
-        message:
-          "Se l'email è presente nei nostri sistemi, riceverai a breve un link di reset.",
-      });
-    }
+    const emailResult = await sendPasswordResetEmailSafely({
+      customerName: user.name,
+      customerEmail: user.email,
+      resetLink: resetLink,
+      siteBaseUrl: getPublicSiteBaseUrl(req),
+    });
 
-    const mailOptions = {
-      from: EMAIL_FROM_ADDRESS,
-      to: user.email,
-      subject: "ShopNow - Ripristina la tua password",
-      text: `Ciao ${user.name || "Utente"},\n\nUsa questo link entro 1 ora per ripristinare la password del tuo account ShopNow:\n${resetLink}\n\nSe non hai richiesto tu il reset, ignora questa email.`,
-      html: `
-        <div style="max-width: 600px; margin: 0 auto; font-family: Arial, sans-serif;">
-          <div style="background: linear-gradient(135deg, #FF9900 0%, #146EB4 100%); color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0;">
-            <h2 style="margin: 0;">Recupero Password</h2>
-          </div>
-          <div style="padding: 30px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 0 0 8px 8px;">
-            <p>Ciao ${escapeHtml(user.name || "Utente")},</p>
-            <p>Hai richiesto di ripristinare la tua password. Clicca il link qui sotto entro 1 ora:</p>
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${escapeHtml(resetLink)}" style="background-color: #FF9900; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; font-weight: bold;">
-                Ripristina Password
-              </a>
-            </div>
-            <p style="color: #666; font-size: 12px;">Se il pulsante non funziona, copia questo link nel browser:</p>
-            <p style="color: #0066cc; font-size: 11px; word-break: break-all;">${escapeHtml(resetLink)}</p>
-            <p style="color: #666; font-size: 12px; margin-top: 20px;">Non hai richiesto questo? Ignora questo email.</p>
-            <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
-            <p style="color: #999; font-size: 11px; text-align: center;">© ShopNow - Il tuo negozio online</p>
-          </div>
-        </div>
-      `,
-    };
-
-    try {
-      const emailProvider = await sendMailMessage(mailOptions);
-      emailReady = true;
-      lastEmailError = null;
-      lastEmailCheckAt = new Date().toISOString();
-      console.log(
-        `[OK] Email reset password inviata a ${user.email} via ${emailProvider}`,
-      );
-    } catch (error) {
-      markEmailFailure(error);
-      console.error(
-        `[EMAIL ERROR] Reset password non inviato a ${user.email}:`,
-        error.message,
-      );
+    if (!emailResult.emailSent) {
       return res.status(503).json({
         error:
+          emailResult.message ||
           "Servizio email temporaneamente non disponibile. Riprova tra qualche minuto.",
       });
     }
