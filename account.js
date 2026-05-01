@@ -16,6 +16,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   let addressAutofillTimer = null;
   let addressAutofillSequence = 0;
   let lastAutoFilledAddressCity = "";
+  let lastAutoFilledAddressPostal = "";
   let accountStripeInstance = null;
   let accountStripeElements = null;
   let accountPaymentElement = null;
@@ -378,8 +379,8 @@ document.addEventListener("DOMContentLoaded", async function () {
     return data.paymentMethod;
   }
 
-  function getAddressAutofillUrl(country, postalCode) {
-    const query = new URLSearchParams({ country, postalCode });
+  function getAddressAutofillUrl(params) {
+    const query = new URLSearchParams(params);
     const path = `/api/address-autofill?${query.toString()}`;
     if (typeof window.getApiUrl === "function") return window.getApiUrl(path);
     if (typeof window.getServerBaseUrl === "function") {
@@ -391,6 +392,11 @@ document.addEventListener("DOMContentLoaded", async function () {
   function canReplaceAddressCity(cityInput) {
     const currentCity = cityInput.value.trim();
     return !currentCity || currentCity === lastAutoFilledAddressCity;
+  }
+
+  function canReplaceAddressPostal(postalInput) {
+    const currentPostal = postalInput.value.trim();
+    return !currentPostal || currentPostal === lastAutoFilledAddressPostal;
   }
 
   function getAddressCitySelect() {
@@ -420,8 +426,12 @@ document.addEventListener("DOMContentLoaded", async function () {
     );
   }
 
-  function getAddressMatchLabel(match) {
-    return [match.city, match.state || match.region]
+  function getAddressMatchLabel(match, options = {}) {
+    const parts = [match.city, match.state || match.region];
+    if (options.includePostalCode && match.postalCode) {
+      parts.push(match.postalCode);
+    }
+    return parts
       .map((value) => String(value || "").trim())
       .filter(Boolean)
       .join(" - ");
@@ -442,7 +452,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
-  function renderAddressCityChoices(cityInput, matches) {
+  function renderAddressCityChoices(cityInput, matches, options = {}) {
     const select = getAddressCitySelect();
     const uniqueMatches = getUniqueAddressMatches(matches);
     if (!select || uniqueMatches.length <= 1) {
@@ -457,8 +467,14 @@ document.addEventListener("DOMContentLoaded", async function () {
     select.replaceChildren(
       new Option("Scegli comune o frazione", ""),
       ...uniqueMatches.map((match, index) => {
-        const option = new Option(getAddressMatchLabel(match), String(index));
+        const option = new Option(
+          getAddressMatchLabel(match, {
+            includePostalCode: Boolean(options.includePostalCode),
+          }),
+          String(index),
+        );
         option.dataset.city = match.city;
+        option.dataset.postalCode = match.postalCode || "";
         return option;
       }),
     );
@@ -476,7 +492,10 @@ document.addEventListener("DOMContentLoaded", async function () {
       return true;
     }
 
-    if (canReplaceAddressCity(cityInput) || !matchedCurrent) {
+    if (
+      !options.keepCurrentCity &&
+      (canReplaceAddressCity(cityInput) || !matchedCurrent)
+    ) {
       cityInput.value = "";
       lastAutoFilledAddressCity = "";
     }
@@ -486,12 +505,43 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   function handleAddressCityChoiceChange(event) {
     const cityInput = document.getElementById("address-city");
+    const postalInput = document.getElementById("address-postal");
     const selectedOption =
       event.currentTarget?.options[event.currentTarget.selectedIndex];
     const city = selectedOption?.dataset?.city || "";
+    const postalCode = selectedOption?.dataset?.postalCode || "";
     if (!cityInput || !city) return;
     cityInput.value = city;
     lastAutoFilledAddressCity = city;
+    if (postalInput && postalCode) {
+      postalInput.value = postalCode;
+      lastAutoFilledAddressPostal = postalCode;
+    }
+  }
+
+  function applyAddressPostalAutofill(postalInput, postalCode) {
+    const normalizedPostalCode = String(postalCode || "").trim();
+    if (!normalizedPostalCode || !canReplaceAddressPostal(postalInput)) {
+      return false;
+    }
+    postalInput.value = normalizedPostalCode;
+    lastAutoFilledAddressPostal = normalizedPostalCode;
+    return true;
+  }
+
+  function clearAddressPostalIfLinked(postalInput) {
+    if (!postalInput || !lastAutoFilledAddressPostal) return;
+    if (postalInput.value.trim() !== lastAutoFilledAddressPostal) return;
+    postalInput.value = "";
+    lastAutoFilledAddressPostal = "";
+  }
+
+  function clearAddressCityIfLinked(cityInput) {
+    resetAddressCityChoice();
+    if (!cityInput || !lastAutoFilledAddressCity) return;
+    if (cityInput.value.trim() !== lastAutoFilledAddressCity) return;
+    cityInput.value = "";
+    lastAutoFilledAddressCity = "";
   }
 
   async function runAddressAutofill() {
@@ -519,7 +569,7 @@ document.addEventListener("DOMContentLoaded", async function () {
           : typeof window.getBackendRequestHeaders === "function"
             ? window.getBackendRequestHeaders()
             : {};
-      const url = getAddressAutofillUrl(country, postalCode);
+      const url = getAddressAutofillUrl({ country, postalCode });
       const request =
         typeof window.fetchWithTimeout === "function"
           ? window.fetchWithTimeout(url, { headers }, 10000)
@@ -546,9 +596,73 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
   }
 
+  async function runCityAddressAutofill() {
+    const postalInput = document.getElementById("address-postal");
+    const cityInput = document.getElementById("address-city");
+    const countryInput = document.getElementById("address-country");
+    if (!postalInput || !cityInput || !countryInput) return;
+
+    const country =
+      typeof window.normalizeCountryCode === "function"
+        ? window.normalizeCountryCode(countryInput.value)
+        : String(countryInput.value || "")
+            .trim()
+            .toUpperCase();
+    const city = cityInput.value.trim();
+    if (!country || city.length < 3) return;
+
+    const sequence = ++addressAutofillSequence;
+    postalInput.setAttribute("aria-busy", "true");
+
+    try {
+      const headers =
+        typeof window.getApiRequestHeaders === "function"
+          ? window.getApiRequestHeaders()
+          : typeof window.getBackendRequestHeaders === "function"
+            ? window.getBackendRequestHeaders()
+            : {};
+      const url = getAddressAutofillUrl({ country, city });
+      const request =
+        typeof window.fetchWithTimeout === "function"
+          ? window.fetchWithTimeout(url, { headers }, 10000)
+          : fetch(url, { headers });
+      const response = await request;
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) return;
+      if (sequence !== addressAutofillSequence) return;
+
+      const matches = Array.isArray(data?.matches) ? data.matches : [];
+      if (
+        renderAddressCityChoices(cityInput, matches, {
+          includePostalCode: true,
+          keepCurrentCity: true,
+        })
+      ) {
+        clearAddressPostalIfLinked(postalInput);
+        return;
+      }
+
+      const match = matches[0] || null;
+      if (match?.postalCode) {
+        applyAddressPostalAutofill(postalInput, match.postalCode);
+      }
+    } catch (error) {
+      // Auto-fill is optional; keep the form usable when the lookup fails.
+    } finally {
+      if (sequence === addressAutofillSequence) {
+        postalInput.removeAttribute("aria-busy");
+      }
+    }
+  }
+
   function scheduleAddressAutofill() {
     window.clearTimeout(addressAutofillTimer);
     addressAutofillTimer = window.setTimeout(runAddressAutofill, 350);
+  }
+
+  function scheduleCityAddressAutofill() {
+    window.clearTimeout(addressAutofillTimer);
+    addressAutofillTimer = window.setTimeout(runCityAddressAutofill, 350);
   }
 
   function initAddressAutofill() {
@@ -558,19 +672,41 @@ document.addEventListener("DOMContentLoaded", async function () {
     const citySelect = getAddressCitySelect();
     if (!postalInput || !countryInput) return;
 
-    postalInput.addEventListener("input", scheduleAddressAutofill);
+    postalInput.addEventListener("input", () => {
+      if (!postalInput.value.trim()) {
+        clearAddressCityIfLinked(cityInput);
+        if (cityInput?.value.trim()) {
+          cityInput.value = "";
+          lastAutoFilledAddressCity = "";
+        }
+      }
+      scheduleAddressAutofill();
+    });
     postalInput.addEventListener("change", scheduleAddressAutofill);
     countryInput.addEventListener("input", () => {
       resetAddressCityChoice();
+      lastAutoFilledAddressPostal = "";
       scheduleAddressAutofill();
     });
     countryInput.addEventListener("change", () => {
       resetAddressCityChoice();
+      lastAutoFilledAddressPostal = "";
       scheduleAddressAutofill();
     });
     cityInput?.addEventListener("input", () => {
       lastAutoFilledAddressCity = "";
+      resetAddressCityChoice();
+      if (!cityInput.value.trim()) {
+        clearAddressPostalIfLinked(postalInput);
+        if (postalInput.value.trim()) {
+          postalInput.value = "";
+          lastAutoFilledAddressPostal = "";
+        }
+        return;
+      }
+      scheduleCityAddressAutofill();
     });
+    cityInput?.addEventListener("change", scheduleCityAddressAutofill);
     citySelect?.addEventListener("change", handleAddressCityChoiceChange);
   }
 
@@ -658,6 +794,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         showProfile(user);
         addressForm.reset();
         resetAddressCityChoice({ clearCity: true });
+        lastAutoFilledAddressPostal = "";
         showMessage("success", "Indirizzo salvato.");
       } catch (error) {
         showMessage("danger", error.message);

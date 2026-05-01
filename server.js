@@ -809,6 +809,90 @@ function buildSavedPaymentConfirmationReturnUrl(req) {
   return buildPublicUrl(getPublicSiteBaseUrl(req), "checkout.html");
 }
 
+async function savePaymentMethodFromPaymentIntent({
+  user,
+  paymentIntentId,
+  isDefault = false,
+}) {
+  const stripeClient = getStripeClient();
+  const customerId = await getOrCreateStripeCustomerForUser(user);
+  const paymentIntent = await stripeClient.paymentIntents.retrieve(
+    paymentIntentId,
+    {
+      expand: ["payment_method"],
+    },
+  );
+
+  if (!paymentIntent || paymentIntent.status !== "succeeded") {
+    return { saved: false, reason: "payment_not_succeeded" };
+  }
+  const intentCustomerId = getStripeCustomerId(paymentIntent.customer);
+  if (intentCustomerId && intentCustomerId !== customerId) {
+    return { saved: false, reason: "customer_mismatch" };
+  }
+
+  const stripePaymentMethod = paymentIntent.payment_method;
+  const paymentMethodId =
+    typeof stripePaymentMethod === "string"
+      ? stripePaymentMethod
+      : stripePaymentMethod?.id;
+  if (!paymentMethodId || stripePaymentMethod?.type !== "card") {
+    return { saved: false, reason: "unsupported_payment_method" };
+  }
+
+  const attachedCustomerId = getStripeCustomerId(stripePaymentMethod.customer);
+  if (!attachedCustomerId) {
+    try {
+      await stripeClient.paymentMethods.attach(paymentMethodId, {
+        customer: customerId,
+      });
+    } catch (error) {
+      if (!/already been attached/i.test(error.message || "")) {
+        throw error;
+      }
+    }
+  }
+
+  const existingMethod = getPaymentMethodsByUserId(user.id).find(
+    (method) => method.stripePaymentMethodId === paymentMethodId,
+  );
+  if (existingMethod) {
+    const updatedMethod = isDefault
+      ? setDefaultPaymentMethod(user.id, existingMethod.id)
+      : existingMethod;
+    return {
+      saved: true,
+      existing: true,
+      paymentMethod: normalizeProfilePaymentMethod(updatedMethod),
+    };
+  }
+
+  const card = stripePaymentMethod.card;
+  const brand = normalizePaymentBrand(card?.brand || "Carta");
+  const storedPaymentMethod = normalizeProfilePaymentMethod(
+    addPaymentMethod(
+      user.id,
+      {
+        alias:
+          stripePaymentMethod.billing_details?.name ||
+          `${brand || "Carta"} terminante in ${card?.last4 || ""}`,
+        brand: brand || "Carta",
+        last4: card?.last4 || "",
+        expiry: formatStripeCardExpiry(card),
+        stripePaymentMethodId: paymentMethodId,
+        stripeCustomerId: customerId,
+      },
+      isDefault,
+    ),
+  );
+
+  return {
+    saved: true,
+    existing: false,
+    paymentMethod: storedPaymentMethod,
+  };
+}
+
 function buildImportedItems(paymentIntent) {
   const metadataItems = paymentIntent.metadata?.items;
   if (metadataItems) {
@@ -1062,6 +1146,95 @@ function normalizeNominatimPostalResult(country, postalCode, data) {
     source: "nominatim.openstreetmap.org",
     matches,
   };
+}
+
+function normalizeNominatimCitySearchResult(country, city, data) {
+  const places = Array.isArray(data) ? data : [];
+  const seen = new Set();
+  const matches = places
+    .map((place) => {
+      const address = place.address || {};
+      const cityName =
+        place.name ||
+        address.city ||
+        address.town ||
+        address.village ||
+        address.municipality ||
+        address.county ||
+        address.suburb;
+      return {
+        city: normalizeAddressLookupValue(cityName || city),
+        postalCode: normalizeAddressLookupValue(address.postcode),
+        state: normalizeAddressLookupValue(address.state || address.region),
+        stateCode: "",
+        country: normalizeAddressLookupCountry(address.country_code || country),
+        latitude: place.lat || "",
+        longitude: place.lon || "",
+        source: "nominatim.openstreetmap.org",
+      };
+    })
+    .filter((place) => place.city && place.postalCode)
+    .filter((place) => {
+      const key = `${place.postalCode}:${place.city}:${place.state}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+  return {
+    success: matches.length > 0,
+    source: "nominatim.openstreetmap.org",
+    matches,
+  };
+}
+
+async function lookupAddressByCityName(country, city) {
+  const normalizedCity = normalizeAddressLookupValue(city);
+  const providerAttempts = [];
+  const cacheKey = `city-name:${country}:${normalizedCity.toUpperCase()}`;
+  const cached = getAddressLookupCache(cacheKey);
+  if (cached) {
+    return {
+      ...cached,
+      cached: true,
+    };
+  }
+
+  let result = {
+    success: false,
+    source: "none",
+    matches: [],
+    providerAttempts,
+    cached: false,
+  };
+
+  try {
+    const nominatimUrl = new URL("https://nominatim.openstreetmap.org/search");
+    nominatimUrl.searchParams.set("format", "jsonv2");
+    nominatimUrl.searchParams.set("addressdetails", "1");
+    nominatimUrl.searchParams.set("limit", "10");
+    nominatimUrl.searchParams.set("countrycodes", country.toLowerCase());
+    nominatimUrl.searchParams.set("city", normalizedCity);
+    if (ADDRESS_LOOKUP_CONTACT_EMAIL) {
+      nominatimUrl.searchParams.set("email", ADDRESS_LOOKUP_CONTACT_EMAIL);
+    }
+    const data = await fetchAddressLookupJson(nominatimUrl.toString(), {
+      rateLimit: "nominatim",
+    });
+    providerAttempts.push("nominatim.openstreetmap.org");
+    if (data) {
+      result = {
+        ...normalizeNominatimCitySearchResult(country, normalizedCity, data),
+        providerAttempts,
+        cached: false,
+      };
+    }
+  } catch (error) {
+    providerAttempts.push("nominatim.openstreetmap.org:error");
+    console.warn("Nominatim city lookup non disponibile:", error.message);
+  }
+
+  return setAddressLookupCache(cacheKey, result);
 }
 
 function mergeAddressLookupResults(results) {
@@ -1700,6 +1873,7 @@ app.post("/create-payment-intent", async (req, res) => {
     if (authUser) {
       paymentIntentParams.customer =
         await getOrCreateStripeCustomerForUser(authUser);
+      paymentIntentParams.setup_future_usage = "off_session";
       paymentIntentParams.receipt_email = authUser.email;
       paymentIntentParams.metadata.customer_email = authUser.email;
       paymentIntentParams.metadata.customer_name =
@@ -1765,6 +1939,8 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       customerEmail,
       fileModeCheckout,
       cardSummary,
+      savePaymentMethod,
+      savePaymentMethodAsDefault,
       skipStripe, // Nuovo parametro per saltare Stripe nei test
       skipEmail, // Nuovo parametro per saltare l'invio email nei test
       skipValidation, // Nuovo parametro per saltare la validazione completa nei test
@@ -1984,6 +2160,31 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         siteBaseUrl: getPublicSiteBaseUrl(req),
       });
     }
+    let paymentMethodSaveResult = { saved: false, reason: "not_requested" };
+    if (
+      authUser &&
+      isExplicitTrue(savePaymentMethod) &&
+      confirmedPaymentIntent?.id &&
+      !wantsSkipStripe &&
+      !isFileModeCheckout
+    ) {
+      try {
+        paymentMethodSaveResult = await savePaymentMethodFromPaymentIntent({
+          user: authUser,
+          paymentIntentId: confirmedPaymentIntent.id,
+          isDefault: isExplicitTrue(savePaymentMethodAsDefault),
+        });
+      } catch (error) {
+        paymentMethodSaveResult = {
+          saved: false,
+          reason: error.message || "save_failed",
+        };
+        console.error(
+          "[WARN] Metodo di pagamento checkout non salvato:",
+          error.message,
+        );
+      }
+    }
     console.log(
       `[OK] Ordine #${updatedOrder.id} completato con successo per ${customerEmail}`,
     );
@@ -1992,6 +2193,8 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       order: updatedOrder,
       emailSent: Boolean(emailResult.emailSent),
       emailMessage: emailResult.message,
+      paymentMethodSaved: Boolean(paymentMethodSaveResult.saved),
+      paymentMethodSaveMessage: paymentMethodSaveResult.reason || null,
       paymentIntentId: confirmedPaymentIntent.id,
       // Salta l'aggiornamento prodotti se richiesto per i test
       updatedProducts:
@@ -2097,11 +2300,6 @@ app.get("/api/address-autofill", async (req, res) => {
     if (postalCode && !/^[A-Z0-9][A-Z0-9 -]{1,19}$/.test(postalCode)) {
       return res.status(400).json({ error: "CAP non valido" });
     }
-    if (city && !region) {
-      return res.status(400).json({
-        error: "Indica anche provincia, stato o regione per cercare per citta",
-      });
-    }
     if (postalCode.length > 20 || city.length > 120 || region.length > 120) {
       return res.status(400).json({ error: "Ricerca troppo lunga" });
     }
@@ -2110,13 +2308,7 @@ app.get("/api/address-autofill", async (req, res) => {
       ? await lookupAddressByPostalCode(country, postalCode)
       : region
         ? await lookupAddressByCity(country, region, city)
-        : {
-            success: false,
-            source: "none",
-            matches: [],
-            providerAttempts: [],
-            cached: false,
-          };
+        : await lookupAddressByCityName(country, city);
 
     res.json({
       success: result.success,

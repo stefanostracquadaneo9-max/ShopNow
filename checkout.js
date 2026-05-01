@@ -11,6 +11,7 @@ let checkoutAutoFillLock = false;
 let checkoutAddressLookupTimer = null;
 let checkoutAddressLookupSequence = 0;
 let checkoutLastAutoFilledCity = "";
+let checkoutLastAutoFilledPostal = "";
 let checkoutPageInitialized = false;
 let stripeScriptPromise = null;
 let checkoutCurrentUser = null;
@@ -202,6 +203,11 @@ function canReplaceCheckoutCity(cityInput) {
   return !currentCity || currentCity === checkoutLastAutoFilledCity;
 }
 
+function canReplaceCheckoutPostal(postalInput) {
+  const currentPostal = postalInput.value.trim();
+  return !currentPostal || currentPostal === checkoutLastAutoFilledPostal;
+}
+
 function applyCheckoutCityAutofill(cityInput, city) {
   const normalizedCity = String(city || "").trim();
   if (!normalizedCity || !canReplaceCheckoutCity(cityInput)) return false;
@@ -210,6 +216,20 @@ function applyCheckoutCityAutofill(cityInput, city) {
   cityInput.value = normalizedCity;
   checkoutLastAutoFilledCity = normalizedCity;
   cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+  checkoutAutoFillLock = false;
+  return true;
+}
+
+function applyCheckoutPostalAutofill(postalInput, postalCode) {
+  const normalizedPostalCode = String(postalCode || "").trim();
+  if (!normalizedPostalCode || !canReplaceCheckoutPostal(postalInput)) {
+    return false;
+  }
+
+  checkoutAutoFillLock = true;
+  postalInput.value = normalizedPostalCode;
+  checkoutLastAutoFilledPostal = normalizedPostalCode;
+  postalInput.dispatchEvent(new Event("change", { bubbles: true }));
   checkoutAutoFillLock = false;
   return true;
 }
@@ -224,6 +244,17 @@ function clearCheckoutAutoFilledCity(cityInput) {
   cityInput.dispatchEvent(new Event("change", { bubbles: true }));
   checkoutAutoFillLock = false;
   checkoutLastAutoFilledCity = "";
+}
+
+function clearCheckoutAutoFilledPostal(postalInput) {
+  if (!checkoutLastAutoFilledPostal) return;
+  if (postalInput.value.trim() !== checkoutLastAutoFilledPostal) return;
+
+  checkoutAutoFillLock = true;
+  postalInput.value = "";
+  postalInput.dispatchEvent(new Event("change", { bubbles: true }));
+  checkoutAutoFillLock = false;
+  checkoutLastAutoFilledPostal = "";
 }
 
 function getCheckoutCitySelect() {
@@ -259,8 +290,12 @@ function getUniqueAddressMatches(matches) {
   );
 }
 
-function getAddressMatchLabel(match) {
-  return [match.city, match.state || match.region]
+function getAddressMatchLabel(match, options = {}) {
+  const parts = [match.city, match.state || match.region];
+  if (options.includePostalCode && match.postalCode) {
+    parts.push(match.postalCode);
+  }
+  return parts
     .map((value) => String(value || "").trim())
     .filter(Boolean)
     .join(" - ");
@@ -285,7 +320,7 @@ function resetCheckoutCityChoice(cityInput, options = {}) {
   }
 }
 
-function renderCheckoutCityChoices(cityInput, matches) {
+function renderCheckoutCityChoices(cityInput, matches, options = {}) {
   const select = getCheckoutCitySelect();
   const uniqueMatches = getUniqueAddressMatches(matches);
   if (!select || uniqueMatches.length <= 1) {
@@ -301,8 +336,14 @@ function renderCheckoutCityChoices(cityInput, matches) {
   select.replaceChildren(
     placeholder,
     ...uniqueMatches.map((match, index) => {
-      const option = new Option(getAddressMatchLabel(match), String(index));
+      const option = new Option(
+        getAddressMatchLabel(match, {
+          includePostalCode: Boolean(options.includePostalCode),
+        }),
+        String(index),
+      );
       option.dataset.city = match.city;
+      option.dataset.postalCode = match.postalCode || "";
       return option;
     }),
   );
@@ -320,7 +361,10 @@ function renderCheckoutCityChoices(cityInput, matches) {
     return true;
   }
 
-  if (canReplaceCheckoutCity(cityInput) || !matchedCurrent) {
+  if (
+    !options.keepCurrentCity &&
+    (canReplaceCheckoutCity(cityInput) || !matchedCurrent)
+  ) {
     checkoutAutoFillLock = true;
     cityInput.value = "";
     cityInput.dispatchEvent(new Event("change", { bubbles: true }));
@@ -334,14 +378,21 @@ function renderCheckoutCityChoices(cityInput, matches) {
 function handleCheckoutCityChoiceChange(event) {
   const select = event.currentTarget;
   const cityInput = document.getElementById("checkout-city");
+  const postalInput = document.getElementById("checkout-postal");
   if (!select || !cityInput) return;
   const selectedOption = select.options[select.selectedIndex];
   const city = selectedOption?.dataset?.city || "";
+  const postalCode = selectedOption?.dataset?.postalCode || "";
   if (!city) return;
   checkoutAutoFillLock = true;
   cityInput.value = city;
   checkoutLastAutoFilledCity = city;
   cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+  if (postalInput && postalCode) {
+    postalInput.value = postalCode;
+    checkoutLastAutoFilledPostal = postalCode;
+    postalInput.dispatchEvent(new Event("change", { bubbles: true }));
+  }
   checkoutAutoFillLock = false;
 }
 
@@ -363,6 +414,40 @@ async function fetchCheckoutAddressLookup(country, postalCode) {
   const query = new URLSearchParams({
     country,
     postalCode,
+  });
+  const url =
+    typeof window.getApiUrl === "function"
+      ? window.getApiUrl(`/api/address-autofill?${query.toString()}`)
+      : `/api/address-autofill?${query.toString()}`;
+  const headers =
+    typeof window.getApiRequestHeaders === "function"
+      ? window.getApiRequestHeaders()
+      : {};
+  const request =
+    typeof window.fetchWithTimeout === "function"
+      ? window.fetchWithTimeout(url, { headers }, 10000)
+      : fetch(url, { headers });
+
+  const response = await request;
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || "Auto-fill indirizzo non disponibile");
+  }
+
+  CHECKOUT_ADDRESS_LOOKUP_CACHE.set(cacheKey, data);
+  return data;
+}
+
+async function fetchCheckoutCityLookup(country, city) {
+  const normalizedCity = String(city || "").trim();
+  const cacheKey = `city:${country}:${normalizedCity.toUpperCase()}`;
+  if (CHECKOUT_ADDRESS_LOOKUP_CACHE.has(cacheKey)) {
+    return CHECKOUT_ADDRESS_LOOKUP_CACHE.get(cacheKey);
+  }
+
+  const query = new URLSearchParams({
+    country,
+    city: normalizedCity,
   });
   const url =
     typeof window.getApiUrl === "function"
@@ -419,6 +504,44 @@ async function runCheckoutAddressLookup(
   }
 }
 
+async function runCheckoutCityLookup(country, city, cityInput, postalInput) {
+  const sequence = ++checkoutAddressLookupSequence;
+  setCheckoutAddressLookupBusy(postalInput, true);
+
+  try {
+    const data = await fetchCheckoutCityLookup(country, city);
+    if (sequence !== checkoutAddressLookupSequence) return;
+
+    const matches = Array.isArray(data?.matches) ? data.matches : [];
+    if (
+      renderCheckoutCityChoices(cityInput, matches, {
+        includePostalCode: true,
+        keepCurrentCity: true,
+      })
+    ) {
+      clearCheckoutAutoFilledPostal(postalInput);
+      return;
+    }
+
+    const match = matches[0] || null;
+    if (match?.postalCode) {
+      applyCheckoutPostalAutofill(postalInput, match.postalCode);
+      if (match.city && canReplaceCheckoutCity(cityInput)) {
+        applyCheckoutCityAutofill(cityInput, match.city);
+      }
+      return;
+    }
+
+    clearCheckoutAutoFilledPostal(postalInput);
+  } catch (error) {
+    if (sequence !== checkoutAddressLookupSequence) return;
+  } finally {
+    if (sequence === checkoutAddressLookupSequence) {
+      setCheckoutAddressLookupBusy(postalInput, false);
+    }
+  }
+}
+
 function autoFillCityFromZipMultiCountry() {
   const postalInput = document.getElementById("checkout-postal");
   const cityInput = document.getElementById("checkout-city");
@@ -443,6 +566,29 @@ function autoFillCityFromZipMultiCountry() {
 
   checkoutAddressLookupTimer = window.setTimeout(
     () => runCheckoutAddressLookup(country, postalCode, postalInput, cityInput),
+    CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS,
+  );
+}
+
+function autoFillPostalFromCityMultiCountry() {
+  const postalInput = document.getElementById("checkout-postal");
+  const cityInput = document.getElementById("checkout-city");
+  const countrySelect = document.getElementById("checkout-country");
+
+  if (!postalInput || !cityInput || !countrySelect) return;
+  if (checkoutAutoFillLock) return;
+
+  const country = normalizeCheckoutCountryCode(countrySelect.value);
+  const city = cityInput.value.trim();
+
+  window.clearTimeout(checkoutAddressLookupTimer);
+  if (!country || city.length < 3) {
+    clearCheckoutAutoFilledPostal(postalInput);
+    return;
+  }
+
+  checkoutAddressLookupTimer = window.setTimeout(
+    () => runCheckoutCityLookup(country, city, cityInput, postalInput),
     CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS,
   );
 }
@@ -502,6 +648,7 @@ function resetCheckoutAddressLookup() {
   window.clearTimeout(checkoutAddressLookupTimer);
   checkoutAddressLookupSequence += 1;
   checkoutLastAutoFilledCity = "";
+  checkoutLastAutoFilledPostal = "";
   resetCheckoutCityChoice(document.getElementById("checkout-city"), {
     clearCity: false,
   });
@@ -622,9 +769,14 @@ function getSelectedSavedPaymentMethod() {
 
 function updateCheckoutPaymentMode() {
   const stripeSection = document.getElementById("stripe-payment-section");
+  const saveOptions = document.getElementById("checkout-save-payment-options");
   const savedMethod = getSelectedSavedPaymentMethod();
   if (stripeSection) {
     stripeSection.style.display = savedMethod ? "none" : "block";
+  }
+  if (saveOptions) {
+    saveOptions.style.display =
+      checkoutCurrentUser && !savedMethod ? "block" : "none";
   }
 }
 
@@ -708,6 +860,8 @@ function buildCheckoutPayload({
   shippingAddress,
   customerName,
   customerEmail,
+  savePaymentMethod = false,
+  savePaymentMethodAsDefault = false,
 }) {
   return {
     paymentIntentId,
@@ -716,6 +870,8 @@ function buildCheckoutPayload({
     shippingAddress,
     customerName,
     customerEmail,
+    savePaymentMethod,
+    savePaymentMethodAsDefault,
     createdAt: Date.now(),
   };
 }
@@ -1074,6 +1230,10 @@ async function handleCheckoutSubmit(event) {
       shippingAddress,
       customerName: name,
       customerEmail: email,
+      savePaymentMethod: Boolean(checkoutCurrentUser && !savedPaymentMethod),
+      savePaymentMethodAsDefault:
+        document.getElementById("checkout-new-payment-default")?.checked ===
+        true,
     });
 
     savePendingCheckout(checkoutPayload);
@@ -1244,6 +1404,19 @@ async function initCheckoutPage() {
 
   if (postalInput) {
     postalInput.addEventListener("input", () => {
+      if (!checkoutAutoFillLock && !postalInput.value.trim()) {
+        clearCheckoutAutoFilledCity(document.getElementById("checkout-city"));
+        const cityInputForClear = document.getElementById("checkout-city");
+        if (cityInputForClear?.value.trim()) {
+          checkoutAutoFillLock = true;
+          cityInputForClear.value = "";
+          cityInputForClear.dispatchEvent(
+            new Event("change", { bubbles: true }),
+          );
+          checkoutAutoFillLock = false;
+          checkoutLastAutoFilledCity = "";
+        }
+      }
       validatePostalCode();
       autoFillCityFromZipMultiCountry();
     });
@@ -1253,8 +1426,28 @@ async function initCheckoutPage() {
   const cityInput = document.getElementById("checkout-city");
   if (cityInput) {
     cityInput.addEventListener("input", () => {
-      if (!checkoutAutoFillLock) checkoutLastAutoFilledCity = "";
+      if (!checkoutAutoFillLock) {
+        checkoutLastAutoFilledCity = "";
+        resetCheckoutCityChoice(cityInput, { clearCity: false });
+        if (!cityInput.value.trim()) {
+          const postalInputForClear =
+            document.getElementById("checkout-postal");
+          clearCheckoutAutoFilledPostal(postalInputForClear);
+          if (postalInputForClear?.value.trim()) {
+            checkoutAutoFillLock = true;
+            postalInputForClear.value = "";
+            postalInputForClear.dispatchEvent(
+              new Event("change", { bubbles: true }),
+            );
+            checkoutAutoFillLock = false;
+            checkoutLastAutoFilledPostal = "";
+          }
+        } else {
+          autoFillPostalFromCityMultiCountry();
+        }
+      }
     });
+    cityInput.addEventListener("change", autoFillPostalFromCityMultiCountry);
   }
   const citySelect = getCheckoutCitySelect();
   if (citySelect) {

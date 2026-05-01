@@ -727,6 +727,17 @@ main {
   font-size: 0.92rem;
 }
 
+.checkout-save-payment-options {
+  border-top: 1px solid #e7e7e7;
+  padding-top: 0.85rem;
+}
+
+.payment-save-note {
+  color: #0f5132;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
 .country-option {
   display: inline-flex;
   align-items: center;
