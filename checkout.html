@@ -17,7 +17,7 @@
       href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css"
       rel="stylesheet"
     />
-    <link href="style.css?v=20260430-blankfix1" rel="stylesheet" />
+    <link href="style.css?v=20260501-payments1" rel="stylesheet" />
     <script src="site_boot.js?v=20260430-blankfix1"></script>
   </head>
   <body>
@@ -110,7 +110,7 @@
                     required
                   />
                 </div>
-                <div class="mb-3">
+                <div class="mb-3" id="checkout-email-row">
                   <label for="checkout-email" class="form-label">Email</label>
                   <input
                     type="email"
@@ -119,6 +119,11 @@
                     required
                   />
                 </div>
+                <div
+                  id="checkout-account-email-summary"
+                  class="checkout-account-email mb-3"
+                  style="display: none"
+                ></div>
                 <div class="row">
                   <div class="col-md-8 mb-3">
                     <label for="checkout-street" class="form-label"
@@ -173,6 +178,11 @@
                       class="form-control"
                       required
                     />
+                    <select
+                      id="checkout-city-select"
+                      class="form-select mt-2"
+                      style="display: none"
+                    ></select>
                   </div>
                   <div class="col-md-4 mb-3">
                     <label for="checkout-country" class="form-label"
@@ -373,6 +383,35 @@
 
                 <h5 class="checkout-step-title mt-4">2. Metodo di pagamento</h5>
                 <div
+                  id="saved-payment-methods-section"
+                  class="saved-payment-methods mb-3"
+                  style="display: none"
+                >
+                  <div class="payment-choice-title">Scegli come pagare</div>
+                  <div id="saved-payment-methods-list"></div>
+                  <label
+                    class="payment-choice-row mb-0"
+                    for="payment-choice-new"
+                  >
+                    <input
+                      class="form-check-input"
+                      type="radio"
+                      name="checkout-payment-choice"
+                      id="payment-choice-new"
+                      value="new"
+                      checked
+                    />
+                    <span class="payment-choice-main">
+                      <span class="payment-choice-name"
+                        >Aggiungi un altro metodo</span
+                      >
+                      <span class="payment-choice-meta"
+                        >Carta o PayPal tramite Stripe</span
+                      >
+                    </span>
+                  </label>
+                </div>
+                <div
                   id="stripe-payment-section"
                   class="border p-3 rounded bg-light mb-4"
                 >
@@ -460,6 +499,6 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
     <script src="auth.js?v=20260430-authfix3"></script>
     <script src="cart.js?v=20260430"></script>
-    <script src="checkout.js?v=20260430-addressfix1"></script>
+    <script src="checkout.js?v=20260501-payments1"></script>
   </body>
 </html>

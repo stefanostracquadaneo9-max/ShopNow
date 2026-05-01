@@ -86,6 +86,7 @@ const {
   updateUserPassword,
   getAllUsers,
   updateUser,
+  setUserStripeCustomerId,
   deleteUser,
   deleteUsersByDomain,
   createProduct,
@@ -559,6 +560,9 @@ function normalizeProfileAddress(address) {
 function normalizeProfilePaymentMethod(method) {
   if (!method) return null;
   const brand = normalizePaymentBrand(method.brand);
+  const stripeBacked = Boolean(
+    String(method.stripePaymentMethodId || "").trim(),
+  );
   return {
     id: method.id,
     alias: method.alias || method.cardHolder || "",
@@ -568,6 +572,8 @@ function normalizeProfilePaymentMethod(method) {
       .slice(-4),
     expiry: normalizePaymentExpiry(method.expiry || method.expiryDate),
     isDefault: Boolean(method.isDefault),
+    canUseInCheckout: stripeBacked,
+    stripeBacked: stripeBacked,
     createdAt: method.createdAt,
   };
 }
@@ -583,10 +589,12 @@ function normalizePaymentBrand(value) {
     "master card": "Mastercard",
     amex: "American Express",
     "american express": "American Express",
+    american_express: "American Express",
     maestro: "Maestro",
     discover: "Discover",
     diners: "Diners Club",
     "diners club": "Diners Club",
+    diners_club: "Diners Club",
     carta: "Carta",
   };
   return brands[normalized] || String(value || "").trim();
@@ -748,6 +756,54 @@ function getStripeClient() {
   }
   return stripe;
 }
+
+async function getOrCreateStripeCustomerForUser(user) {
+  const currentUser = getUserById(user?.id);
+  if (!currentUser) {
+    throw new Error("Utente non trovato");
+  }
+  const existingCustomerId = String(currentUser.stripeCustomerId || "").trim();
+  if (existingCustomerId) return existingCustomerId;
+
+  const stripeClient = getStripeClient();
+  const customer = await stripeClient.customers.create({
+    email: currentUser.email,
+    name: currentUser.name || currentUser.email,
+    metadata: {
+      shopnowUserId: String(currentUser.id),
+    },
+  });
+  setUserStripeCustomerId(currentUser.id, customer.id);
+  return customer.id;
+}
+
+function formatStripeCardExpiry(card) {
+  const month = String(card?.exp_month || "").padStart(2, "0");
+  const year = String(card?.exp_year || "").slice(-2);
+  return month && year ? `${month}/${year}` : "";
+}
+
+function getStripePaymentMethodIdFromSetupIntent(setupIntent) {
+  const paymentMethod = setupIntent?.payment_method;
+  if (!paymentMethod) return "";
+  return typeof paymentMethod === "string" ? paymentMethod : paymentMethod.id;
+}
+
+function getStripeCustomerId(value) {
+  if (!value) return "";
+  return typeof value === "string" ? value : String(value.id || "");
+}
+
+async function retrieveExpandedSetupIntent(stripeClient, setupIntentId) {
+  return stripeClient.setupIntents.retrieve(setupIntentId, {
+    expand: ["payment_method"],
+  });
+}
+
+function buildSavedPaymentConfirmationReturnUrl(req) {
+  return buildPublicUrl(getPublicSiteBaseUrl(req), "checkout.html");
+}
+
 function buildImportedItems(paymentIntent) {
   const metadataItems = paymentIntent.metadata?.items;
   if (metadataItems) {
@@ -1571,6 +1627,7 @@ app.post("/create-payment-intent", async (req, res) => {
   try {
     const { amount, customerName, customerEmail, items } = req.body;
     const stripeClient = getStripeClient();
+    const authUser = getOptionalAuthUser(req);
     let payableAmount = Number(amount || 0);
     if (Array.isArray(items) && items.length) {
       const checkoutSnapshot = buildCheckoutStockSnapshot(items);
@@ -1598,6 +1655,15 @@ app.post("/create-payment-intent", async (req, res) => {
     };
     if (customerEmail) {
       paymentIntentParams.receipt_email = String(customerEmail).trim();
+    }
+    if (authUser) {
+      paymentIntentParams.customer =
+        await getOrCreateStripeCustomerForUser(authUser);
+      paymentIntentParams.receipt_email = authUser.email;
+      paymentIntentParams.metadata.customer_email = authUser.email;
+      paymentIntentParams.metadata.customer_name =
+        customerName || authUser.name || "";
+      paymentIntentParams.metadata.shopnow_user_id = String(authUser.id);
     }
     const paymentIntent =
       await stripeClient.paymentIntents.create(paymentIntentParams);
@@ -2552,6 +2618,227 @@ app.delete("/api/profile/addresses/:addressId", requireAuth, (req, res) => {
     res.status(500).json({ error: "Errore interno del server" });
   }
 });
+
+app.post("/api/profile/setup-intent", requireAuth, async (req, res) => {
+  try {
+    const stripeClient = getStripeClient();
+    const customerId = await getOrCreateStripeCustomerForUser(req.user);
+    const setupIntent = await stripeClient.setupIntents.create({
+      customer: customerId,
+      usage: "off_session",
+      payment_method_types: ["card"],
+      metadata: {
+        shopnowUserId: String(req.user.id),
+      },
+    });
+
+    res.json({
+      success: true,
+      clientSecret: setupIntent.client_secret,
+      setupIntentId: setupIntent.id,
+    });
+  } catch (error) {
+    console.error("Errore SetupIntent:", error);
+    res.status(500).json({
+      error: error.message || "Errore inizializzazione salvataggio carta",
+    });
+  }
+});
+
+app.post(
+  "/api/profile/payment-methods/attach",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const setupIntentId = String(req.body.setupIntentId || "").trim();
+      const alias = String(req.body.alias || "").trim();
+      const isDefault = Boolean(req.body.isDefault);
+      if (!setupIntentId) {
+        return res.status(400).json({ error: "SetupIntent mancante" });
+      }
+
+      const stripeClient = getStripeClient();
+      const customerId = await getOrCreateStripeCustomerForUser(req.user);
+      const setupIntent = await retrieveExpandedSetupIntent(
+        stripeClient,
+        setupIntentId,
+      );
+      if (!setupIntent || setupIntent.status !== "succeeded") {
+        return res.status(400).json({
+          error: "Carta non confermata da Stripe",
+        });
+      }
+      if (getStripeCustomerId(setupIntent.customer) !== customerId) {
+        return res.status(403).json({
+          error: "Carta non associata a questo account",
+        });
+      }
+
+      const stripePaymentMethod = setupIntent.payment_method;
+      const paymentMethodId =
+        getStripePaymentMethodIdFromSetupIntent(setupIntent);
+      const card = stripePaymentMethod?.card;
+      if (!paymentMethodId || !card?.last4) {
+        return res.status(400).json({
+          error: "Metodo di pagamento Stripe non valido",
+        });
+      }
+
+      const existingMethod = getPaymentMethodsByUserId(req.user.id).find(
+        (method) => method.stripePaymentMethodId === paymentMethodId,
+      );
+      if (existingMethod) {
+        const updatedMethod = isDefault
+          ? setDefaultPaymentMethod(req.user.id, existingMethod.id)
+          : existingMethod;
+        return res.json({
+          success: true,
+          message: "Metodo di pagamento gia presente",
+          paymentMethod: normalizeProfilePaymentMethod(updatedMethod),
+        });
+      }
+
+      const brand = normalizePaymentBrand(card.brand || "Carta");
+      const storedPaymentMethod = normalizeProfilePaymentMethod(
+        addPaymentMethod(
+          req.user.id,
+          {
+            alias:
+              alias ||
+              stripePaymentMethod.billing_details?.name ||
+              `${brand || "Carta"} terminante in ${card.last4}`,
+            brand: brand || "Carta",
+            last4: card.last4,
+            expiry: formatStripeCardExpiry(card),
+            stripePaymentMethodId: paymentMethodId,
+            stripeCustomerId: customerId,
+          },
+          isDefault,
+        ),
+      );
+
+      res.json({
+        success: true,
+        message: "Metodo di pagamento aggiunto",
+        paymentMethod: storedPaymentMethod,
+      });
+    } catch (error) {
+      console.error("Errore attach metodo pagamento:", error);
+      res.status(500).json({
+        error: error.message || "Errore salvataggio metodo pagamento",
+      });
+    }
+  },
+);
+
+app.post(
+  "/api/checkout/confirm-saved-payment",
+  requireAuth,
+  async (req, res) => {
+    try {
+      const paymentIntentId = String(req.body.paymentIntentId || "").trim();
+      const paymentMethodId = Number(req.body.paymentMethodId);
+      if (!paymentIntentId || !paymentMethodId) {
+        return res.status(400).json({
+          error: "Pagamento o metodo salvato mancante",
+        });
+      }
+
+      const paymentMethod = getPaymentMethodById(paymentMethodId);
+      if (
+        !paymentMethod ||
+        Number(paymentMethod.userId) !== Number(req.user.id)
+      ) {
+        return res
+          .status(404)
+          .json({ error: "Metodo di pagamento non trovato" });
+      }
+      const stripePaymentMethodId = String(
+        paymentMethod.stripePaymentMethodId || "",
+      ).trim();
+      if (!stripePaymentMethodId) {
+        return res.status(400).json({
+          error:
+            "Questo metodo e stato salvato manualmente. Aggiungi una carta con Stripe per usarla nel checkout.",
+        });
+      }
+
+      const stripeClient = getStripeClient();
+      const savedCustomerId = String(
+        paymentMethod.stripeCustomerId || "",
+      ).trim();
+      const customerId =
+        savedCustomerId || (await getOrCreateStripeCustomerForUser(req.user));
+      if (savedCustomerId && !String(req.user.stripeCustomerId || "").trim()) {
+        setUserStripeCustomerId(req.user.id, savedCustomerId);
+      }
+
+      const paymentIntent =
+        await stripeClient.paymentIntents.retrieve(paymentIntentId);
+      if (!paymentIntent) {
+        return res.status(404).json({ error: "Pagamento Stripe non trovato" });
+      }
+      const intentCustomerId = getStripeCustomerId(paymentIntent.customer);
+      if (intentCustomerId && intentCustomerId !== customerId) {
+        return res.status(409).json({
+          error: "Pagamento non associato a questo account",
+        });
+      }
+      if (paymentIntent.status === "succeeded") {
+        return res.json({
+          success: true,
+          paymentIntentId: paymentIntent.id,
+          status: paymentIntent.status,
+          clientSecret: paymentIntent.client_secret,
+        });
+      }
+      if (
+        !["requires_payment_method", "requires_confirmation"].includes(
+          paymentIntent.status,
+        )
+      ) {
+        return res.status(400).json({
+          error: "Questo pagamento non puo essere confermato adesso",
+          status: paymentIntent.status,
+        });
+      }
+      if (!intentCustomerId) {
+        await stripeClient.paymentIntents.update(paymentIntentId, {
+          customer: customerId,
+          receipt_email: req.user.email,
+          metadata: {
+            ...paymentIntent.metadata,
+            customer_email: req.user.email,
+            customer_name: req.user.name || "",
+            shopnow_user_id: String(req.user.id),
+          },
+        });
+      }
+
+      const confirmedPaymentIntent = await stripeClient.paymentIntents.confirm(
+        paymentIntentId,
+        {
+          payment_method: stripePaymentMethodId,
+          receipt_email: req.user.email,
+          return_url: buildSavedPaymentConfirmationReturnUrl(req),
+        },
+      );
+
+      res.json({
+        success: true,
+        paymentIntentId: confirmedPaymentIntent.id,
+        status: confirmedPaymentIntent.status,
+        clientSecret: confirmedPaymentIntent.client_secret,
+      });
+    } catch (error) {
+      console.error("Errore conferma metodo salvato:", error);
+      res.status(500).json({
+        error: error.message || "Errore conferma metodo salvato",
+      });
+    }
+  },
+);
+
 app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
   try {
     const alias = String(req.body.alias || "").trim();
@@ -2593,7 +2880,7 @@ app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
 app.delete(
   "/api/profile/payment-methods/:paymentMethodId",
   requireAuth,
-  (req, res) => {
+  async (req, res) => {
     try {
       const paymentMethodId = Number(req.params.paymentMethodId);
       const paymentMethod = getPaymentMethodById(paymentMethodId);
@@ -2601,6 +2888,19 @@ app.delete(
         return res
           .status(404)
           .json({ error: "Metodo di pagamento non trovato" });
+      const stripePaymentMethodId = String(
+        paymentMethod.stripePaymentMethodId || "",
+      ).trim();
+      if (stripePaymentMethodId) {
+        try {
+          await getStripeClient().paymentMethods.detach(stripePaymentMethodId);
+        } catch (stripeError) {
+          console.warn(
+            "[WARN] Metodo Stripe non scollegato:",
+            stripeError.message,
+          );
+        }
+      }
       deletePaymentMethod(paymentMethodId);
       res.json({
         success: true,

@@ -458,6 +458,27 @@ main {
   font-weight: 600;
 }
 
+.payment-ready-badge,
+.payment-legacy-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.18rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.payment-ready-badge {
+  color: #0f5132;
+  background: #d1e7dd;
+}
+
+.payment-legacy-badge {
+  color: #664d03;
+  background: #fff3cd;
+}
+
 .payment-method-meta,
 .payment-method-expiry {
   color: #565959;
@@ -642,6 +663,89 @@ main {
     border-color 0.2s,
     box-shadow 0.2s;
   box-shadow: 0 1px 2px rgba(15, 17, 17, 0.15) inset;
+}
+
+.checkout-account-email {
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid #d5d9d9;
+  border-radius: 8px;
+  padding: 0.8rem 0.95rem;
+  color: #111827;
+  background: #f7fafa;
+}
+
+.checkout-account-email i {
+  color: var(--amazon-blue);
+}
+
+.saved-payment-methods {
+  border: 1px solid #d5d9d9;
+  border-radius: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.payment-choice-title {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid #e7e7e7;
+  font-weight: 700;
+  color: #111827;
+}
+
+.payment-choice-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid #e7e7e7;
+  cursor: pointer;
+  background: #fff;
+}
+
+.payment-choice-row:hover {
+  background: #f7fafa;
+}
+
+.payment-choice-row:last-child {
+  border-bottom: 0;
+}
+
+.payment-choice-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.payment-choice-name {
+  font-weight: 700;
+  color: #111827;
+}
+
+.payment-choice-meta {
+  color: #565959;
+  font-size: 0.92rem;
+}
+
+.country-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.country-code-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.3rem;
+  height: 1.35rem;
+  border-radius: 4px;
+  border: 1px solid #d5d9d9;
+  color: #111827;
+  background: #f7fafa;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
 /* Personalizzazione Select2 per stile Amazon */

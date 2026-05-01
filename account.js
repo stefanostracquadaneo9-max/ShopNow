@@ -16,6 +16,10 @@ document.addEventListener("DOMContentLoaded", async function () {
   let addressAutofillTimer = null;
   let addressAutofillSequence = 0;
   let lastAutoFilledAddressCity = "";
+  let accountStripeInstance = null;
+  let accountStripeElements = null;
+  let accountPaymentElement = null;
+  let accountStripeScriptPromise = null;
 
   function escapeAccountHtml(value) {
     return String(value || "")
@@ -138,6 +142,190 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
   }
 
+  function getAccountApiUrl(path) {
+    if (typeof window.getAuthApiUrl === "function") {
+      return window.getAuthApiUrl(path);
+    }
+    if (typeof getAuthApiUrl === "function") {
+      return getAuthApiUrl(path);
+    }
+    if (typeof window.getApiUrl === "function") return window.getApiUrl(path);
+    return path;
+  }
+
+  function getAccountAuthHeaders(extraHeaders = {}) {
+    if (typeof window.getAuthRequestHeaders === "function") {
+      return window.getAuthRequestHeaders(extraHeaders);
+    }
+    if (typeof getAuthRequestHeaders === "function") {
+      return getAuthRequestHeaders(extraHeaders);
+    }
+    return extraHeaders;
+  }
+
+  async function loadAccountStripeScript() {
+    if (typeof window.Stripe === "function") return;
+    if (accountStripeScriptPromise) return accountStripeScriptPromise;
+
+    accountStripeScriptPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = "https://js.stripe.com/v3/";
+      script.async = true;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error("Errore caricamento Stripe SDK"));
+      document.head.appendChild(script);
+    });
+    return accountStripeScriptPromise;
+  }
+
+  function showAccountPaymentError(message) {
+    const errorBox = document.getElementById("account-payment-errors");
+    if (errorBox) errorBox.textContent = message || "";
+  }
+
+  async function initializeAccountPaymentElement() {
+    const paymentElementContainer = document.getElementById(
+      "account-payment-element",
+    );
+    if (!paymentForm || !paymentElementContainer || !currentUser) return;
+
+    try {
+      await loadAccountStripeScript();
+      const configResponse = await fetch(getAccountApiUrl("/config"), {
+        headers:
+          typeof window.getApiRequestHeaders === "function"
+            ? window.getApiRequestHeaders()
+            : {},
+      });
+      const config = await configResponse.json().catch(() => ({}));
+      if (
+        !configResponse.ok ||
+        !config.stripePublicKey ||
+        String(config.stripePublicKey).includes("placeholder")
+      ) {
+        throw new Error("Stripe non configurato correttamente.");
+      }
+
+      const setupResponse = await fetch(
+        getAccountApiUrl("/api/profile/setup-intent"),
+        {
+          method: "POST",
+          headers: getAccountAuthHeaders({
+            "Content-Type": "application/json",
+          }),
+        },
+      );
+      const setupData = await setupResponse.json().catch(() => ({}));
+      if (!setupResponse.ok || !setupData.clientSecret) {
+        throw new Error(
+          setupData.error || "Impossibile inizializzare il salvataggio carta.",
+        );
+      }
+
+      accountStripeInstance = window.Stripe(config.stripePublicKey);
+      accountStripeElements = accountStripeInstance.elements({
+        clientSecret: setupData.clientSecret,
+        locale: "it",
+        appearance: {
+          theme: "stripe",
+          variables: {
+            colorPrimary: "#e77600",
+            colorBackground: "#ffffff",
+            colorText: "#111111",
+            fontFamily: '"Amazon Ember", Arial, sans-serif',
+            fontSizeBase: "15px",
+          },
+        },
+      });
+
+      if (accountPaymentElement) {
+        accountPaymentElement.destroy();
+      }
+      paymentElementContainer.classList.add("stripe-payment-element");
+      paymentElementContainer.replaceChildren();
+      accountPaymentElement = accountStripeElements.create("payment", {
+        fields: {
+          billingDetails: {
+            name: "never",
+            email: "never",
+            address: "never",
+          },
+        },
+        wallets: {
+          applePay: "never",
+          googlePay: "never",
+        },
+      });
+      accountPaymentElement.mount(paymentElementContainer);
+      showAccountPaymentError("");
+    } catch (error) {
+      const submitButton = paymentForm.querySelector('button[type="submit"]');
+      if (submitButton) submitButton.disabled = true;
+      showAccountPaymentError(
+        error.message || "Pagamento non disponibile in questo momento.",
+      );
+    }
+  }
+
+  async function saveStripePaymentMethodFromAccount(method) {
+    if (!accountStripeInstance || !accountStripeElements) {
+      throw new Error("Sistema di pagamento non pronto.");
+    }
+
+    const submitResult = await accountStripeElements.submit();
+    if (submitResult.error) {
+      throw new Error(submitResult.error.message);
+    }
+
+    const setupResult = await accountStripeInstance.confirmSetup({
+      elements: accountStripeElements,
+      redirect: "if_required",
+      confirmParams: {
+        payment_method_data: {
+          billing_details: {
+            name: method.alias,
+            email: currentUser.email,
+          },
+        },
+      },
+    });
+    if (setupResult.error) {
+      throw new Error(setupResult.error.message);
+    }
+    if (
+      !setupResult.setupIntent ||
+      setupResult.setupIntent.status !== "succeeded"
+    ) {
+      throw new Error("Carta non confermata da Stripe.");
+    }
+
+    const response = await fetch(
+      getAccountApiUrl("/api/profile/payment-methods/attach"),
+      {
+        method: "POST",
+        headers: getAccountAuthHeaders({
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({
+          setupIntentId: setupResult.setupIntent.id,
+          alias: method.alias,
+          isDefault: method.isDefault,
+        }),
+      },
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Errore salvataggio metodo pagamento");
+    }
+    if (
+      typeof fetchCurrentUserFromServer === "function" &&
+      typeof getSessionToken === "function"
+    ) {
+      await fetchCurrentUserFromServer(getSessionToken());
+    }
+    return data.paymentMethod;
+  }
+
   function getAddressAutofillUrl(country, postalCode) {
     const query = new URLSearchParams({ country, postalCode });
     const path = `/api/address-autofill?${query.toString()}`;
@@ -151,6 +339,107 @@ document.addEventListener("DOMContentLoaded", async function () {
   function canReplaceAddressCity(cityInput) {
     const currentCity = cityInput.value.trim();
     return !currentCity || currentCity === lastAutoFilledAddressCity;
+  }
+
+  function getAddressCitySelect() {
+    return document.getElementById("address-city-select");
+  }
+
+  function getUniqueAddressMatches(matches) {
+    const unique = new Map();
+    (Array.isArray(matches) ? matches : []).forEach((match) => {
+      const city = String(match?.city || "").trim();
+      if (!city) return;
+      const key = [
+        city.toLowerCase(),
+        String(match?.state || match?.region || "")
+          .trim()
+          .toLowerCase(),
+        String(match?.postalCode || "")
+          .trim()
+          .toUpperCase(),
+      ].join("|");
+      if (!unique.has(key)) unique.set(key, { ...match, city });
+    });
+    return Array.from(unique.values()).sort((a, b) =>
+      String(a.city || "").localeCompare(String(b.city || ""), "it", {
+        sensitivity: "base",
+      }),
+    );
+  }
+
+  function getAddressMatchLabel(match) {
+    return [match.city, match.state || match.region]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean)
+      .join(" - ");
+  }
+
+  function resetAddressCityChoice(options = {}) {
+    const select = getAddressCitySelect();
+    const cityInput = document.getElementById("address-city");
+    if (select) {
+      select.replaceChildren();
+      select.style.display = "none";
+      select.required = false;
+      select.value = "";
+    }
+    if (cityInput) {
+      cityInput.readOnly = false;
+      if (options.clearCity) cityInput.value = "";
+    }
+  }
+
+  function renderAddressCityChoices(cityInput, matches) {
+    const select = getAddressCitySelect();
+    const uniqueMatches = getUniqueAddressMatches(matches);
+    if (!select || uniqueMatches.length <= 1) {
+      resetAddressCityChoice();
+      return false;
+    }
+
+    const currentCity = cityInput.value.trim();
+    const matchedCurrent = uniqueMatches.find(
+      (match) => match.city.toLowerCase() === currentCity.toLowerCase(),
+    );
+    select.replaceChildren(
+      new Option("Scegli comune o frazione", ""),
+      ...uniqueMatches.map((match, index) => {
+        const option = new Option(getAddressMatchLabel(match), String(index));
+        option.dataset.city = match.city;
+        return option;
+      }),
+    );
+    select.required = true;
+    select.style.display = "block";
+    cityInput.readOnly = true;
+
+    if (
+      matchedCurrent &&
+      currentCity &&
+      currentCity !== lastAutoFilledAddressCity
+    ) {
+      select.value = String(uniqueMatches.indexOf(matchedCurrent));
+      lastAutoFilledAddressCity = currentCity;
+      return true;
+    }
+
+    if (canReplaceAddressCity(cityInput) || !matchedCurrent) {
+      cityInput.value = "";
+      lastAutoFilledAddressCity = "";
+    }
+    select.value = "";
+    return true;
+  }
+
+  function handleAddressCityChoiceChange(event) {
+    const cityInput = document.getElementById("address-city");
+    const selectedOption =
+      event.currentTarget?.options[event.currentTarget.selectedIndex];
+    const city = selectedOption?.dataset?.city || "";
+    if (!cityInput || !city) return;
+    cityInput.value = city;
+    lastAutoFilledAddressCity = city;
   }
 
   async function runAddressAutofill() {
@@ -188,7 +477,10 @@ document.addEventListener("DOMContentLoaded", async function () {
       if (!response.ok) return;
       if (sequence !== addressAutofillSequence) return;
 
-      const match = Array.isArray(data?.matches) ? data.matches[0] : null;
+      const matches = Array.isArray(data?.matches) ? data.matches : [];
+      if (renderAddressCityChoices(cityInput, matches)) return;
+
+      const match = matches[0] || null;
       if (match?.city && canReplaceAddressCity(cityInput)) {
         cityInput.value = match.city;
         lastAutoFilledAddressCity = match.city;
@@ -210,19 +502,33 @@ document.addEventListener("DOMContentLoaded", async function () {
   function initAddressAutofill() {
     const postalInput = document.getElementById("address-postal");
     const countryInput = document.getElementById("address-country");
+    const cityInput = document.getElementById("address-city");
+    const citySelect = getAddressCitySelect();
     if (!postalInput || !countryInput) return;
 
     postalInput.addEventListener("input", scheduleAddressAutofill);
     postalInput.addEventListener("change", scheduleAddressAutofill);
-    countryInput.addEventListener("input", scheduleAddressAutofill);
-    countryInput.addEventListener("change", scheduleAddressAutofill);
+    countryInput.addEventListener("input", () => {
+      resetAddressCityChoice();
+      scheduleAddressAutofill();
+    });
+    countryInput.addEventListener("change", () => {
+      resetAddressCityChoice();
+      scheduleAddressAutofill();
+    });
+    cityInput?.addEventListener("input", () => {
+      lastAutoFilledAddressCity = "";
+    });
+    citySelect?.addEventListener("change", handleAddressCityChoiceChange);
   }
 
   initAddressAutofill();
   initPaymentMethodInputs();
 
-  if (currentUser) showProfile(currentUser);
-  else showAuthSection(); // showAuthSection è una funzione locale
+  if (currentUser) {
+    showProfile(currentUser);
+    await initializeAccountPaymentElement();
+  } else showAuthSection(); // showAuthSection è una funzione locale
   if (profileForm) {
     profileForm.addEventListener("submit", async function (event) {
       event.preventDefault();
@@ -299,6 +605,7 @@ document.addEventListener("DOMContentLoaded", async function () {
         const user = await getCurrentUser();
         showProfile(user);
         addressForm.reset();
+        resetAddressCityChoice({ clearCity: true });
         showMessage("success", "Indirizzo salvato.");
       } catch (error) {
         showMessage("danger", error.message);
@@ -327,28 +634,10 @@ document.addEventListener("DOMContentLoaded", async function () {
       const submitButton = paymentForm.querySelector('button[type="submit"]');
       const method = {
         alias: document.getElementById("card-alias").value.trim(),
-        brand: normalizePaymentBrand(
-          document.getElementById("card-brand").value,
-        ),
-        last4: normalizeCardLast4(document.getElementById("card-last4").value),
-        expiry: normalizeCardExpiry(
-          document.getElementById("card-expiry").value,
-        ),
         isDefault: document.getElementById("payment-default")?.checked === true,
       };
-      if (!method.alias || !method.brand || !method.last4 || !method.expiry) {
-        showMessage("danger", "Compila tutti i campi del metodo di pagamento.");
-        return;
-      }
-      if (!/^\d{4}$/.test(method.last4)) {
-        showMessage("danger", "Inserisci esattamente le ultime 4 cifre.");
-        return;
-      }
-      if (!isValidCardExpiry(method.expiry)) {
-        showMessage(
-          "danger",
-          "Inserisci una scadenza valida nel formato MM/AA.",
-        );
+      if (!method.alias) {
+        showMessage("danger", "Inserisci il nome sulla carta.");
         return;
       }
       try {
@@ -357,12 +646,15 @@ document.addEventListener("DOMContentLoaded", async function () {
           submitButton.innerHTML =
             '<i class="fas fa-circle-notch fa-spin me-2"></i>Salvataggio...';
         }
-        await addPaymentMethod(method);
+        showAccountPaymentError("");
+        await saveStripePaymentMethodFromAccount(method);
         const user = await getCurrentUser();
         showProfile(user);
         paymentForm.reset();
+        await initializeAccountPaymentElement();
         showMessage("success", "Metodo di pagamento salvato.");
       } catch (error) {
+        showAccountPaymentError(error.message);
         showMessage("danger", error.message);
       } finally {
         if (submitButton) {
@@ -480,6 +772,9 @@ document.addEventListener("DOMContentLoaded", async function () {
         const defaultBadge = method.isDefault
           ? '<span class="payment-default-badge"><i class="fas fa-check"></i>Predefinito</span>'
           : "";
+        const checkoutBadge = method.canUseInCheckout
+          ? '<span class="payment-ready-badge"><i class="fas fa-shield-alt"></i>Checkout</span>'
+          : '<span class="payment-legacy-badge">Aggiorna con Stripe</span>';
         const defaultAction = method.isDefault
           ? ""
           : `<button type="button" class="btn btn-link payment-action-link" data-payment-action="default" data-payment-index="${index}">Imposta come predefinito</button>`;
@@ -490,6 +785,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     <div class="payment-method-title">
                         <strong>${alias}</strong>
                         ${defaultBadge}
+                        ${checkoutBadge}
                     </div>
                     <div class="payment-method-meta">
                         ${brandText} terminante in ${last4}

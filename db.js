@@ -590,6 +590,7 @@ function initializeDatabase() {
   );
   ensureColumn("users", "resetToken", "resetToken TEXT");
   ensureColumn("users", "resetTokenExpiry", "resetTokenExpiry DATETIME");
+  ensureColumn("users", "stripeCustomerId", "stripeCustomerId TEXT");
   ensureColumn("orders", "status", "status TEXT DEFAULT 'pending'");
   ensureColumn("orders", "shippingAddress", "shippingAddress TEXT");
   ensureColumn("orders", "stripePaymentIntentId", "stripePaymentIntentId TEXT");
@@ -601,9 +602,18 @@ function initializeDatabase() {
   ensureColumn("paymentMethods", "cardNumber", "cardNumber TEXT");
   ensureColumn("paymentMethods", "cardHolder", "cardHolder TEXT");
   ensureColumn("paymentMethods", "expiryDate", "expiryDate TEXT");
+  ensureColumn(
+    "paymentMethods",
+    "stripePaymentMethodId",
+    "stripePaymentMethodId TEXT",
+  );
+  ensureColumn("paymentMethods", "stripeCustomerId", "stripeCustomerId TEXT");
   db.exec(`
         CREATE INDEX IF NOT EXISTS idx_users_refresh_token
         ON users(refreshToken);
+
+        CREATE INDEX IF NOT EXISTS idx_users_stripe_customer
+        ON users(stripeCustomerId);
 
         CREATE INDEX IF NOT EXISTS idx_orders_user_created
         ON orders(userId, createdAt DESC, id DESC);
@@ -619,6 +629,9 @@ function initializeDatabase() {
 
         CREATE INDEX IF NOT EXISTS idx_payment_methods_user_default
         ON paymentMethods(userId, isDefault DESC, createdAt DESC, id DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_payment_methods_stripe_pm
+        ON paymentMethods(stripePaymentMethodId);
     `);
   if (tableHasColumn("users", "passwordUpdatedAt")) {
     db.exec(`
@@ -986,6 +999,31 @@ function updateUser(userId, updates) {
   }
 
   return getUserById(userId);
+}
+
+function setUserStripeCustomerId(userId, stripeCustomerId) {
+  const normalizedUserId = Number(userId);
+  const normalizedStripeCustomerId = String(stripeCustomerId || "").trim();
+  if (!normalizedUserId || !normalizedStripeCustomerId) {
+    throw new Error("Cliente Stripe non valido");
+  }
+
+  const result = db
+    .prepare(
+      `
+            UPDATE users
+            SET stripeCustomerId = ?,
+                updatedAt = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `,
+    )
+    .run(normalizedStripeCustomerId, normalizedUserId);
+
+  if (result.changes === 0) {
+    throw new Error("Utente non trovato");
+  }
+
+  return getUserById(normalizedUserId);
 }
 
 function deleteUser(userId) {
@@ -1375,6 +1413,14 @@ function addPaymentMethod(userId, method, isDefault = false) {
     }
     if (paymentMethodsColumns.has("expiryDate")) {
       payload.expiryDate = expiry;
+    }
+    if (paymentMethodsColumns.has("stripePaymentMethodId")) {
+      payload.stripePaymentMethodId = String(
+        method?.stripePaymentMethodId || "",
+      ).trim();
+    }
+    if (paymentMethodsColumns.has("stripeCustomerId")) {
+      payload.stripeCustomerId = String(method?.stripeCustomerId || "").trim();
     }
 
     const columns = Object.keys(payload);
@@ -1767,6 +1813,7 @@ module.exports = {
   updateUserPassword,
   getAllUsers,
   updateUser,
+  setUserStripeCustomerId,
   deleteUser,
   deleteUsersByDomain,
   createProduct,

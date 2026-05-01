@@ -13,6 +13,8 @@ let checkoutAddressLookupSequence = 0;
 let checkoutLastAutoFilledCity = "";
 let checkoutPageInitialized = false;
 let stripeScriptPromise = null;
+let checkoutCurrentUser = null;
+let checkoutSavedPaymentMethods = [];
 const CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS = 350;
 const CHECKOUT_ADDRESS_LOOKUP_CACHE = new Map();
 const PENDING_CHECKOUT_KEY = "shopnow-pending-checkout";
@@ -38,17 +40,21 @@ function getJQuery() {
 function getCountryLabel(country) {
   const code = String(country.id || "").toUpperCase();
   const name = String(country.text || "").trim();
-  const flag = country.element?.dataset?.flag || getCountryFlagEmoji(code);
-  return `${flag} ${name}`.trim();
+  return `${code} ${name}`.trim();
 }
 
 function formatCountry(country) {
   if (!country.id) return country.text;
-  return getJQuery()("<span>").text(getCountryLabel(country));
+  const $ = getJQuery();
+  if (!$) return getCountryLabel(country);
+  return $("<span>")
+    .addClass("country-option")
+    .append($("<span>").addClass("country-code-badge").text(country.id))
+    .append($("<span>").text(String(country.text || "").trim()));
 }
 
 function formatCountrySelection(country) {
-  return country.id ? getCountryLabel(country) : country.text;
+  return country.id ? formatCountry(country) : country.text;
 }
 
 function initializeCountrySelect() {
@@ -70,11 +76,6 @@ function initializeCountrySelect() {
     ...[placeholder].filter(Boolean),
     ...countryOptions,
   );
-  countryOptions.forEach((option) => {
-    option.dataset.flag =
-      option.dataset.flag || getCountryFlagEmoji(option.value);
-  });
-
   $(countrySelect).select2({
     placeholder: "Cerca un paese...",
     allowClear: true,
@@ -176,6 +177,7 @@ function applyCheckoutCityAutofill(cityInput, city) {
 }
 
 function clearCheckoutAutoFilledCity(cityInput) {
+  resetCheckoutCityChoice(cityInput, { clearCity: false });
   if (!checkoutLastAutoFilledCity) return;
   if (cityInput.value.trim() !== checkoutLastAutoFilledCity) return;
 
@@ -184,6 +186,125 @@ function clearCheckoutAutoFilledCity(cityInput) {
   cityInput.dispatchEvent(new Event("change", { bubbles: true }));
   checkoutAutoFillLock = false;
   checkoutLastAutoFilledCity = "";
+}
+
+function getCheckoutCitySelect() {
+  return document.getElementById("checkout-city-select");
+}
+
+function normalizeAddressMatchKey(match) {
+  return [
+    String(match?.city || "")
+      .trim()
+      .toLowerCase(),
+    String(match?.state || match?.region || "")
+      .trim()
+      .toLowerCase(),
+    String(match?.postalCode || "")
+      .trim()
+      .toUpperCase(),
+  ].join("|");
+}
+
+function getUniqueAddressMatches(matches) {
+  const unique = new Map();
+  (Array.isArray(matches) ? matches : []).forEach((match) => {
+    const city = String(match?.city || "").trim();
+    if (!city) return;
+    const key = normalizeAddressMatchKey(match);
+    if (!unique.has(key)) unique.set(key, { ...match, city });
+  });
+  return Array.from(unique.values()).sort((a, b) =>
+    String(a.city || "").localeCompare(String(b.city || ""), "it", {
+      sensitivity: "base",
+    }),
+  );
+}
+
+function getAddressMatchLabel(match) {
+  return [match.city, match.state || match.region]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" - ");
+}
+
+function resetCheckoutCityChoice(cityInput, options = {}) {
+  const select = getCheckoutCitySelect();
+  if (select) {
+    select.replaceChildren();
+    select.style.display = "none";
+    select.required = false;
+    select.value = "";
+  }
+  if (cityInput) {
+    cityInput.readOnly = false;
+    if (options.clearCity) {
+      checkoutAutoFillLock = true;
+      cityInput.value = "";
+      cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+      checkoutAutoFillLock = false;
+    }
+  }
+}
+
+function renderCheckoutCityChoices(cityInput, matches) {
+  const select = getCheckoutCitySelect();
+  const uniqueMatches = getUniqueAddressMatches(matches);
+  if (!select || uniqueMatches.length <= 1) {
+    resetCheckoutCityChoice(cityInput, { clearCity: false });
+    return false;
+  }
+
+  const currentCity = cityInput.value.trim();
+  const matchedCurrent = uniqueMatches.find(
+    (match) => match.city.toLowerCase() === currentCity.toLowerCase(),
+  );
+  const placeholder = new Option("Scegli comune o frazione", "");
+  select.replaceChildren(
+    placeholder,
+    ...uniqueMatches.map((match, index) => {
+      const option = new Option(getAddressMatchLabel(match), String(index));
+      option.dataset.city = match.city;
+      return option;
+    }),
+  );
+  select.required = true;
+  select.style.display = "block";
+  cityInput.readOnly = true;
+
+  if (
+    matchedCurrent &&
+    currentCity &&
+    currentCity !== checkoutLastAutoFilledCity
+  ) {
+    select.value = String(uniqueMatches.indexOf(matchedCurrent));
+    checkoutLastAutoFilledCity = currentCity;
+    return true;
+  }
+
+  if (canReplaceCheckoutCity(cityInput) || !matchedCurrent) {
+    checkoutAutoFillLock = true;
+    cityInput.value = "";
+    cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+    checkoutAutoFillLock = false;
+    checkoutLastAutoFilledCity = "";
+  }
+  select.value = "";
+  return true;
+}
+
+function handleCheckoutCityChoiceChange(event) {
+  const select = event.currentTarget;
+  const cityInput = document.getElementById("checkout-city");
+  if (!select || !cityInput) return;
+  const selectedOption = select.options[select.selectedIndex];
+  const city = selectedOption?.dataset?.city || "";
+  if (!city) return;
+  checkoutAutoFillLock = true;
+  cityInput.value = city;
+  checkoutLastAutoFilledCity = city;
+  cityInput.dispatchEvent(new Event("change", { bubbles: true }));
+  checkoutAutoFillLock = false;
 }
 
 function setCheckoutAddressLookupBusy(postalInput, isBusy) {
@@ -241,7 +362,10 @@ async function runCheckoutAddressLookup(
     const data = await fetchCheckoutAddressLookup(country, postalCode);
     if (sequence !== checkoutAddressLookupSequence) return;
 
-    const match = Array.isArray(data?.matches) ? data.matches[0] : null;
+    const matches = Array.isArray(data?.matches) ? data.matches : [];
+    if (renderCheckoutCityChoices(cityInput, matches)) return;
+
+    const match = matches[0] || null;
     if (match?.city) {
       applyCheckoutCityAutofill(cityInput, match.city);
       return;
@@ -340,6 +464,9 @@ function resetCheckoutAddressLookup() {
   window.clearTimeout(checkoutAddressLookupTimer);
   checkoutAddressLookupSequence += 1;
   checkoutLastAutoFilledCity = "";
+  resetCheckoutCityChoice(document.getElementById("checkout-city"), {
+    clearCity: false,
+  });
   setCheckoutAddressLookupBusy(
     document.getElementById("checkout-postal"),
     false,
@@ -393,6 +520,147 @@ function clearPaymentElementError() {
 function showPaymentElementError(message) {
   const errorBox = document.getElementById("payment-errors");
   if (errorBox) errorBox.textContent = message || "";
+}
+
+function escapeCheckoutHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function normalizeCheckoutPaymentBrand(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  const brands = {
+    visa: "Visa",
+    mastercard: "Mastercard",
+    amex: "American Express",
+    "american express": "American Express",
+    maestro: "Maestro",
+    discover: "Discover",
+    "diners club": "Diners Club",
+    carta: "Carta",
+  };
+  return brands[normalized] || String(value || "").trim() || "Carta";
+}
+
+function getCheckoutPaymentBrandMark(brand) {
+  const normalizedBrand = normalizeCheckoutPaymentBrand(brand);
+  if (normalizedBrand === "American Express") return "AMEX";
+  if (normalizedBrand === "Mastercard") return "MC";
+  return normalizedBrand.slice(0, 4).toUpperCase();
+}
+
+function getCheckoutPaymentBrandClass(brand) {
+  return normalizeCheckoutPaymentBrand(brand)
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+}
+
+function getCheckoutSavedMethodsForPayment() {
+  return checkoutSavedPaymentMethods.filter(
+    (method) => method.canUseInCheckout,
+  );
+}
+
+function getSelectedCheckoutPaymentChoice() {
+  return document.querySelector('input[name="checkout-payment-choice"]:checked')
+    ?.value;
+}
+
+function getSelectedSavedPaymentMethod() {
+  const selectedValue = getSelectedCheckoutPaymentChoice();
+  if (!selectedValue || !selectedValue.startsWith("saved:")) return null;
+  const methodId = Number(selectedValue.replace("saved:", ""));
+  return getCheckoutSavedMethodsForPayment().find(
+    (method) => Number(method.id) === methodId,
+  );
+}
+
+function updateCheckoutPaymentMode() {
+  const stripeSection = document.getElementById("stripe-payment-section");
+  const savedMethod = getSelectedSavedPaymentMethod();
+  if (stripeSection) {
+    stripeSection.style.display = savedMethod ? "none" : "block";
+  }
+}
+
+function renderCheckoutSavedPaymentMethods() {
+  const section = document.getElementById("saved-payment-methods-section");
+  const list = document.getElementById("saved-payment-methods-list");
+  const newChoice = document.getElementById("payment-choice-new");
+  if (!section || !list || !newChoice) return;
+
+  const usableMethods = getCheckoutSavedMethodsForPayment();
+  if (!usableMethods.length) {
+    section.style.display = "none";
+    newChoice.checked = true;
+    updateCheckoutPaymentMode();
+    return;
+  }
+
+  const defaultMethod =
+    usableMethods.find((method) => method.isDefault) || usableMethods[0];
+  list.innerHTML = usableMethods
+    .map((method) => {
+      const brand = normalizeCheckoutPaymentBrand(method.brand);
+      const alias = escapeCheckoutHtml(method.alias || "Carta salvata");
+      const last4 = escapeCheckoutHtml(
+        String(method.last4 || "")
+          .replace(/\D/g, "")
+          .slice(-4),
+      );
+      const expiry = escapeCheckoutHtml(method.expiry || "");
+      const checked =
+        Number(method.id) === Number(defaultMethod.id) ? "checked" : "";
+      return `
+        <label class="payment-choice-row" for="payment-choice-saved-${method.id}">
+          <input
+            class="form-check-input"
+            type="radio"
+            name="checkout-payment-choice"
+            id="payment-choice-saved-${method.id}"
+            value="saved:${method.id}"
+            ${checked}
+          />
+          <span class="payment-card-mark ${getCheckoutPaymentBrandClass(brand)}" aria-hidden="true">${escapeCheckoutHtml(getCheckoutPaymentBrandMark(brand))}</span>
+          <span class="payment-choice-main">
+            <span class="payment-choice-name">${alias}</span>
+            <span class="payment-choice-meta">${escapeCheckoutHtml(brand)} terminante in ${last4}${expiry ? ` - Scadenza ${expiry}` : ""}</span>
+          </span>
+        </label>
+      `;
+    })
+    .join("");
+  newChoice.checked = false;
+  section.style.display = "block";
+  updateCheckoutPaymentMode();
+}
+
+function updateCheckoutEmailUi(user) {
+  const emailInput = document.getElementById("checkout-email");
+  const emailRow = document.getElementById("checkout-email-row");
+  const emailSummary = document.getElementById(
+    "checkout-account-email-summary",
+  );
+  const email = String(user?.email || "").trim();
+  if (!emailInput || !emailRow || !emailSummary) return;
+
+  if (email) {
+    emailInput.value = email;
+    emailRow.style.display = "none";
+    emailSummary.style.display = "flex";
+    emailSummary.innerHTML = `<i class="fas fa-envelope"></i><span>Email account: <strong>${escapeCheckoutHtml(email)}</strong></span>`;
+  } else {
+    emailRow.style.display = "block";
+    emailSummary.style.display = "none";
+    emailSummary.replaceChildren();
+  }
 }
 
 function buildCheckoutPayload({
@@ -481,6 +749,46 @@ async function registerCheckoutOrder(payload) {
   return data;
 }
 
+async function confirmSavedCheckoutPayment(paymentIntentId, paymentMethodId) {
+  const response = await window.fetchWithTimeout(
+    window.getApiUrl("/api/checkout/confirm-saved-payment"),
+    {
+      method: "POST",
+      headers: getCheckoutRequestHeaders({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify({
+        paymentIntentId,
+        paymentMethodId,
+      }),
+    },
+  );
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Errore conferma metodo salvato.");
+  }
+
+  if (data.status === "requires_action" && data.clientSecret) {
+    const actionResult = await stripeInstance.confirmCardPayment(
+      data.clientSecret,
+    );
+    if (actionResult.error) {
+      throw new Error(actionResult.error.message);
+    }
+    if (actionResult.paymentIntent?.status !== "succeeded") {
+      throw new Error("Pagamento non completato.");
+    }
+    return actionResult.paymentIntent;
+  }
+  if (data.status !== "succeeded") {
+    throw new Error("Pagamento non completato.");
+  }
+  return {
+    id: data.paymentIntentId || paymentIntentId,
+    status: data.status,
+  };
+}
+
 function clearCheckoutCartAfterSuccess() {
   if (typeof clearLocalCart === "function") clearLocalCart();
   try {
@@ -552,7 +860,7 @@ async function initializeStripeCheckout() {
         window.getApiUrl("/create-payment-intent"),
         {
           method: "POST",
-          headers: window.getApiRequestHeaders({
+          headers: getCheckoutRequestHeaders({
             "Content-Type": "application/json",
           }),
           body: JSON.stringify({
@@ -654,7 +962,9 @@ async function handleCheckoutSubmit(event) {
   }
 
   const name = document.getElementById("checkout-name")?.value.trim();
-  const email = document.getElementById("checkout-email")?.value.trim();
+  const email =
+    String(checkoutCurrentUser?.email || "").trim() ||
+    document.getElementById("checkout-email")?.value.trim();
   const street = document.getElementById("checkout-street")?.value.trim();
   const streetNumber = document
     .getElementById("checkout-street-number")
@@ -687,7 +997,13 @@ async function handleCheckoutSubmit(event) {
       throw new Error("Stripe richiede un backend attivo.");
     }
 
-    if (!stripeInstance || !stripeElements || !stripePaymentElement) {
+    const savedPaymentMethod = getSelectedSavedPaymentMethod();
+    if (!stripeInstance || !stripePaymentIntentId) {
+      throw new Error(
+        "Pagamento non disponibile. Ricarica la pagina e riprova.",
+      );
+    }
+    if (!savedPaymentMethod && (!stripeElements || !stripePaymentElement)) {
       throw new Error(
         "Pagamento non disponibile. Ricarica la pagina e riprova.",
       );
@@ -722,53 +1038,66 @@ async function handleCheckoutSubmit(event) {
       customerEmail: email,
     });
 
-    const submitResult = await stripeElements.submit();
-    if (submitResult.error) {
-      showPaymentElementError(submitResult.error.message);
-      throw new Error(submitResult.error.message);
-    }
-
     savePendingCheckout(checkoutPayload);
 
-    // 1. Conferma pagamento con Stripe Payment Element
-    const paymentResult = await stripeInstance.confirmPayment({
-      elements: stripeElements,
-      redirect: "if_required",
-      confirmParams: {
-        return_url: `${window.location.origin}/order-confirmation.html?checkout_return=1`,
-        payment_method_data: {
-          billing_details: {
-            name,
-            email,
-            address: {
-              line1,
-              city: city,
-              postal_code: postalCode,
-              country: normalizeCheckoutCountryCode(country),
+    if (savedPaymentMethod) {
+      const savedPaymentIntent = await confirmSavedCheckoutPayment(
+        stripePaymentIntentId,
+        savedPaymentMethod.id,
+      );
+      if (!savedPaymentIntent || savedPaymentIntent.status !== "succeeded") {
+        throw new Error("Pagamento non confermato da Stripe.");
+      }
+      checkoutPayload.paymentIntentId =
+        savedPaymentIntent.id || stripePaymentIntentId;
+    } else {
+      const submitResult = await stripeElements.submit();
+      if (submitResult.error) {
+        showPaymentElementError(submitResult.error.message);
+        throw new Error(submitResult.error.message);
+      }
+
+      // 1. Conferma pagamento con Stripe Payment Element
+      const paymentResult = await stripeInstance.confirmPayment({
+        elements: stripeElements,
+        redirect: "if_required",
+        confirmParams: {
+          return_url: `${window.location.origin}/order-confirmation.html?checkout_return=1`,
+          payment_method_data: {
+            billing_details: {
+              name,
+              email,
+              address: {
+                line1,
+                city: city,
+                postal_code: postalCode,
+                country: normalizeCheckoutCountryCode(country),
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (paymentResult.error) {
-      clearPendingCheckout(checkoutPayload.paymentIntentId);
-      showPaymentElementError(paymentResult.error.message);
-      throw new Error(paymentResult.error.message);
+      if (paymentResult.error) {
+        clearPendingCheckout(checkoutPayload.paymentIntentId);
+        showPaymentElementError(paymentResult.error.message);
+        throw new Error(paymentResult.error.message);
+      }
+
+      if (!paymentResult.paymentIntent) {
+        throw new Error("Pagamento non confermato da Stripe.");
+      }
+
+      if (paymentResult.paymentIntent.status !== "succeeded") {
+        throw new Error(
+          "Pagamento in elaborazione. Attendi la conferma prima di riprovare.",
+        );
+      }
+
+      checkoutPayload.paymentIntentId =
+        paymentResult.paymentIntent.id || stripePaymentIntentId;
     }
 
-    if (!paymentResult.paymentIntent) {
-      throw new Error("Pagamento non confermato da Stripe.");
-    }
-
-    if (paymentResult.paymentIntent.status !== "succeeded") {
-      throw new Error(
-        "Pagamento in elaborazione. Attendi la conferma prima di riprovare.",
-      );
-    }
-
-    checkoutPayload.paymentIntentId =
-      paymentResult.paymentIntent.id || stripePaymentIntentId;
     const data = await registerCheckoutOrder(checkoutPayload);
     clearPendingCheckout(checkoutPayload.paymentIntentId);
 
@@ -796,6 +1125,12 @@ async function handleCheckoutSubmit(event) {
 async function prefillCheckoutForm() {
   const user =
     typeof getCurrentUser === "function" ? await getCurrentUser() : null;
+  checkoutCurrentUser = user || null;
+  checkoutSavedPaymentMethods = Array.isArray(user?.paymentMethods)
+    ? user.paymentMethods
+    : [];
+  updateCheckoutEmailUi(user);
+  renderCheckoutSavedPaymentMethods();
   if (!user) return;
 
   const fields = {
@@ -883,10 +1218,20 @@ async function initCheckoutPage() {
       if (!checkoutAutoFillLock) checkoutLastAutoFilledCity = "";
     });
   }
+  const citySelect = getCheckoutCitySelect();
+  if (citySelect) {
+    citySelect.addEventListener("change", handleCheckoutCityChoiceChange);
+  }
 
   const checkoutForm = document.getElementById("checkout-form");
   if (checkoutForm) {
     checkoutForm.addEventListener("submit", handleCheckoutSubmit);
+  }
+  const savedPaymentSection = document.getElementById(
+    "saved-payment-methods-section",
+  );
+  if (savedPaymentSection) {
+    savedPaymentSection.addEventListener("change", updateCheckoutPaymentMode);
   }
 
   await prefillCheckoutForm();
