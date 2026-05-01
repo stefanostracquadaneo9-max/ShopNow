@@ -733,6 +733,29 @@ main {
   gap: 0.55rem;
 }
 
+.country-flag-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 18px;
+  flex: 0 0 24px;
+}
+
+.country-flag-image {
+  display: block;
+  width: 24px;
+  height: 18px;
+  object-fit: cover;
+  border: 1px solid #d5d9d9;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.country-flag-image.is-hidden {
+  display: none;
+}
+
 .country-code-badge {
   display: inline-flex;
   align-items: center;
@@ -746,6 +769,17 @@ main {
   font-size: 0.74rem;
   font-weight: 700;
   line-height: 1;
+}
+
+.country-code-badge--fallback {
+  display: none;
+  min-width: 24px;
+  height: 18px;
+  font-size: 0.66rem;
+}
+
+.country-code-badge--fallback.is-visible {
+  display: inline-flex;
 }
 
 /* Personalizzazione Select2 per stile Amazon */

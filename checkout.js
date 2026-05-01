@@ -43,13 +43,51 @@ function getCountryLabel(country) {
   return `${code} ${name}`.trim();
 }
 
+function getCountryFlagImageUrl(code, size = "24x18") {
+  const normalizedCode = String(code || "")
+    .trim()
+    .toLowerCase();
+  if (!/^[a-z]{2}$/.test(normalizedCode)) return "";
+  return `https://flagcdn.com/${size}/${normalizedCode}.png`;
+}
+
+function createCountryFlagElement($, code) {
+  const normalizedCode = String(code || "").toUpperCase();
+  const wrapper = $("<span>").addClass("country-flag-wrap");
+  const fallback = $("<span>")
+    .addClass("country-code-badge country-code-badge--fallback")
+    .text(normalizedCode);
+  const flagUrl = getCountryFlagImageUrl(normalizedCode);
+
+  if (!flagUrl) {
+    fallback.addClass("is-visible");
+    return wrapper.append(fallback);
+  }
+
+  const image = $("<img>")
+    .addClass("country-flag-image")
+    .attr({
+      src: flagUrl,
+      srcset: `${getCountryFlagImageUrl(normalizedCode, "48x36")} 2x`,
+      alt: "",
+      loading: "lazy",
+      decoding: "async",
+    })
+    .on("error", function () {
+      $(this).addClass("is-hidden");
+      fallback.addClass("is-visible");
+    });
+
+  return wrapper.append(image).append(fallback);
+}
+
 function formatCountry(country) {
   if (!country.id) return country.text;
   const $ = getJQuery();
   if (!$) return getCountryLabel(country);
   return $("<span>")
     .addClass("country-option")
-    .append($("<span>").addClass("country-code-badge").text(country.id))
+    .append(createCountryFlagElement($, country.id))
     .append($("<span>").text(String(country.text || "").trim()));
 }
 
