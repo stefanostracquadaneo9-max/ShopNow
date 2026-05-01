@@ -1059,6 +1059,47 @@ function normalizeNominatimPostalResult(country, postalCode, data) {
   };
 }
 
+function mergeAddressLookupResults(results) {
+  const providerAttempts = [];
+  const seenAttempts = new Set();
+  const seenMatches = new Set();
+  const matches = [];
+  const sources = [];
+
+  (Array.isArray(results) ? results : []).forEach((result) => {
+    (result?.providerAttempts || []).forEach((attempt) => {
+      if (seenAttempts.has(attempt)) return;
+      seenAttempts.add(attempt);
+      providerAttempts.push(attempt);
+    });
+    if (result?.success && result.source && !sources.includes(result.source)) {
+      sources.push(result.source);
+    }
+    (result?.matches || []).forEach((match) => {
+      const city = normalizeAddressLookupValue(match.city);
+      const postalCode = normalizeAddressLookupValue(match.postalCode);
+      const state = normalizeAddressLookupValue(match.state);
+      const key = `${postalCode.toUpperCase()}:${city.toLowerCase()}:${state.toLowerCase()}`;
+      if (!city || !postalCode || seenMatches.has(key)) return;
+      seenMatches.add(key);
+      matches.push({
+        ...match,
+        city,
+        postalCode,
+        state,
+      });
+    });
+  });
+
+  return {
+    success: matches.length > 0,
+    source: sources.length ? sources.join("+") : "none",
+    matches,
+    providerAttempts,
+    cached: false,
+  };
+}
+
 function normalizeZippopotamCityResult(country, region, city, data) {
   const places = Array.isArray(data?.places) ? data.places : [];
   const seen = new Set();
@@ -1105,63 +1146,51 @@ async function lookupAddressByPostalCode(country, postalCode) {
   }
 
   const zippopotamUrl = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(normalizedPostalCode)}`;
-  let result = {
-    success: false,
-    source: "none",
-    matches: [],
-    providerAttempts,
-    cached: false,
-  };
+  const providerResults = [];
 
   try {
     const data = await fetchAddressLookupJson(zippopotamUrl);
     providerAttempts.push("zippopotam.us");
     if (data) {
-      result = {
+      providerResults.push({
         ...normalizeZippopotamPostalResult(country, normalizedPostalCode, data),
-        providerAttempts,
+        providerAttempts: ["zippopotam.us"],
         cached: false,
-      };
+      });
     }
   } catch (error) {
     providerAttempts.push("zippopotam.us:error");
     console.warn("Zippopotam lookup non disponibile:", error.message);
   }
 
-  if (!result.success) {
-    try {
-      const nominatimUrl = new URL(
-        "https://nominatim.openstreetmap.org/search",
-      );
-      nominatimUrl.searchParams.set("format", "jsonv2");
-      nominatimUrl.searchParams.set("addressdetails", "1");
-      nominatimUrl.searchParams.set("limit", "3");
-      nominatimUrl.searchParams.set("countrycodes", country.toLowerCase());
-      nominatimUrl.searchParams.set("postalcode", normalizedPostalCode);
-      if (ADDRESS_LOOKUP_CONTACT_EMAIL) {
-        nominatimUrl.searchParams.set("email", ADDRESS_LOOKUP_CONTACT_EMAIL);
-      }
-      const data = await fetchAddressLookupJson(nominatimUrl.toString(), {
-        rateLimit: "nominatim",
-      });
-      providerAttempts.push("nominatim.openstreetmap.org");
-      if (data) {
-        result = {
-          ...normalizeNominatimPostalResult(
-            country,
-            normalizedPostalCode,
-            data,
-          ),
-          providerAttempts,
-          cached: false,
-        };
-      }
-    } catch (error) {
-      providerAttempts.push("nominatim.openstreetmap.org:error");
-      console.warn("Nominatim lookup non disponibile:", error.message);
+  try {
+    const nominatimUrl = new URL("https://nominatim.openstreetmap.org/search");
+    nominatimUrl.searchParams.set("format", "jsonv2");
+    nominatimUrl.searchParams.set("addressdetails", "1");
+    nominatimUrl.searchParams.set("limit", "10");
+    nominatimUrl.searchParams.set("countrycodes", country.toLowerCase());
+    nominatimUrl.searchParams.set("postalcode", normalizedPostalCode);
+    if (ADDRESS_LOOKUP_CONTACT_EMAIL) {
+      nominatimUrl.searchParams.set("email", ADDRESS_LOOKUP_CONTACT_EMAIL);
     }
+    const data = await fetchAddressLookupJson(nominatimUrl.toString(), {
+      rateLimit: "nominatim",
+    });
+    providerAttempts.push("nominatim.openstreetmap.org");
+    if (data) {
+      providerResults.push({
+        ...normalizeNominatimPostalResult(country, normalizedPostalCode, data),
+        providerAttempts: ["nominatim.openstreetmap.org"],
+        cached: false,
+      });
+    }
+  } catch (error) {
+    providerAttempts.push("nominatim.openstreetmap.org:error");
+    console.warn("Nominatim lookup non disponibile:", error.message);
   }
 
+  const result = mergeAddressLookupResults(providerResults);
+  result.providerAttempts = providerAttempts;
   return setAddressLookupCache(cacheKey, result);
 }
 
