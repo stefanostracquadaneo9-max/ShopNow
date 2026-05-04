@@ -382,8 +382,6 @@ if (isBrowser && typeof window.fetch === "function") {
 async function refreshAuthToken() {
   const refreshToken = localStorage.getItem(AUTH_REFRESH_KEY);
   if (!refreshToken) return false;
-
-  console.log("[Auth] Tentativo di refresh del token...");
   try {
     const response = await fetch(`${SHOPNOW_API_BASE_URL}/api/auth/refresh`, {
       method: "POST",
@@ -606,7 +604,6 @@ async function initializeLocalDB() {
     window.location &&
     new URLSearchParams(window.location.search).get("reset") === "1";
   if (forceReset) {
-    console.log("Forzata reinizializzazione del DB locale");
     window.localStorage.removeItem(DB_KEY_PREFIX + "initialized");
     window.localStorage.removeItem(DB_KEY_PREFIX + "users");
     window.localStorage.removeItem(DB_KEY_PREFIX + "products");
@@ -654,9 +651,6 @@ async function initializeLocalDB() {
       if (!isProductCatalogUpToDate(existingProducts)) {
         const defaultProducts =
           normalizeLocalCatalogProducts(getDefaultProducts());
-        console.log(
-          `Aggiorno il catalogo locale: prodotti locali non corrispondono al catalogo di default, sostituisco con ${defaultProducts.length} prodotti di default`,
-        );
         existingProducts = defaultProducts;
         updated = true;
       }
@@ -668,15 +662,11 @@ async function initializeLocalDB() {
     ) {
       const defaultProducts =
         normalizeLocalCatalogProducts(getDefaultProducts());
-      console.log(
-        `Aggiorno il catalogo locale: ${existingProducts.length} prodotti trovati, sostituisco con ${defaultProducts.length} prodotti di default`,
-      );
       existingProducts = defaultProducts;
       updated = true;
     }
     if (updated) {
       saveData("products", existingProducts);
-      console.log("Immagini prodotti migrate a fallback locale");
     }
   }
   if (shouldUseServerAuth) {
@@ -701,7 +691,6 @@ async function initializeLocalDB() {
       adminUser2.passwordHash !== expectedLegacyHash &&
       adminUser2.passwordHash !== expectedAdminShaHash
     ) {
-      console.log("Hash admin non valido trovato, ripristino con hash legacy.");
       adminUser2.passwordHash = expectedLegacyHash;
       existingUsers3[String(adminUser2.email).toLowerCase()] = adminUser2;
       saveData("users", existingUsers3);
@@ -711,7 +700,6 @@ async function initializeLocalDB() {
     (!dbInitialized || !adminUser2 || !existingProducts.length) &&
     !shouldUseServerAuth
   ) {
-    console.log("DB non inizializzato o admin mancante, inizializzo...");
     const users = {
       "admin@gmail.com": {
         id: 1,
@@ -729,7 +717,6 @@ async function initializeLocalDB() {
     saveData("products", products);
     saveData("orders", []);
     localStorage.setItem(DB_KEY_PREFIX + "initialized", "1");
-    console.log("DB locale inizializzato con dati demo");
   }
 
   await syncUsersFromServer();
@@ -1032,9 +1019,6 @@ async function syncProductsFromServer() {
       if (!didWrite) {
         return false;
       }
-      console.log(
-        `✅ Sincronizzati ${normalizedProducts.length} prodotti dal server`,
-      );
       return true;
     } catch (error) {
       console.warn("❌ Sync prodotti server fallito:", error.message);
@@ -1052,14 +1036,10 @@ async function syncProductsFromServer() {
 function ensureFallbackProducts() {
   const existingProducts = loadData("products", []);
   if (existingProducts && existingProducts.length > 0) {
-    console.log(`📦 Usando ${existingProducts.length} prodotti locali`);
     return existingProducts;
   }
   const fallbackProducts = normalizeLocalCatalogProducts(getDefaultProducts());
   saveData("products", fallbackProducts);
-  console.log(
-    `Catalogo fallback caricato: ${fallbackProducts.length} prodotti`,
-  );
   return fallbackProducts;
 }
 
@@ -1705,7 +1685,6 @@ function getProductById(id) {
   return products.find((p) => p.id === parseInt(id));
 }
 async function logout() {
-  console.log("Eseguo logout...");
   try {
     const token = getSessionToken();
     if (prefersServerAuth() && token) {
