@@ -1,5 +1,5 @@
 # Auto-convert line endings for all text files and scripts
-* text=auto
+* text=auto eol=lf
 .gitattributes text eol=lf
 
 # Shell scripts

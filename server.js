@@ -1,6 +1,7 @@
 ﻿require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 const nodemailer = require("nodemailer");
 const fs = require("fs");
 const path = require("path");
@@ -118,6 +119,7 @@ const {
   clearCart,
 } = db_module;
 app.use(cors());
+app.use(compression());
 app.use(express.json({ limit: "12mb" }));
 fs.mkdirSync(RUNTIME_UPLOADS_DIR, { recursive: true });
 
@@ -1377,7 +1379,12 @@ async function lookupAddressByPostalCode(country, postalCode) {
     console.warn("Nominatim lookup non disponibile:", error.message);
   }
 
-  const result = mergeAddressLookupResults(providerResults);
+  let result = mergeAddressLookupResults(providerResults);
+  const exactPostalCode = normalizedPostalCode.toUpperCase();
+  result.matches = (Array.isArray(result.matches) ? result.matches : []).filter(
+    (match) => String(match.postalCode || "").trim().toUpperCase() === exactPostalCode,
+  );
+  result.success = result.matches.length > 0;
   result.providerAttempts = providerAttempts;
   return setAddressLookupCache(cacheKey, result);
 }
