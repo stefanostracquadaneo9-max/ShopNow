@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="it">
   <head>
     <meta charset="UTF-8" />
@@ -17,7 +17,7 @@
       href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css"
       rel="stylesheet"
     />
-    <link href="style.css?v=20260505-unified1" rel="stylesheet" />
+    <link href="style.css?v=20260505-unified2" rel="stylesheet" />
     <script src="utils.js?v=20260501"></script>
     <script src="site_boot.js?v=20260430-blankfix1"></script>
   </head>
@@ -108,6 +108,7 @@
                     type="text"
                     id="checkout-name"
                     class="form-control"
+                    autocomplete="name"
                     required
                   />
                 </div>
@@ -117,6 +118,7 @@
                     type="email"
                     id="checkout-email"
                     class="form-control"
+                    autocomplete="email"
                     required
                   />
                 </div>
@@ -135,6 +137,7 @@
                       id="checkout-street"
                       class="form-control"
                       placeholder="Via Roma"
+                      autocomplete="address-line1"
                       required
                     />
                   </div>
@@ -159,6 +162,7 @@
                       type="text"
                       id="checkout-postal"
                       class="form-control"
+                      autocomplete="postal-code"
                       required
                       placeholder="Es. 00100"
                     />
@@ -174,6 +178,7 @@
                       type="text"
                       id="checkout-city"
                       class="form-control"
+                      autocomplete="address-level2"
                       required
                     />
                     <select
@@ -190,6 +195,7 @@
                       id="checkout-country"
                       name="country"
                       class="form-control"
+                      autocomplete="country"
                       required
                     >
                       <option value="">Seleziona paese</option>
@@ -533,8 +539,8 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
-    <script src="auth.js?v=20260430-authfix3"></script>
+    <script src="auth.js?v=20260505-countryfix1"></script>
     <script src="cart.js?v=20260430"></script>
-    <script src="checkout.js?v=20260501-admin-email1"></script>
+    <script src="checkout.js?v=20260505-addressfix1"></script>
   </body>
 </html>

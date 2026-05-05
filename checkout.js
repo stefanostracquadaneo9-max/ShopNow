@@ -13,6 +13,7 @@ let checkoutAddressLookupSequence = 0;
 let checkoutLastAutoFilledCity = "";
 let checkoutLastAutoFilledPostal = "";
 let checkoutPageInitialized = false;
+let checkoutPreserveAddressOnCountryChange = false;
 let stripeScriptPromise = null;
 let checkoutCurrentUser = null;
 let checkoutSavedPaymentMethods = [];
@@ -73,7 +74,6 @@ function createCountryFlagElement($, code) {
       src: flagUrl,
       srcset: `${getCountryFlagImageUrl(normalizedCode, "48x36")} 2x`,
       alt: "",
-      loading: "lazy",
       decoding: "async",
     })
     .on("error", function () {
@@ -98,19 +98,61 @@ function formatCountrySelection(country) {
   return country.id ? formatCountry(country) : country.text;
 }
 
+function applyNativeCountryFlagLabels(countrySelect) {
+  if (!countrySelect) return;
+
+  Array.from(countrySelect.options).forEach((option) => {
+    if (!option.value) return;
+    const label =
+      option.dataset.countryLabel || String(option.textContent || "").trim();
+    option.dataset.countryLabel = label;
+    const flag = getCountryFlagEmoji(option.value);
+    option.textContent = flag ? `${flag} ${label}` : label;
+  });
+}
+
+function restorePlainCountryLabels(countrySelect) {
+  if (!countrySelect) return;
+
+  Array.from(countrySelect.options).forEach((option) => {
+    if (!option.value) return;
+    const label =
+      option.dataset.countryLabel || String(option.textContent || "").trim();
+    option.dataset.countryLabel = label;
+    option.textContent = label;
+  });
+}
+
 function initializeCountrySelect() {
   const countrySelect = document.getElementById("checkout-country");
   const $ = getJQuery();
-  if (!countrySelect || !$ || !$.fn.select2) return;
+  if (!countrySelect) return;
+
+  Array.from(countrySelect.options).forEach((option) => {
+    if (option.value && !option.dataset.countryLabel) {
+      option.dataset.countryLabel = String(option.textContent || "").trim();
+    }
+  });
+
+  if (!$ || !$.fn.select2) {
+    applyNativeCountryFlagLabels(countrySelect);
+    return;
+  }
+
+  restorePlainCountryLabels(countrySelect);
 
   const options = Array.from(countrySelect.options);
   const placeholder = options.find((option) => !option.value);
   const countryOptions = options
     .filter((option) => option.value)
     .sort((a, b) =>
-      a.textContent.trim().localeCompare(b.textContent.trim(), "it", {
-        sensitivity: "base",
-      }),
+      (a.dataset.countryLabel || a.textContent.trim()).localeCompare(
+        b.dataset.countryLabel || b.textContent.trim(),
+        "it",
+        {
+          sensitivity: "base",
+        },
+      ),
     );
 
   countrySelect.replaceChildren(
@@ -119,7 +161,6 @@ function initializeCountrySelect() {
   );
   $(countrySelect).select2({
     placeholder: "Cerca un paese...",
-    allowClear: true,
     width: "100%",
     language: { noResults: () => "Nessun paese trovato" },
     templateResult: formatCountry,
@@ -663,24 +704,48 @@ function resetCheckoutAddressLookup() {
 function handleCheckoutCountryChange() {
   const postalInput = document.getElementById("checkout-postal");
   const cityInput = document.getElementById("checkout-city");
-  const feedback = document.getElementById("postal-feedback");
+  const previousAutoFilledCity = checkoutLastAutoFilledCity;
+  const previousAutoFilledPostal = checkoutLastAutoFilledPostal;
 
   resetCheckoutAddressLookup();
-  if (postalInput) postalInput.value = "";
-  if (cityInput) cityInput.value = "";
-  clearPostalCodeValidation(postalInput, feedback);
+  if (!checkoutPreserveAddressOnCountryChange) {
+    if (
+      postalInput &&
+      previousAutoFilledPostal &&
+      postalInput.value.trim() === previousAutoFilledPostal
+    ) {
+      postalInput.value = "";
+    }
+    if (
+      cityInput &&
+      previousAutoFilledCity &&
+      cityInput.value.trim() === previousAutoFilledCity
+    ) {
+      cityInput.value = "";
+    }
+  }
+
+  if (validatePostalCode()) {
+    autoFillCityFromZipMultiCountry();
+  }
 }
 
-function setCheckoutCountryValue(countryCode) {
+function setCheckoutCountryValue(countryCode, options = {}) {
   const countrySelect = document.getElementById("checkout-country");
   if (!countrySelect) return;
 
   countrySelect.value = normalizeCheckoutCountryCode(countryCode);
   const $ = getJQuery();
-  if ($) {
-    $(countrySelect).trigger("change");
-  } else {
-    countrySelect.dispatchEvent(new Event("change", { bubbles: true }));
+  checkoutPreserveAddressOnCountryChange = Boolean(options.preserveAddress);
+
+  try {
+    if ($) {
+      $(countrySelect).trigger("change");
+    } else {
+      countrySelect.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  } finally {
+    checkoutPreserveAddressOnCountryChange = false;
   }
 }
 
@@ -1389,7 +1454,7 @@ async function prefillCheckoutForm() {
     fields["checkout-postal"] = addr.postalCode;
 
     if (addr.country) {
-      setCheckoutCountryValue(addr.country);
+      setCheckoutCountryValue(addr.country, { preserveAddress: true });
     }
   }
 

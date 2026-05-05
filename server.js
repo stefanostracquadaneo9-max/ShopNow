@@ -979,10 +979,269 @@ const NOMINATIM_REQUEST_INTERVAL_MS = Math.max(
   Number(process.env.NOMINATIM_REQUEST_INTERVAL_MS || 1000),
 );
 const ADDRESS_LOOKUP_ATTRIBUTION =
-  "Postal data from Zippopotam.us/GeoNames and OpenStreetMap contributors.";
+  "Postal data from Zippopotam.us/GeoNames, OpenStreetMap contributors and ShopNow local fallback.";
 const addressLookupCache = new Map();
 let lastNominatimRequestAt = 0;
 let nominatimQueue = Promise.resolve();
+
+const LOCAL_ADDRESS_LOOKUP_DATA = {
+  IT: [
+    {
+      city: "Roma",
+      state: "Lazio",
+      postalCode: "00118",
+      postalPrefixes: ["001"],
+      aliases: ["Rome"],
+    },
+    {
+      city: "Milano",
+      state: "Lombardia",
+      postalCode: "20121",
+      postalPrefixes: ["201"],
+      aliases: ["Milan"],
+    },
+    {
+      city: "Napoli",
+      state: "Campania",
+      postalCode: "80121",
+      postalPrefixes: ["801"],
+      aliases: ["Naples"],
+    },
+    {
+      city: "Torino",
+      state: "Piemonte",
+      postalCode: "10121",
+      postalPrefixes: ["101"],
+      aliases: ["Turin"],
+    },
+    {
+      city: "Palermo",
+      state: "Sicilia",
+      postalCode: "90121",
+      postalPrefixes: ["901"],
+    },
+    {
+      city: "Genova",
+      state: "Liguria",
+      postalCode: "16121",
+      postalPrefixes: ["161"],
+      aliases: ["Genoa"],
+    },
+    {
+      city: "Bologna",
+      state: "Emilia-Romagna",
+      postalCode: "40121",
+      postalPrefixes: ["401"],
+    },
+    {
+      city: "Firenze",
+      state: "Toscana",
+      postalCode: "50121",
+      postalPrefixes: ["501"],
+      aliases: ["Florence"],
+    },
+    {
+      city: "Venezia",
+      state: "Veneto",
+      postalCode: "30121",
+      postalPrefixes: ["301"],
+      aliases: ["Venice"],
+    },
+    {
+      city: "Verona",
+      state: "Veneto",
+      postalCode: "37121",
+      postalPrefixes: ["371"],
+    },
+    {
+      city: "Catania",
+      state: "Sicilia",
+      postalCode: "95121",
+      postalPrefixes: ["951"],
+    },
+    {
+      city: "Bari",
+      state: "Puglia",
+      postalCode: "70121",
+      postalPrefixes: ["701"],
+    },
+    {
+      city: "Padova",
+      state: "Veneto",
+      postalCode: "35121",
+      postalPrefixes: ["351"],
+      aliases: ["Padua"],
+    },
+    {
+      city: "Trieste",
+      state: "Friuli-Venezia Giulia",
+      postalCode: "34121",
+      postalPrefixes: ["341"],
+    },
+    {
+      city: "Brescia",
+      state: "Lombardia",
+      postalCode: "25121",
+      postalPrefixes: ["251"],
+    },
+    {
+      city: "Parma",
+      state: "Emilia-Romagna",
+      postalCode: "43121",
+      postalPrefixes: ["431"],
+    },
+    {
+      city: "Modena",
+      state: "Emilia-Romagna",
+      postalCode: "41121",
+      postalPrefixes: ["411"],
+    },
+    {
+      city: "Reggio Emilia",
+      state: "Emilia-Romagna",
+      postalCode: "42121",
+      postalPrefixes: ["421"],
+    },
+    {
+      city: "Pisa",
+      state: "Toscana",
+      postalCode: "56121",
+      postalPrefixes: ["561"],
+    },
+    {
+      city: "Livorno",
+      state: "Toscana",
+      postalCode: "57121",
+      postalPrefixes: ["571"],
+    },
+    {
+      city: "Ancona",
+      state: "Marche",
+      postalCode: "60121",
+      postalPrefixes: ["601"],
+    },
+    {
+      city: "Perugia",
+      state: "Umbria",
+      postalCode: "06121",
+      postalPrefixes: ["061"],
+    },
+    {
+      city: "Cagliari",
+      state: "Sardegna",
+      postalCode: "09121",
+      postalPrefixes: ["091"],
+    },
+    {
+      city: "Trento",
+      state: "Trentino-Alto Adige",
+      postalCode: "38121",
+      postalPrefixes: ["381"],
+    },
+    {
+      city: "Bolzano",
+      state: "Trentino-Alto Adige",
+      postalCode: "39100",
+      postalCodes: ["39100"],
+    },
+    {
+      city: "Lecce",
+      state: "Puglia",
+      postalCode: "73100",
+      postalCodes: ["73100"],
+    },
+    {
+      city: "Pescara",
+      state: "Abruzzo",
+      postalCode: "65121",
+      postalPrefixes: ["651"],
+    },
+    {
+      city: "Bergamo",
+      state: "Lombardia",
+      postalCode: "24121",
+      postalPrefixes: ["241"],
+    },
+    {
+      city: "Monza",
+      state: "Lombardia",
+      postalCode: "20900",
+      postalCodes: ["20900"],
+    },
+    {
+      city: "Como",
+      state: "Lombardia",
+      postalCode: "22100",
+      postalCodes: ["22100"],
+    },
+    {
+      city: "Pavia",
+      state: "Lombardia",
+      postalCode: "27100",
+      postalCodes: ["27100"],
+    },
+    {
+      city: "Rimini",
+      state: "Emilia-Romagna",
+      postalCode: "47921",
+      postalPrefixes: ["479"],
+    },
+    {
+      city: "Salerno",
+      state: "Campania",
+      postalCode: "84121",
+      postalPrefixes: ["841"],
+    },
+    {
+      city: "Sassari",
+      state: "Sardegna",
+      postalCode: "07100",
+      postalCodes: ["07100"],
+    },
+    {
+      city: "Siracusa",
+      state: "Sicilia",
+      postalCode: "96100",
+      postalCodes: ["96100"],
+    },
+    {
+      city: "Messina",
+      state: "Sicilia",
+      postalCode: "98121",
+      postalPrefixes: ["981"],
+    },
+    {
+      city: "Taranto",
+      state: "Puglia",
+      postalCode: "74121",
+      postalPrefixes: ["741"],
+    },
+    {
+      city: "Foggia",
+      state: "Puglia",
+      postalCode: "71121",
+      postalPrefixes: ["711"],
+    },
+    {
+      city: "Vicenza",
+      state: "Veneto",
+      postalCode: "36100",
+      postalCodes: ["36100"],
+    },
+    {
+      city: "Treviso",
+      state: "Veneto",
+      postalCode: "31100",
+      postalCodes: ["31100"],
+    },
+    {
+      city: "Udine",
+      state: "Friuli-Venezia Giulia",
+      postalCode: "33100",
+      postalCodes: ["33100"],
+    },
+  ],
+};
 
 function normalizeAddressLookupCountry(country) {
   const normalized = String(country || "")
@@ -1002,6 +1261,79 @@ function normalizeAddressLookupValue(value) {
 
 function normalizeAddressLookupPostalCode(value) {
   return normalizeAddressLookupValue(value).toUpperCase();
+}
+
+function normalizeLocalAddressLookupKey(value) {
+  return normalizeAddressLookupValue(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function createLocalAddressLookupResult(matches) {
+  return {
+    success: matches.length > 0,
+    source: matches.length > 0 ? "local-fallback" : "none",
+    matches,
+    providerAttempts: matches.length > 0 ? ["local-fallback"] : [],
+    cached: false,
+  };
+}
+
+function createLocalAddressLookupMatch(country, entry, postalCode = "") {
+  return {
+    city: entry.city,
+    postalCode: normalizeAddressLookupPostalCode(
+      postalCode || entry.postalCode,
+    ),
+    state: entry.state || "",
+    stateCode: "",
+    country,
+    latitude: "",
+    longitude: "",
+    source: "local-fallback",
+  };
+}
+
+function lookupLocalAddressByPostalCode(country, postalCode) {
+  const entries = LOCAL_ADDRESS_LOOKUP_DATA[country] || [];
+  const normalizedPostalCode = normalizeAddressLookupPostalCode(postalCode);
+  const matches = entries
+    .filter((entry) => {
+      const exactCodes = Array.isArray(entry.postalCodes)
+        ? entry.postalCodes
+        : [];
+      const prefixes = Array.isArray(entry.postalPrefixes)
+        ? entry.postalPrefixes
+        : [];
+      return (
+        exactCodes.includes(normalizedPostalCode) ||
+        prefixes.some((prefix) => normalizedPostalCode.startsWith(prefix))
+      );
+    })
+    .map((entry) =>
+      createLocalAddressLookupMatch(country, entry, normalizedPostalCode),
+    );
+
+  return createLocalAddressLookupResult(matches);
+}
+
+function lookupLocalAddressByCityName(country, city) {
+  const entries = LOCAL_ADDRESS_LOOKUP_DATA[country] || [];
+  const normalizedCity = normalizeLocalAddressLookupKey(city);
+  const matches = entries
+    .filter((entry) => {
+      const keys = [
+        entry.city,
+        ...(Array.isArray(entry.aliases) ? entry.aliases : []),
+      ].map(normalizeLocalAddressLookupKey);
+      return keys.includes(normalizedCity);
+    })
+    .map((entry) => createLocalAddressLookupMatch(country, entry));
+
+  return createLocalAddressLookupResult(matches);
 }
 
 function isSafeAddressLookupText(value) {
@@ -1213,6 +1545,11 @@ async function lookupAddressByCityName(country, city) {
     };
   }
 
+  const localResult = lookupLocalAddressByCityName(country, normalizedCity);
+  if (localResult.success) {
+    return setAddressLookupCache(cacheKey, localResult);
+  }
+
   let result = {
     success: false,
     source: "none",
@@ -1245,6 +1582,19 @@ async function lookupAddressByCityName(country, city) {
   } catch (error) {
     providerAttempts.push("nominatim.openstreetmap.org:error");
     console.warn("Nominatim city lookup non disponibile:", error.message);
+  }
+
+  if (!result.success) {
+    const localResult = lookupLocalAddressByCityName(country, normalizedCity);
+    if (localResult.success) {
+      result = {
+        ...localResult,
+        providerAttempts: [
+          ...providerAttempts,
+          ...(localResult.providerAttempts || []),
+        ],
+      };
+    }
   }
 
   return setAddressLookupCache(cacheKey, result);
@@ -1336,6 +1686,14 @@ async function lookupAddressByPostalCode(country, postalCode) {
     };
   }
 
+  const localResult = lookupLocalAddressByPostalCode(
+    country,
+    normalizedPostalCode,
+  );
+  if (localResult.success) {
+    return setAddressLookupCache(cacheKey, localResult);
+  }
+
   const zippopotamUrl = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(normalizedPostalCode)}`;
   const providerResults = [];
 
@@ -1390,6 +1748,21 @@ async function lookupAddressByPostalCode(country, postalCode) {
   );
   result.success = result.matches.length > 0;
   result.providerAttempts = providerAttempts;
+  if (!result.success) {
+    const fallbackResult = lookupLocalAddressByPostalCode(
+      country,
+      normalizedPostalCode,
+    );
+    if (fallbackResult.success) {
+      result = {
+        ...fallbackResult,
+        providerAttempts: [
+          ...providerAttempts,
+          ...(fallbackResult.providerAttempts || []),
+        ],
+      };
+    }
+  }
   return setAddressLookupCache(cacheKey, result);
 }
 
@@ -1406,11 +1779,25 @@ async function lookupAddressByCity(country, region, city) {
     };
   }
 
+  const localResult = lookupLocalAddressByCityName(country, normalizedCity);
+  if (localResult.success) {
+    return setAddressLookupCache(cacheKey, localResult);
+  }
+
   const url = `https://api.zippopotam.us/${encodeURIComponent(country)}/${encodeURIComponent(normalizedRegion)}/${encodeURIComponent(normalizedCity)}`;
-  const data = await fetchAddressLookupJson(url);
-  providerAttempts.push("zippopotam.us");
-  const result = data
-    ? {
+  let result = {
+    success: false,
+    source: "none",
+    matches: [],
+    providerAttempts,
+    cached: false,
+  };
+
+  try {
+    const data = await fetchAddressLookupJson(url);
+    providerAttempts.push("zippopotam.us");
+    if (data) {
+      result = {
         ...normalizeZippopotamCityResult(
           country,
           normalizedRegion,
@@ -1419,14 +1806,25 @@ async function lookupAddressByCity(country, region, city) {
         ),
         providerAttempts,
         cached: false,
-      }
-    : {
-        success: false,
-        source: "zippopotam.us",
-        matches: [],
-        providerAttempts,
-        cached: false,
       };
+    }
+  } catch (error) {
+    providerAttempts.push("zippopotam.us:error");
+    console.warn("Zippopotam city lookup non disponibile:", error.message);
+  }
+
+  if (!result.success) {
+    const localResult = lookupLocalAddressByCityName(country, normalizedCity);
+    if (localResult.success) {
+      result = {
+        ...localResult,
+        providerAttempts: [
+          ...providerAttempts,
+          ...(localResult.providerAttempts || []),
+        ],
+      };
+    }
+  }
 
   return setAddressLookupCache(cacheKey, result);
 }
