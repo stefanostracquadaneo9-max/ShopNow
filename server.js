@@ -37,7 +37,7 @@ const PUBLIC_STATIC_FILES = new Set([
   "cart.js",
   "checkout.html",
   "checkout.js",
-  "favicon.png",
+  "favicon.svg",
   "forgot-password.html",
   "forgot_password_ui.js",
   "index.html",
@@ -1383,7 +1383,10 @@ async function lookupAddressByPostalCode(country, postalCode) {
   let result = mergeAddressLookupResults(providerResults);
   const exactPostalCode = normalizedPostalCode.toUpperCase();
   result.matches = (Array.isArray(result.matches) ? result.matches : []).filter(
-    (match) => String(match.postalCode || "").trim().toUpperCase() === exactPostalCode,
+    (match) =>
+      String(match.postalCode || "")
+        .trim()
+        .toUpperCase() === exactPostalCode,
   );
   result.success = result.matches.length > 0;
   result.providerAttempts = providerAttempts;
