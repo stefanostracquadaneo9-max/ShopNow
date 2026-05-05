@@ -54,6 +54,7 @@ const PUBLIC_STATIC_FILES = new Set([
   "reset_password_ui.js",
   "site_boot.js",
   "style.css",
+  "utils.js",
 ]);
 const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
 const NO_STORE_STATIC_FILES = new Set([
