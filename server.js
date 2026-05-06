@@ -741,7 +741,130 @@ function buildAdminOrderPayload(orderId) {
   };
 }
 
-function sendAdminOrderDetails(req, res) {
+function formatStripePaymentMethodType(type) {
+  const normalizedType = String(type || "")
+    .trim()
+    .toLowerCase();
+  const labels = {
+    card: "Carta",
+    paypal: "PayPal",
+    sepa_debit: "Addebito SEPA",
+    klarna: "Klarna",
+    link: "Link",
+  };
+  return labels[normalizedType] || type || "Metodo non disponibile";
+}
+
+function buildCardPaymentDetails({ card, paymentMethod, charge }) {
+  const billingDetails =
+    paymentMethod?.billing_details || charge?.billing_details;
+  return {
+    available: true,
+    type: "card",
+    typeLabel: "Carta",
+    brand: normalizePaymentBrand(card?.brand || "Carta"),
+    last4: card?.last4 || "",
+    expiry: formatStripeCardExpiry(card),
+    country: card?.country || "",
+    funding: card?.funding || "",
+    wallet: card?.wallet?.type || "",
+    cardholderName: billingDetails?.name || "",
+    billingEmail: billingDetails?.email || "",
+  };
+}
+
+function buildPaypalPaymentDetails({ paypal, paymentMethod, charge }) {
+  const billingDetails =
+    paymentMethod?.billing_details || charge?.billing_details;
+  return {
+    available: true,
+    type: "paypal",
+    typeLabel: "PayPal",
+    email: paypal?.payer_email || billingDetails?.email || "",
+    payerId: paypal?.payer_id || "",
+    country: paypal?.country || "",
+    payerName: billingDetails?.name || "",
+  };
+}
+
+function buildGenericPaymentDetails({ type, paymentMethod, charge }) {
+  const billingDetails =
+    paymentMethod?.billing_details || charge?.billing_details;
+  return {
+    available: Boolean(type),
+    type: type || "",
+    typeLabel: formatStripePaymentMethodType(type),
+    cardholderName: billingDetails?.name || "",
+    billingEmail: billingDetails?.email || "",
+  };
+}
+
+async function getAdminOrderPaymentDetails(order) {
+  const paymentIntentId = String(order?.stripePaymentIntentId || "").trim();
+  if (!paymentIntentId) {
+    return {
+      available: false,
+      typeLabel: "Pagamento non disponibile",
+      message: "Metodo di pagamento non registrato per questo ordine",
+    };
+  }
+  if (!stripe || paymentIntentId.startsWith("pi_bypass_")) {
+    return {
+      available: false,
+      typeLabel: "Pagamento registrato",
+      message: "Dettagli metodo non disponibili",
+    };
+  }
+
+  try {
+    const paymentIntent = await getStripeClient().paymentIntents.retrieve(
+      paymentIntentId,
+      {
+        expand: ["payment_method", "latest_charge"],
+      },
+    );
+    const paymentMethod =
+      typeof paymentIntent.payment_method === "object"
+        ? paymentIntent.payment_method
+        : null;
+    const charge =
+      typeof paymentIntent.latest_charge === "object"
+        ? paymentIntent.latest_charge
+        : paymentIntent.charges?.data?.[0] || null;
+    const chargeDetails = charge?.payment_method_details || {};
+    const type =
+      paymentMethod?.type ||
+      chargeDetails.type ||
+      paymentIntent.payment_method_types?.[0] ||
+      "";
+
+    if (type === "card") {
+      return buildCardPaymentDetails({
+        card: paymentMethod?.card || chargeDetails.card || null,
+        paymentMethod,
+        charge,
+      });
+    }
+    if (type === "paypal") {
+      return buildPaypalPaymentDetails({
+        paypal: chargeDetails.paypal || null,
+        paymentMethod,
+        charge,
+      });
+    }
+
+    return buildGenericPaymentDetails({ type, paymentMethod, charge });
+  } catch (error) {
+    console.error("Errore recupero metodo pagamento admin:", error.message);
+    return {
+      available: false,
+      typeLabel: "Dettagli pagamento non disponibili",
+      message: "Impossibile recuperare il metodo di pagamento da Stripe",
+    };
+  }
+}
+
+async function sendAdminOrderDetails(req, res) {
   try {
     const orderId = Number(req.params.id);
     if (!Number.isInteger(orderId) || orderId <= 0) {
@@ -749,6 +872,7 @@ function sendAdminOrderDetails(req, res) {
     }
     const order = buildAdminOrderPayload(orderId);
     if (!order) return res.status(404).json({ error: "Ordine non trovato" });
+    order.paymentDetails = await getAdminOrderPaymentDetails(order);
     res.json({ success: true, order: order });
   } catch (error) {
     console.error("Errore dettaglio ordine admin:", error);

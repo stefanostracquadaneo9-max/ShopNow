@@ -668,6 +668,68 @@ function renderShippingAddress(address) {
   return rows.map((row) => `<div>${escapeAdminHtml(row)}</div>`).join("");
 }
 
+function formatPaymentDetailValue(value) {
+  return value === undefined || value === null || value === "" ? "N/D" : value;
+}
+
+function renderPaymentDetails(paymentDetails = {}) {
+  if (!paymentDetails.available) {
+    return `
+        <div class="text-muted">
+            ${escapeAdminHtml(paymentDetails.message || "Dettagli metodo non disponibili")}
+        </div>
+    `;
+  }
+
+  if (paymentDetails.type === "card") {
+    const title = [
+      paymentDetails.brand || "Carta",
+      paymentDetails.last4 ? `terminante in ${paymentDetails.last4}` : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const rows = [
+      ["Metodo", title],
+      ["Scadenza", paymentDetails.expiry],
+      ["Paese carta", paymentDetails.country],
+      ["Tipo carta", paymentDetails.funding],
+      ["Wallet", paymentDetails.wallet],
+      ["Titolare", paymentDetails.cardholderName],
+      ["Email fatturazione", paymentDetails.billingEmail],
+    ];
+    return rows
+      .map(([label, value]) =>
+        renderOrderDetailItem(label, formatPaymentDetailValue(value)),
+      )
+      .join("");
+  }
+
+  if (paymentDetails.type === "paypal") {
+    const rows = [
+      ["Metodo", paymentDetails.typeLabel || "PayPal"],
+      ["Email PayPal", paymentDetails.email],
+      ["Nome pagatore", paymentDetails.payerName],
+      ["Paese", paymentDetails.country],
+      ["ID pagatore", paymentDetails.payerId],
+    ];
+    return rows
+      .map(([label, value]) =>
+        renderOrderDetailItem(label, formatPaymentDetailValue(value)),
+      )
+      .join("");
+  }
+
+  return [
+    ["Metodo", paymentDetails.typeLabel || paymentDetails.type],
+    ["Titolare", paymentDetails.cardholderName],
+    ["Email fatturazione", paymentDetails.billingEmail],
+  ]
+    .map(([label, value]) =>
+      renderOrderDetailItem(label, formatPaymentDetailValue(value)),
+    )
+    .join("");
+}
+
 function renderOrderItemsTable(items) {
   if (!items.length) {
     return `
@@ -716,8 +778,6 @@ function renderOrderDetailsContent(order) {
     shippingAddress?.name ||
     "Cliente";
   const customerEmail = order?.customerEmail || order?.userEmail || "";
-  const paymentIntentId =
-    order?.stripePaymentIntentId || order?.paymentIntentId || "";
 
   return `
         <div class="container-fluid">
@@ -751,12 +811,7 @@ function renderOrderDetailsContent(order) {
                     <div class="card h-100">
                         <div class="card-body">
                             <h5 class="card-title">Pagamento</h5>
-                            <div class="mb-2">${renderOrderStatusBadge(order?.status)}</div>
-                            ${
-                              paymentIntentId
-                                ? `<code class="small text-break">${escapeAdminHtml(paymentIntentId)}</code>`
-                                : '<div class="text-muted">Payment Intent non disponibile</div>'
-                            }
+                            ${renderPaymentDetails(order?.paymentDetails)}
                         </div>
                     </div>
                 </div>
