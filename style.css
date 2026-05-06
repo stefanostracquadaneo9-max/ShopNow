@@ -981,6 +981,24 @@ section,
   padding: 1.25rem;
   margin: 1rem 0;
 }
+.admin-order-detail-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.admin-order-detail-label {
+  flex: 0 0 auto;
+}
+.admin-order-detail-value {
+  flex: 1 1 12rem;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
 .reset-box {
   background: #fff5f5;
   border: 1px solid #fecaca;

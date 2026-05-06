@@ -627,9 +627,9 @@ function renderOrderDetailItem(label, value) {
   const displayValue =
     value === undefined || value === null || value === "" ? "N/D" : value;
   return `
-        <div class="d-flex justify-content-between gap-3 border-bottom py-2">
-            <span class="text-muted">${escapeAdminHtml(label)}</span>
-            <span class="fw-semibold text-end">${escapeAdminHtml(displayValue)}</span>
+        <div class="admin-order-detail-row border-bottom py-2">
+            <span class="admin-order-detail-label text-muted">${escapeAdminHtml(label)}</span>
+            <span class="admin-order-detail-value fw-semibold text-end">${escapeAdminHtml(displayValue)}</span>
         </div>
     `;
 }
