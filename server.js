@@ -1969,7 +1969,7 @@ async function sendOrderConfirmationEmail({
             <div class="shipping-info">
                 <h3>Informazioni spedizione</h3>
                 <p><strong>Indirizzo di Spedizione:</strong><br/>${shippingText}</p>
-                <p style="margin-top: 10px; font-size: 13px;">Questo &egrave; un ambiente di test. In produzione, riceverai aggiornamenti sullo stato della spedizione.</p>
+                <p style="margin-top: 10px; font-size: 13px;">Riceverai aggiornamenti sullo stato della spedizione appena disponibili.</p>
             </div>
 
             <!-- Next Steps -->
@@ -2300,9 +2300,9 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       cardSummary,
       savePaymentMethod,
       savePaymentMethodAsDefault,
-      skipStripe, // Nuovo parametro per saltare Stripe nei test
-      skipEmail, // Nuovo parametro per saltare l'invio email nei test
-      skipValidation, // Nuovo parametro per saltare la validazione completa nei test
+      skipStripe,
+      skipEmail,
+      skipValidation,
     } = req.body;
     const checkoutTestBypassAllowed = isCheckoutTestBypassAllowed();
     const wantsSkipStripe = isExplicitTrue(skipStripe);
@@ -2316,7 +2316,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       !checkoutTestBypassAllowed
     ) {
       return res.status(403).json({
-        error: "Modalita di test checkout disabilitata",
+        error: "Checkout non disponibile in questa configurazione",
       });
     }
 
@@ -2336,10 +2336,9 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       );
       return res.status(400).json({ error: "Dati checkout incompleti" });
     }
-    // Salta la validazione completa se richiesto per test rapidi
     let checkoutSnapshot = null;
     if (wantsSkipValidation && checkoutTestBypassAllowed) {
-      console.log("[INFO] Skipping validation (test mode)");
+      console.log("[INFO] Validazione checkout bypassata da configurazione.");
       checkoutSnapshot = {
         items: items.map((item) => ({
           id: item.id,
@@ -2368,19 +2367,18 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     const expectedAmount = Math.round(checkoutSnapshot.total * 100);
     let confirmedPaymentIntent = null;
 
-    // Se skipStripe e true, salta completamente Stripe per i test
     if (wantsSkipStripe && checkoutTestBypassAllowed) {
       console.log("[INFO] Stripe bypassato tramite skipStripe flag.");
       confirmedPaymentIntent = {
-        id: `pi_test_${Date.now()}`,
+        id: `pi_bypass_${Date.now()}`,
         status: "succeeded",
         amount: expectedAmount,
         currency: "eur",
-        client_secret: "test_secret",
+        client_secret: "bypass_secret",
         metadata: {
           customer_name: customerName,
           customer_email: customerEmail,
-          checkout_mode: "test_skip_stripe",
+          checkout_mode: "bypass",
         },
       };
     } else if (isFileModeCheckout) {
@@ -2484,7 +2482,6 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       );
       updatedOrder = updateOrderStatus(updatedOrder.id, "paid");
     } else {
-      // Crea ordine fittizio per i test
       updatedOrder = {
         id: Date.now(),
         userId: checkoutUser.id,
@@ -2496,12 +2493,11 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         stripePaymentIntentId: confirmedPaymentIntent.id,
       };
     }
-    // Invia email di conferma ordine (salta se richiesto per i test)
     let emailResult = {
       success: true,
       emailSent: false,
       message: shouldSkipEmail
-        ? "Email saltata in modalita test"
+        ? "Email non inviata in questa configurazione"
         : "Email non configurata",
     };
     if (isEmailConfigured && !shouldSkipEmail) {
@@ -2555,7 +2551,6 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       paymentMethodSaved: Boolean(paymentMethodSaveResult.saved),
       paymentMethodSaveMessage: paymentMethodSaveResult.reason || null,
       paymentIntentId: confirmedPaymentIntent.id,
-      // Salta l'aggiornamento prodotti se richiesto per i test
       updatedProducts:
         wantsSkipStripe && checkoutTestBypassAllowed ? [] : getAllProducts(),
     });
@@ -2611,7 +2606,7 @@ app.post("/send-order-email", async (req, res) => {
 });
 app.get("/config", (req, res) =>
   res.json({
-    stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "pk_test_placeholder",
+    stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "",
     emailConfigured: isEmailConfigured,
     emailReady: emailReady,
     emailLastError: lastEmailError ? "Email non pronta" : null,
@@ -2632,9 +2627,6 @@ app.get("/config", (req, res) =>
     paymentMethods: {
       types: getCheckoutPaymentMethodTypes(),
       paypalEnabled: isPaypalPaymentEnabled(),
-      paypalTestMode:
-        isExplicitTrue(process.env.ENABLE_PAYPAL_TEST) &&
-        isStripeTestSecretKey(),
     },
   }),
 );
