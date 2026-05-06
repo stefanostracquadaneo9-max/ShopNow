@@ -19,6 +19,7 @@ let checkoutCurrentUser = null;
 let checkoutSavedPaymentMethods = [];
 let checkoutPaymentConfig = null;
 let checkoutSelectedPaymentType = "";
+let checkoutPaymentReady = false;
 const CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS = 350;
 const CHECKOUT_ADDRESS_LOOKUP_CACHE = new Map();
 const PENDING_CHECKOUT_KEY = "shopnow-pending-checkout";
@@ -774,6 +775,27 @@ function showPaymentElementError(message) {
   if (errorBox) errorBox.textContent = message || "";
 }
 
+function setCheckoutPaymentReady(isReady, label = "") {
+  checkoutPaymentReady = Boolean(isReady);
+  const submitBtn = document.getElementById("checkout-btn");
+  if (!submitBtn) return;
+  submitBtn.disabled = !checkoutPaymentReady;
+  submitBtn.textContent =
+    label || (checkoutPaymentReady ? "Procedi al pagamento" : "Caricamento pagamento...");
+}
+
+function waitForStripeMountReady() {
+  return new Promise((resolve) => {
+    const settle = () =>
+      window.requestAnimationFrame(() => window.requestAnimationFrame(resolve));
+    if (document.readyState === "complete") {
+      settle();
+    } else {
+      window.addEventListener("load", settle, { once: true });
+    }
+  });
+}
+
 function updatePaypalCheckoutNote() {
   const note = document.getElementById("paypal-payment-note");
   if (!note) return;
@@ -1109,6 +1131,7 @@ function redirectToOrderConfirmation(order, total, customerName) {
 }
 
 async function initializeStripeCheckout() {
+  setCheckoutPaymentReady(false);
   if (
     typeof window.isStaticCheckoutMode === "function" &&
     window.isStaticCheckoutMode()
@@ -1148,7 +1171,10 @@ async function initializeStripeCheckout() {
       const { items, total } = window.getCartDetails();
       if (!items || !items.length || !total) {
         const submitBtn = document.getElementById("checkout-btn");
-        if (submitBtn) submitBtn.disabled = true;
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = "Carrello vuoto";
+        }
         return;
       }
 
@@ -1228,6 +1254,7 @@ async function initializeStripeCheckout() {
         ),
       );
       stripePaymentElement.on("change", handlePaymentElementChange);
+      setCheckoutPaymentReady(true);
     }
   } catch (err) {
     console.error("Errore Stripe:", err);
@@ -1236,6 +1263,7 @@ async function initializeStripeCheckout() {
       submitBtn.disabled = true;
       submitBtn.textContent = "Pagamento non disponibile";
     }
+    checkoutPaymentReady = false;
     window.showCheckoutMessage(
       "danger",
       "Impossibile caricare il sistema di pagamento.",
@@ -1291,6 +1319,9 @@ async function handleCheckoutSubmit(event) {
   document.getElementById("prog-step-2")?.classList.add("active");
 
   try {
+    if (!checkoutPaymentReady) {
+      throw new Error("Pagamento ancora in caricamento. Attendi un momento.");
+    }
     if (
       typeof window.isStaticCheckoutMode === "function" &&
       window.isStaticCheckoutMode()
@@ -1426,7 +1457,11 @@ async function handleCheckoutSubmit(event) {
   } catch (error) {
     window.showCheckoutMessage("danger", error.message);
   } finally {
-    window.setCheckoutLoading(false);
+    if (checkoutPaymentReady) {
+      window.setCheckoutLoading(false);
+    } else {
+      setCheckoutPaymentReady(false);
+    }
   }
 }
 
@@ -1576,6 +1611,7 @@ async function initCheckoutPage() {
   }
 
   await prefillCheckoutForm();
+  await waitForStripeMountReady();
   await initializeStripeCheckout();
 
   const searchInput = document.getElementById("search-input");

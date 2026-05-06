@@ -3,6 +3,7 @@
  * Cache, lazy loading, and common functions
  */
 
+(function () {
 // DOM Element Cache
 class DOMCache {
   constructor() {
@@ -276,8 +277,6 @@ const ready = new Promise((resolve) => {
 
 // Make functions available globally for browser use
 window.domCache = domCache;
-window.$ = $;
-window.$$ = $$;
 window.setElementValue = setElementValue;
 window.getElementValue = getElementValue;
 window.setElementText = setElementText;
@@ -342,3 +341,4 @@ if (typeof module !== "undefined" && module.exports) {
     ready,
   };
 }
+})();

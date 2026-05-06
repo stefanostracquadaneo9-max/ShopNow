@@ -3287,9 +3287,6 @@ app.delete("/api/profile/addresses/:addressId", requireAuth, (req, res) => {
 });
 
 app.post("/api/profile/setup-intent", requireAuth, async (req, res) => {
-  return res.status(403).json({
-    error: "Nuovi metodi di pagamento aggiungibili solo dal checkout",
-  });
   try {
     const stripeClient = getStripeClient();
     const customerId = await getOrCreateStripeCustomerForUser(req.user);
@@ -3319,9 +3316,6 @@ app.post(
   "/api/profile/payment-methods/attach",
   requireAuth,
   async (req, res) => {
-    return res.status(403).json({
-      error: "Nuovi metodi di pagamento aggiungibili solo dal checkout",
-    });
     try {
       const setupIntentId = String(req.body.setupIntentId || "").trim();
       const alias = String(req.body.alias || "").trim();
@@ -3513,9 +3507,6 @@ app.post(
 );
 
 app.post("/api/profile/payment-methods", requireAuth, (req, res) => {
-  return res.status(403).json({
-    error: "Nuovi metodi di pagamento aggiungibili solo dal checkout",
-  });
   try {
     const alias = String(req.body.alias || "").trim();
     const brand = normalizePaymentBrand(req.body.brand);

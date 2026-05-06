@@ -184,6 +184,20 @@ document.addEventListener("DOMContentLoaded", async function () {
     if (errorBox) errorBox.textContent = message || "";
   }
 
+  function waitForAccountStripeMountReady() {
+    return new Promise((resolve) => {
+      const settle = () =>
+        window.requestAnimationFrame(() =>
+          window.requestAnimationFrame(resolve),
+        );
+      if (document.readyState === "complete") {
+        settle();
+      } else {
+        window.addEventListener("load", settle, { once: true });
+      }
+    });
+  }
+
   function normalizeAccountBillingCountry(value) {
     const normalized =
       typeof window.normalizeCountryCode === "function"
@@ -715,6 +729,8 @@ document.addEventListener("DOMContentLoaded", async function () {
 
   if (currentUser) {
     showProfile(currentUser);
+    await waitForAccountStripeMountReady();
+    await initializeAccountPaymentElement();
   } else showAuthSection(); // showAuthSection è una funzione locale
   if (profileForm) {
     profileForm.addEventListener("submit", async function (event) {
@@ -812,6 +828,44 @@ document.addEventListener("DOMContentLoaded", async function () {
         showMessage("success", "Indirizzo eliminato.");
       } catch (error) {
         showMessage("danger", error.message);
+      }
+    });
+  }
+  if (paymentForm) {
+    paymentForm.addEventListener("submit", async function (event) {
+      event.preventDefault();
+      clearMessage();
+      const submitButton = paymentForm.querySelector('button[type="submit"]');
+      const method = {
+        alias: document.getElementById("card-alias").value.trim(),
+        isDefault: document.getElementById("payment-default")?.checked === true,
+      };
+      if (!method.alias) {
+        showMessage("danger", "Inserisci il nome sulla carta.");
+        return;
+      }
+      try {
+        if (submitButton) {
+          submitButton.disabled = true;
+          submitButton.innerHTML =
+            '<i class="fas fa-circle-notch fa-spin me-2"></i>Salvataggio...';
+        }
+        showAccountPaymentError("");
+        await saveStripePaymentMethodFromAccount(method);
+        const user = await getCurrentUser();
+        showProfile(user);
+        paymentForm.reset();
+        await initializeAccountPaymentElement();
+        showMessage("success", "Metodo di pagamento salvato.");
+      } catch (error) {
+        showAccountPaymentError(error.message);
+        showMessage("danger", error.message);
+      } finally {
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML =
+            '<i class="fas fa-plus me-2"></i>Aggiungi metodo';
+        }
       }
     });
   }
