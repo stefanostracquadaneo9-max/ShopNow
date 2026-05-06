@@ -2310,7 +2310,7 @@ async function sendPasswordResetEmailSafely(payload) {
   }
 }
 
-app.post("/create-payment-intent", async (req, res) => {
+app.post("/create-payment-intent", requireAuth, async (req, res) => {
   try {
     const { amount, customerName, customerEmail, items } = req.body;
     const stripeClient = getStripeClient();
@@ -2408,7 +2408,7 @@ app.post("/confirm-payment", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.post("/api/checkout", async (req, res) => {
+app.post("/api/checkout", requireAuth, async (req, res) => {
   try {
     const {
       paymentIntentId,

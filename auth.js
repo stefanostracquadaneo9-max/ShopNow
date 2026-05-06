@@ -315,6 +315,68 @@ function isAdminPagePath(pathname = getCurrentPathname()) {
   return pathname === "/admin" || pathname.endsWith("admin.html");
 }
 
+function buildLoginRequiredUrl(reason = "login_required") {
+  const params = new URLSearchParams();
+  params.set("msg", reason);
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (currentPath && !isAuthPagePath()) {
+    params.set("redirect", currentPath);
+  }
+  return `index.html?${params.toString()}`;
+}
+
+function getPostLoginRedirectUrl(role = "user") {
+  const fallback =
+    String(role || "").toLowerCase() === "admin" ? "admin.html" : "products.html";
+  const redirect = new URLSearchParams(window.location.search).get("redirect");
+  if (!redirect) return fallback;
+
+  try {
+    const target = new URL(redirect, window.location.origin);
+    if (target.origin !== window.location.origin) return fallback;
+    const targetPath = target.pathname.replace(/\/+$/, "") || "/";
+    if (isAuthPagePath(targetPath)) return fallback;
+    if (isAdminPagePath(targetPath) && String(role || "").toLowerCase() !== "admin") {
+      return fallback;
+    }
+    return `${target.pathname.replace(/^\//, "") || "products.html"}${target.search}${target.hash}`;
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function redirectToLoginRequired(reason = "login_required") {
+  if (!isBrowser || isAuthPagePath()) return false;
+  document.documentElement.dataset.authRedirecting = "1";
+  window.location.replace(buildLoginRequiredUrl(reason));
+  return true;
+}
+
+function redirectToLoginIfMissingSession() {
+  if (!isBrowser || isAuthPagePath()) return false;
+  if (getSessionToken()) return false;
+  return redirectToLoginRequired("login_required");
+}
+
+async function enforceProtectedPageSession() {
+  if (!isBrowser || isAuthPagePath()) return true;
+  if (!getSessionToken()) {
+    redirectToLoginRequired("login_required");
+    return false;
+  }
+  const user = await getCurrentUser();
+  if (!user) {
+    clearSessionToken();
+    redirectToLoginRequired("session_expired");
+    return false;
+  }
+  return true;
+}
+
+if (isBrowser) {
+  redirectToLoginIfMissingSession();
+}
+
 if (isBrowser && typeof window.fetch === "function") {
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
@@ -1286,11 +1348,7 @@ async function loginUser(email, password) {
         .toLowerCase();
       localStorage.setItem("user-role", role);
 
-      if (role === "admin") {
-        window.location.href = "admin.html";
-      } else {
-        window.location.href = "products.html";
-      }
+      window.location.href = getPostLoginRedirectUrl(role);
 
       return serverUser;
     }
@@ -1332,11 +1390,7 @@ async function loginUser(email, password) {
       .toLowerCase();
     localStorage.setItem("user-role", role);
 
-    if (role === "admin") {
-      window.location.href = "admin.html";
-    } else {
-      window.location.href = "products.html";
-    }
+    window.location.href = getPostLoginRedirectUrl(role);
 
     return storedUser;
   } catch (error) {
@@ -1887,6 +1941,9 @@ async function updateAuthNav() {
 }
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", async function () {
+    if (redirectToLoginIfMissingSession()) {
+      return;
+    }
     // Forza la visibilità dopo un timeout di sicurezza se l'inizializzazione fallisce
     const forceShow = setTimeout(
       () => document.body.classList.remove("initially-hidden"),
@@ -1902,6 +1959,11 @@ if (typeof document !== "undefined") {
       if (typeof window.updateCartCount === "function")
         window.updateCartCount();
       updateAuthNav();
+      const canViewPage = await enforceProtectedPageSession();
+      if (!canViewPage) {
+        clearTimeout(forceShow);
+        return;
+      }
       document.body.classList.remove("initially-hidden");
       clearTimeout(forceShow);
     }
@@ -1911,6 +1973,7 @@ if (typeof document !== "undefined") {
 window.logout = logout;
 window.login = loginUser;
 window.register = registerUser;
+window.getPostLoginRedirectUrl = getPostLoginRedirectUrl;
 window.searchProducts = searchProducts;
 window.prefersServerAuth = prefersServerAuth;
 window.isStaticHostedMode = isStaticHostedMode;
