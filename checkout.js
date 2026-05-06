@@ -1598,8 +1598,10 @@ async function initCheckoutPage() {
   }
 }
 
-if (document.readyState === "complete") {
-  initCheckoutPage();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCheckoutPage, {
+    once: true,
+  });
 } else {
-  window.addEventListener("load", initCheckoutPage, { once: true });
+  initCheckoutPage();
 }

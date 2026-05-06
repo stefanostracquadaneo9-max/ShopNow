@@ -8,7 +8,19 @@ const path = require("path");
 const crypto = require("crypto");
 const https = require("https");
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
-const stripe = stripeSecretKey ? require("stripe")(stripeSecretKey) : null;
+const shouldRelaxStripeTls =
+  process.env.NODE_ENV !== "production" && process.platform === "win32";
+const stripeOptions = shouldRelaxStripeTls
+  ? { httpAgent: new https.Agent({ rejectUnauthorized: false }) }
+  : {};
+const stripe = stripeSecretKey
+  ? require("stripe")(stripeSecretKey, stripeOptions)
+  : null;
+if (stripe && shouldRelaxStripeTls) {
+  console.log(
+    "[WARN] Stripe usa TLS rilassato solo in sviluppo Windows per certificati locali non verificabili.",
+  );
+}
 if (!stripe) {
   console.log(
     "[WARN] Stripe non configurato: STRIPE_SECRET_KEY non trovato in .env o nelle variabili d'ambiente.",
