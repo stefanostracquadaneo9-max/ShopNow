@@ -320,14 +320,11 @@ function isStripeTestSecretKey() {
 }
 
 function isPaypalPaymentEnabled() {
-  return (
-    isExplicitTrue(process.env.ENABLE_PAYPAL) ||
-    (isExplicitTrue(process.env.ENABLE_PAYPAL_TEST) && isStripeTestSecretKey())
-  );
+  return false;
 }
 
 function getCheckoutPaymentMethodTypes() {
-  return isPaypalPaymentEnabled() ? ["card", "paypal"] : ["card"];
+  return ["card"];
 }
 
 function getPaypalPreferredLocale() {
