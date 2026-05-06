@@ -46,6 +46,7 @@ let pendingUserDeletion = null;
 
 let imagePreviewModal = null;
 let userDetailsModal = null;
+let orderDetailsModal = null;
 let deleteUserModal = null;
 let addUserModal = null;
 let ordersChartInstance = null;
@@ -560,12 +561,265 @@ function renderOrdersTable(list = orders) {
                 <td>${escapeAdminHtml(order.userName || order.userEmail || "Cliente")}</td>
                 <td>${parseDate(order.createdAt || order.date).toLocaleDateString("it-IT")}</td>
                 <td>${formatAdminCurrency(order.total)}</td>
-                <td>${escapeAdminHtml(order.status || "pending")}</td>
-                <td><button class="btn btn-sm btn-outline-primary" onclick="alert('Dettagli ordine non ancora disponibili in questa vista.')"><i class="fas fa-eye"></i></button></td>
+                <td>${renderOrderStatusBadge(order.status)}</td>
+                <td><button class="btn btn-sm btn-outline-primary" onclick="viewOrderDetails('${escapeAdminHtml(order.id)}')" title="Dettagli ordine"><i class="fas fa-eye"></i></button></td>
             </tr>
         `,
     )
     .join("");
+}
+
+function normalizeOrderItems(items) {
+  if (Array.isArray(items)) {
+    return items;
+  }
+  if (typeof items === "string" && items.trim()) {
+    try {
+      const parsed = JSON.parse(items);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (error) {
+      console.warn("Impossibile leggere gli articoli dell'ordine:", error);
+    }
+  }
+  return [];
+}
+
+function normalizeOrderShippingAddress(shippingAddress) {
+  if (!shippingAddress) {
+    return null;
+  }
+  if (typeof shippingAddress === "object") {
+    return shippingAddress;
+  }
+  if (typeof shippingAddress === "string") {
+    try {
+      const parsed = JSON.parse(shippingAddress);
+      return parsed && typeof parsed === "object"
+        ? parsed
+        : { line1: shippingAddress };
+    } catch (error) {
+      return { line1: shippingAddress };
+    }
+  }
+  return null;
+}
+
+function renderOrderStatusBadge(status) {
+  const normalizedStatus = String(status || "pending").toLowerCase();
+  const statusMeta = {
+    paid: { label: "Pagato", className: "text-bg-success" },
+    succeeded: { label: "Pagato", className: "text-bg-success" },
+    completed: { label: "Completato", className: "text-bg-success" },
+    pending: { label: "In attesa", className: "text-bg-warning" },
+    processing: { label: "In lavorazione", className: "text-bg-info" },
+    failed: { label: "Fallito", className: "text-bg-danger" },
+    cancelled: { label: "Annullato", className: "text-bg-danger" },
+    canceled: { label: "Annullato", className: "text-bg-danger" },
+  };
+  const meta = statusMeta[normalizedStatus] || {
+    label: status || "pending",
+    className: "text-bg-secondary",
+  };
+  return `<span class="badge ${meta.className}">${escapeAdminHtml(meta.label)}</span>`;
+}
+
+function renderOrderDetailItem(label, value) {
+  const displayValue =
+    value === undefined || value === null || value === "" ? "N/D" : value;
+  return `
+        <div class="d-flex justify-content-between gap-3 border-bottom py-2">
+            <span class="text-muted">${escapeAdminHtml(label)}</span>
+            <span class="fw-semibold text-end">${escapeAdminHtml(displayValue)}</span>
+        </div>
+    `;
+}
+
+function renderShippingAddress(address) {
+  if (!address) {
+    return '<div class="text-muted">Indirizzo non disponibile</div>';
+  }
+
+  const streetLine =
+    address.line1 ||
+    [address.street, address.streetNumber].filter(Boolean).join(" ") ||
+    address.address ||
+    "";
+  const cityLine = [
+    address.postalCode || address.zip || address.cap,
+    address.city,
+    address.province || address.state,
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const countryLine = address.countryName || address.country || "";
+  const rows = [
+    address.name || address.fullName,
+    streetLine,
+    address.line2 || address.apartment,
+    cityLine,
+    countryLine,
+    address.phone ? `Tel. ${address.phone}` : "",
+  ].filter(Boolean);
+
+  if (!rows.length) {
+    return '<div class="text-muted">Indirizzo non disponibile</div>';
+  }
+
+  return rows.map((row) => `<div>${escapeAdminHtml(row)}</div>`).join("");
+}
+
+function renderOrderItemsTable(items) {
+  if (!items.length) {
+    return `
+        <tr>
+            <td colspan="4" class="text-center text-muted py-4">
+                Nessun articolo disponibile per questo ordine.
+            </td>
+        </tr>
+    `;
+  }
+
+  return items
+    .map((item) => {
+      const quantity = Number(item.quantity ?? item.qty ?? 0);
+      const unitPrice = Number(item.price ?? item.unitPrice ?? 0);
+      const lineTotal = Number(
+        item.total ?? item.lineTotal ?? unitPrice * quantity,
+      );
+      const productId = item.id || item.productId || "";
+      return `
+            <tr>
+                <td>
+                    <div class="fw-semibold">${escapeAdminHtml(item.name || item.title || item.productName || "Prodotto")}</div>
+                    ${
+                      productId
+                        ? `<div class="text-muted small">ID prodotto: ${escapeAdminHtml(productId)}</div>`
+                        : ""
+                    }
+                </td>
+                <td class="text-center">${escapeAdminHtml(quantity || 0)}</td>
+                <td class="text-end">${formatAdminCurrency(unitPrice)}</td>
+                <td class="text-end fw-semibold">${formatAdminCurrency(lineTotal)}</td>
+            </tr>
+        `;
+    })
+    .join("");
+}
+
+function renderOrderDetailsContent(order) {
+  const items = normalizeOrderItems(order?.items);
+  const shippingAddress = normalizeOrderShippingAddress(order?.shippingAddress);
+  const createdAt = parseDate(order?.createdAt || order?.date);
+  const customerName =
+    order?.customerName ||
+    order?.userName ||
+    shippingAddress?.name ||
+    "Cliente";
+  const customerEmail = order?.customerEmail || order?.userEmail || "";
+  const paymentIntentId =
+    order?.stripePaymentIntentId || order?.paymentIntentId || "";
+
+  return `
+        <div class="container-fluid">
+            <div class="row g-4">
+                <div class="col-lg-4">
+                    <div class="card border-0 bg-light h-100">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start justify-content-between gap-3 mb-3">
+                                <div>
+                                    <div class="text-muted small">Ordine</div>
+                                    <h4 class="mb-0">#${escapeAdminHtml(order?.id || "N/D")}</h4>
+                                </div>
+                                ${renderOrderStatusBadge(order?.status)}
+                            </div>
+                            ${renderOrderDetailItem("Data", createdAt.toLocaleString("it-IT"))}
+                            ${renderOrderDetailItem("Totale", formatAdminCurrency(order?.total))}
+                            ${renderOrderDetailItem("ID utente", order?.userId || "N/D")}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Cliente</h5>
+                            ${renderOrderDetailItem("Nome", customerName)}
+                            ${renderOrderDetailItem("Email", customerEmail || "N/D")}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Pagamento</h5>
+                            <div class="mb-2">${renderOrderStatusBadge(order?.status)}</div>
+                            ${
+                              paymentIntentId
+                                ? `<code class="small text-break">${escapeAdminHtml(paymentIntentId)}</code>`
+                                : '<div class="text-muted">Payment Intent non disponibile</div>'
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-4">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">Spedizione</h5>
+                            ${renderShippingAddress(shippingAddress)}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title">Articoli</h5>
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Prodotto</th>
+                                            <th class="text-center">Qta</th>
+                                            <th class="text-end">Prezzo</th>
+                                            <th class="text-end">Totale</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>${renderOrderItemsTable(items)}</tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+async function viewOrderDetails(orderId) {
+  const body = document.getElementById("order-details-modal-body");
+  if (!body) {
+    return;
+  }
+
+  body.innerHTML =
+    '<div class="text-center py-5 text-muted">Caricamento dettagli ordine...</div>';
+  orderDetailsModal = getModalInstance("orderDetailsModal", orderDetailsModal);
+  orderDetailsModal?.show();
+
+  try {
+    let order = orders.find((entry) => String(entry.id) === String(orderId));
+    if (isServerBackedAdminMode()) {
+      const response = await requestJson(
+        `${SERVER_BASE_URL}/api/admin/orders/${orderId}`,
+        {},
+        "Dettaglio ordine non disponibile",
+      );
+      order = response.order || order;
+    }
+    body.innerHTML = order
+      ? renderOrderDetailsContent(order)
+      : '<div class="text-center py-4 text-muted">Ordine non trovato.</div>';
+  } catch (error) {
+    body.innerHTML = `<div class="text-center py-4 text-danger">${escapeAdminHtml(error.message || "Errore caricamento ordine")}</div>`;
+  }
 }
 
 function renderUserDetailsContent(user) {
@@ -1547,6 +1801,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 window.showSection = showSection;
 window.requestUserDeletion = requestUserDeletion;
 window.viewUserDetails = viewUserDetails;
+window.viewOrderDetails = viewOrderDetails;
 window.openProductImagePreview = openProductImagePreview;
 window.updateProductImagePreview = updateProductImagePreview;
 window.removeProductImageSelection = removeProductImageSelection;

@@ -502,6 +502,31 @@
       </div>
       <div
         class="modal fade"
+        id="orderDetailsModal"
+        tabindex="-1"
+        aria-hidden="true"
+      >
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title">Dettaglio Ordine</h5>
+              <button
+                type="button"
+                class="btn-close"
+                data-bs-dismiss="modal"
+                aria-label="Chiudi"
+              ></button>
+            </div>
+            <div class="modal-body" id="order-details-modal-body">
+              <div class="text-center py-5 text-muted">
+                Caricamento dettagli ordine...
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="modal fade"
         id="deleteUserModal"
         tabindex="-1"
         aria-hidden="true"
@@ -616,7 +641,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="auth.js?v=20260505-countryfix1"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="admin_ui.js?v=20260501-admin-email1"></script>
+    <script src="admin_ui.js?v=20260506-orderdetails1"></script>
     <footer class="amazon-footer">
       <div class="container">
         <div class="row">

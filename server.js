@@ -725,6 +725,36 @@ function buildAdminUserPayload(userId) {
     },
   };
 }
+
+function buildAdminOrderPayload(orderId) {
+  const order = getOrderById(orderId);
+  if (!order) return null;
+  const user = getUserById(order.userId);
+  return {
+    ...order,
+    items: Array.isArray(order.items) ? order.items : [],
+    shippingAddress: normalizeAdminShippingAddress(order.shippingAddress),
+    userName: user?.name || "Cliente",
+    userEmail: user?.email || "",
+    customerName: user?.name || "Cliente",
+    customerEmail: user?.email || "",
+  };
+}
+
+function sendAdminOrderDetails(req, res) {
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: "ID ordine non valido" });
+    }
+    const order = buildAdminOrderPayload(orderId);
+    if (!order) return res.status(404).json({ error: "Ordine non trovato" });
+    res.json({ success: true, order: order });
+  } catch (error) {
+    console.error("Errore dettaglio ordine admin:", error);
+    res.status(500).json({ error: "Errore interno del server" });
+  }
+}
 function sanitizeFileSegment(value) {
   return (
     String(value || "")
@@ -3581,6 +3611,11 @@ app.get("/admin/orders", requireAdmin, (req, res) => {
     res.status(500).json({ error: "Errore interno del server" });
   }
 });
+app.get(
+  ["/admin/orders/:id", "/api/admin/orders/:id"],
+  requireAdmin,
+  sendAdminOrderDetails,
+);
 app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
   try {
     const userId = Number(req.params.id);
