@@ -2411,7 +2411,7 @@ app.post("/confirm-payment", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.post("/api/checkout", requireAuth, async (req, res) => {
+app.post("/api/checkout", async (req, res) => {
   try {
     const {
       paymentIntentId,
