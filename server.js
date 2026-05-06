@@ -415,6 +415,7 @@ let isEmailConfigured = hasSmtpCredentials || hasResendCredentials;
 let emailReady = false;
 let lastEmailError = null;
 let lastEmailCheckAt = null;
+let activeEmailTransportLabel = "";
 const EMAIL_SERVICE = String(process.env.EMAIL_SERVICE || "gmail")
   .trim()
   .toLowerCase();
@@ -433,13 +434,22 @@ function getExplicitSmtpPort() {
   return Number.isFinite(port) && port > 0 ? port : null;
 }
 
-function buildEmailTransportOptions() {
-  const smtpHost = getExplicitSmtpHost();
-  const smtpPort = getExplicitSmtpPort() || (smtpHost ? 465 : null);
+function buildEmailTransportOptions(overrides = {}) {
+  const smtpHost =
+    overrides.host !== undefined ? overrides.host : getExplicitSmtpHost();
+  const explicitPort = getExplicitSmtpPort();
+  const smtpPort =
+    overrides.port !== undefined
+      ? overrides.port
+      : explicitPort || (smtpHost ? 465 : null);
   const smtpSecure =
-    process.env.SMTP_SECURE !== undefined
+    overrides.secure !== undefined
+      ? Boolean(overrides.secure)
+      : process.env.SMTP_SECURE !== undefined
       ? isExplicitTrue(process.env.SMTP_SECURE)
       : smtpPort === null || smtpPort === 465;
+  const smtpService =
+    overrides.service !== undefined ? overrides.service : EMAIL_SERVICE;
 
   const options = {
     auth: {
@@ -456,11 +466,11 @@ function buildEmailTransportOptions() {
     options.host = smtpHost;
     options.port = smtpPort || 465;
     options.secure = smtpSecure;
-    if (!smtpSecure) {
+    if (!smtpSecure || overrides.requireTLS) {
       options.requireTLS = true;
     }
-  } else if (EMAIL_SERVICE) {
-    options.service = EMAIL_SERVICE;
+  } else if (smtpService) {
+    options.service = smtpService;
   }
 
   if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
@@ -473,6 +483,102 @@ function buildEmailTransportOptions() {
   }
 
   return options;
+}
+
+function getEmailTransportCandidates() {
+  if (!hasSmtpCredentials) return [];
+  const explicitHost = getExplicitSmtpHost();
+  const explicitPort = getExplicitSmtpPort();
+
+  if (explicitHost) {
+    return [
+      {
+        label: `${explicitHost}:${explicitPort || 465}`,
+        options: buildEmailTransportOptions(),
+      },
+    ];
+  }
+
+  if (EMAIL_SERVICE === "gmail") {
+    return [
+      {
+        label: "gmail-587-starttls",
+        options: buildEmailTransportOptions({
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          requireTLS: true,
+        }),
+      },
+      {
+        label: "gmail-465-ssl",
+        options: buildEmailTransportOptions({
+          host: "smtp.gmail.com",
+          port: 465,
+          secure: true,
+        }),
+      },
+      {
+        label: "gmail-service",
+        options: buildEmailTransportOptions({ service: "gmail" }),
+      },
+    ];
+  }
+
+  return [
+    {
+      label: EMAIL_SERVICE || "smtp",
+      options: buildEmailTransportOptions(),
+    },
+  ];
+}
+
+function closeEmailTransport(candidateTransporter) {
+  if (candidateTransporter && typeof candidateTransporter.close === "function") {
+    try {
+      candidateTransporter.close();
+    } catch (error) {
+      // Non bloccare il fallback email se la chiusura socket fallisce.
+    }
+  }
+}
+
+async function verifyEmailTransport(candidateTransporter) {
+  return new Promise((resolve, reject) => {
+    candidateTransporter.verify((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function initializeSmtpTransport() {
+  if (!hasSmtpCredentials || hasResendCredentials) return false;
+  let lastError = null;
+  for (const candidate of getEmailTransportCandidates()) {
+    const candidateTransporter = nodemailer.createTransport(candidate.options);
+    try {
+      await verifyEmailTransport(candidateTransporter);
+      transporter = candidateTransporter;
+      activeEmailTransportLabel = candidate.label;
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      console.log(`[OK] Email configurato e pronto (${candidate.label})`);
+      return true;
+    } catch (error) {
+      lastError = error;
+      closeEmailTransport(candidateTransporter);
+      console.log(
+        `[WARN] Errore configurazione email SMTP (${candidate.label}):`,
+        error.message,
+      );
+    }
+  }
+  transporter = null;
+  activeEmailTransportLabel = "";
+  markEmailFailure(lastError || new Error("Email SMTP non pronta"));
+  return false;
 }
 
 function markEmailFailure(error) {
@@ -509,21 +615,54 @@ async function sendMailMessage(mailOptions) {
     await sendResendEmail(mailOptions);
     return "resend";
   }
-  if (!transporter) {
+  if (!hasSmtpCredentials) {
     throw new Error("Email non configurata");
   }
-  try {
-    await transporter.sendMail(mailOptions);
-    return "smtp";
-  } catch (error) {
-    markEmailFailure(error);
-    if (hasSmtpCredentials && !hasResendCredentials) {
-      transporter = nodemailer.createTransport(buildEmailTransportOptions());
+  let lastError = null;
+  const attemptedLabels = new Set();
+
+  if (transporter) {
+    try {
       await transporter.sendMail(mailOptions);
-      return "smtp";
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      return activeEmailTransportLabel
+        ? `smtp:${activeEmailTransportLabel}`
+        : "smtp";
+    } catch (error) {
+      attemptedLabels.add(activeEmailTransportLabel);
+      markEmailFailure(error);
+      lastError = error;
+      closeEmailTransport(transporter);
+      transporter = null;
+      activeEmailTransportLabel = "";
     }
-    throw error;
   }
+
+  for (const candidate of getEmailTransportCandidates()) {
+    if (attemptedLabels.has(candidate.label)) continue;
+    const candidateTransporter = nodemailer.createTransport(candidate.options);
+    try {
+      await candidateTransporter.sendMail(mailOptions);
+      transporter = candidateTransporter;
+      activeEmailTransportLabel = candidate.label;
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      return `smtp:${candidate.label}`;
+    } catch (error) {
+      markEmailFailure(error);
+      lastError = error;
+      closeEmailTransport(candidateTransporter);
+      console.log(
+        `[WARN] Invio email fallito con ${candidate.label}:`,
+        error.message,
+      );
+    }
+  }
+
+  throw lastError || new Error("Email non configurata");
 }
 
 if (hasResendCredentials) {
@@ -533,17 +672,9 @@ if (hasResendCredentials) {
 }
 
 if (hasSmtpCredentials && !hasResendCredentials) {
-  transporter = nodemailer.createTransport(buildEmailTransportOptions());
-  transporter.verify((error, success) => {
-    if (error) {
-      console.log("[WARN] Errore configurazione email (SMTP):", error.message);
-      markEmailFailure(error);
-    } else {
-      console.log("[OK] Email configurato e pronto");
-      emailReady = true;
-      lastEmailError = null;
-      lastEmailCheckAt = new Date().toISOString();
-    }
+  initializeSmtpTransport().catch((error) => {
+    console.log("[WARN] Errore configurazione email (SMTP):", error.message);
+    markEmailFailure(error);
   });
 }
 function getOptionalAuthUser(req) {
@@ -2735,6 +2866,7 @@ app.get("/config", (req, res) =>
     emailTransport: {
       provider: hasResendCredentials ? "resend" : "smtp",
       service: hasResendCredentials ? null : EMAIL_SERVICE || "smtp",
+      active: activeEmailTransportLabel || null,
       host: hasResendCredentials
         ? "api.resend.com"
         : getExplicitSmtpHost() || null,
