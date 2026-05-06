@@ -48,41 +48,23 @@ function getCountryLabel(country) {
   return `${code} ${name}`.trim();
 }
 
-function getCountryFlagImageUrl(code, size = "24x18") {
-  const normalizedCode = String(code || "")
-    .trim()
-    .toLowerCase();
-  if (!/^[a-z]{2}$/.test(normalizedCode)) return "";
-  return `https://flagcdn.com/${size}/${normalizedCode}.png`;
-}
-
 function createCountryFlagElement($, code) {
   const normalizedCode = String(code || "").toUpperCase();
   const wrapper = $("<span>").addClass("country-flag-wrap");
-  const fallback = $("<span>")
-    .addClass("country-code-badge country-code-badge--fallback")
-    .text(normalizedCode);
-  const flagUrl = getCountryFlagImageUrl(normalizedCode);
+  const flag = getCountryFlagEmoji(normalizedCode);
 
-  if (!flagUrl) {
-    fallback.addClass("is-visible");
-    return wrapper.append(fallback);
+  if (flag) {
+    return wrapper.append(
+      $("<span>")
+        .addClass("country-flag-emoji")
+        .attr("aria-hidden", "true")
+        .text(flag),
+    );
   }
 
-  const image = $("<img>")
-    .addClass("country-flag-image")
-    .attr({
-      src: flagUrl,
-      srcset: `${getCountryFlagImageUrl(normalizedCode, "48x36")} 2x`,
-      alt: "",
-      decoding: "async",
-    })
-    .on("error", function () {
-      $(this).addClass("is-hidden");
-      fallback.addClass("is-visible");
-    });
-
-  return wrapper.append(image).append(fallback);
+  return wrapper.append(
+    $("<span>").addClass("country-code-badge is-visible").text(normalizedCode),
+  );
 }
 
 function formatCountry(country) {
@@ -781,7 +763,10 @@ function setCheckoutPaymentReady(isReady, label = "") {
   if (!submitBtn) return;
   submitBtn.disabled = !checkoutPaymentReady;
   submitBtn.textContent =
-    label || (checkoutPaymentReady ? "Procedi al pagamento" : "Caricamento pagamento...");
+    label ||
+    (checkoutPaymentReady
+      ? "Procedi al pagamento"
+      : "Caricamento pagamento...");
 }
 
 function waitForStripeMountReady() {
@@ -1528,6 +1513,16 @@ function configureStaticCheckoutUi() {
   );
 }
 
+async function ensureCheckoutCatalogReady() {
+  try {
+    if (typeof syncProductsFromServer === "function") {
+      await syncProductsFromServer();
+    }
+  } catch (error) {
+    console.warn("Catalogo checkout non sincronizzato:", error.message);
+  }
+}
+
 // Inizializzazione pagina
 async function initCheckoutPage() {
   if (checkoutPageInitialized) return;
@@ -1610,6 +1605,7 @@ async function initCheckoutPage() {
     savedPaymentSection.addEventListener("change", updateCheckoutPaymentMode);
   }
 
+  await ensureCheckoutCatalogReady();
   await prefillCheckoutForm();
   await waitForStripeMountReady();
   await initializeStripeCheckout();

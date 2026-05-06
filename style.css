@@ -620,6 +620,16 @@ section,
   align-items: center;
   justify-content: center;
 }
+.country-flag-emoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 20px;
+  font-size: 1.05rem;
+  line-height: 1;
+}
 .country-flag-image {
   width: 24px;
   height: 18px;

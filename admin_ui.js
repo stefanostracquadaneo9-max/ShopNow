@@ -27,6 +27,7 @@ const SERVER_BASE_URL =
 const ADMIN_DASHBOARD_CACHE_KEY = "admin-dashboard-cache";
 const ADMIN_REFRESH_INTERVAL_MS = 30000;
 const ADMIN_REFRESH_STALE_AFTER_MS = 5000;
+const MAX_PRODUCT_IMAGE_BYTES = 12 * 1024 * 1024;
 const ADMIN_DATA_SECTIONS = new Set([
   "dashboard",
   "users",
@@ -1260,6 +1261,10 @@ window.saveProduct = async function () {
     alert("Compila correttamente nome, categoria e prezzo.");
     return;
   }
+  if (imageFile && imageFile.size > MAX_PRODUCT_IMAGE_BYTES) {
+    alert("Immagine troppo grande. Carica un file fino a 12 MB.");
+    return;
+  }
 
   const payload = {
     name: name,
@@ -1837,6 +1842,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("product-submit-button")
     ?.addEventListener("click", window.saveProduct);
+  document
+    .getElementById("add-product-form")
+    ?.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void window.saveProduct();
+    });
   document
     .getElementById("confirm-delete-user-button")
     ?.addEventListener("click", window.confirmDeleteUser);

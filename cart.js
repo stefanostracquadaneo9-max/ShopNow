@@ -249,6 +249,18 @@ function updateCartCount() {
     counter.textContent = String(count);
   }
 }
+async function ensureCartCatalogReady() {
+  try {
+    if (
+      isServerCheckoutMode() &&
+      typeof syncProductsFromServer === "function"
+    ) {
+      await syncProductsFromServer();
+    }
+  } catch (error) {
+    console.warn("Catalogo carrello non sincronizzato:", error.message);
+  }
+}
 function showCheckoutMessage(type, text) {
   const box = document.getElementById("checkout-message");
   if (!box) {
@@ -747,6 +759,7 @@ if (typeof window !== "undefined") {
 }
 document.addEventListener("DOMContentLoaded", async () => {
   consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm
+  await ensureCartCatalogReady();
   updateCartCount();
   renderCart();
 

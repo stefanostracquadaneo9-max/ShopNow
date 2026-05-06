@@ -134,7 +134,7 @@ const {
 } = db_module;
 app.use(cors());
 app.use(compression());
-app.use(express.json({ limit: "12mb" }));
+app.use(express.json({ limit: "25mb" }));
 fs.mkdirSync(RUNTIME_UPLOADS_DIR, { recursive: true });
 
 function setNoStoreHeaders(res) {
@@ -403,6 +403,7 @@ function requireAdmin(req, res, next) {
   });
 }
 let transporter = null;
+let activeEmailTransportOptions = null;
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
 const EMAIL_FROM_ADDRESS = String(
   process.env.EMAIL_FROM || process.env.EMAIL_USER || "",
@@ -440,13 +441,21 @@ function getDefaultSmtpPort() {
   return Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
 }
 
-function buildEmailTransportOptions() {
-  const smtpHost = getDefaultSmtpHost();
-  const smtpPort = getDefaultSmtpPort();
+function buildEmailTransportOptions(overrides = {}) {
+  const hasServiceOverride = Object.prototype.hasOwnProperty.call(
+    overrides,
+    "service",
+  );
+  const smtpHost = hasServiceOverride
+    ? ""
+    : String(overrides.host || getDefaultSmtpHost()).trim();
+  const smtpPort = Number(overrides.port || getDefaultSmtpPort());
   const smtpSecure =
-    process.env.SMTP_SECURE !== undefined
-      ? isExplicitTrue(process.env.SMTP_SECURE)
-      : smtpPort === 465;
+    overrides.secure !== undefined
+      ? Boolean(overrides.secure)
+      : process.env.SMTP_SECURE !== undefined
+        ? isExplicitTrue(process.env.SMTP_SECURE)
+        : smtpPort === 465;
 
   const options = {
     auth: {
@@ -458,7 +467,9 @@ function buildEmailTransportOptions() {
     socketTimeout: SMTP_TIMEOUT_MS,
   };
 
-  if (smtpHost) {
+  if (hasServiceOverride && overrides.service) {
+    options.service = overrides.service;
+  } else if (smtpHost) {
     options.host = smtpHost;
     options.port = smtpPort;
     options.secure = smtpSecure;
@@ -476,6 +487,94 @@ function buildEmailTransportOptions() {
   }
 
   return options;
+}
+
+function getEmailTransportKey(options) {
+  return [
+    options.service || "",
+    options.host || "",
+    options.port || "",
+    options.secure === true ? "secure" : "starttls",
+  ].join("|");
+}
+
+function buildEmailTransportCandidates() {
+  const candidates = [];
+  const seen = new Set();
+  const addCandidate = (options) => {
+    const key = getEmailTransportKey(options);
+    if (seen.has(key)) return;
+    seen.add(key);
+    candidates.push(options);
+  };
+
+  addCandidate(buildEmailTransportOptions());
+
+  if (EMAIL_SERVICE === "gmail") {
+    addCandidate(
+      buildEmailTransportOptions({
+        host: "smtp.gmail.com",
+        port: 465,
+        secure: true,
+      }),
+    );
+    addCandidate(
+      buildEmailTransportOptions({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false,
+      }),
+    );
+    addCandidate(buildEmailTransportOptions({ service: "gmail" }));
+  }
+
+  return candidates;
+}
+
+function describeEmailTransportOptions(options = {}) {
+  if (options.service) return options.service;
+  return `${options.host || "smtp"}:${options.port || ""}${
+    options.secure ? "/ssl" : "/starttls"
+  }`;
+}
+
+function createEmailTransporter(options) {
+  return nodemailer.createTransport(options);
+}
+
+function verifyTransporter(transporterToVerify) {
+  return new Promise((resolve, reject) => {
+    transporterToVerify.verify((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function verifyEmailTransportCandidates() {
+  let lastError = null;
+  for (const candidate of buildEmailTransportCandidates()) {
+    const candidateTransporter = createEmailTransporter(candidate);
+    try {
+      await verifyTransporter(candidateTransporter);
+      transporter = candidateTransporter;
+      activeEmailTransportOptions = candidate;
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      console.log(
+        `[OK] Email configurato e pronto (${describeEmailTransportOptions(candidate)})`,
+      );
+      return;
+    } catch (error) {
+      lastError = error;
+      console.log(
+        `[WARN] SMTP non pronto (${describeEmailTransportOptions(candidate)}):`,
+        error.message,
+      );
+    }
+  }
+  markEmailFailure(lastError || new Error("SMTP non disponibile"));
 }
 
 function markEmailFailure(error) {
@@ -515,25 +614,46 @@ async function sendMailMessage(mailOptions) {
   if (!hasSmtpCredentials) {
     throw new Error("Email non configurata");
   }
-  if (!transporter) {
-    transporter = nodemailer.createTransport(buildEmailTransportOptions());
+
+  if (transporter && activeEmailTransportOptions) {
+    try {
+      await transporter.sendMail(mailOptions);
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      return "smtp";
+    } catch (error) {
+      markEmailFailure(error);
+      transporter = null;
+      activeEmailTransportOptions = null;
+    }
   }
 
-  try {
-    await transporter.sendMail(mailOptions);
-    emailReady = true;
-    lastEmailError = null;
-    lastEmailCheckAt = new Date().toISOString();
-    return "smtp";
-  } catch (error) {
-    markEmailFailure(error);
-    transporter = nodemailer.createTransport(buildEmailTransportOptions());
-    await transporter.sendMail(mailOptions);
-    emailReady = true;
-    lastEmailError = null;
-    lastEmailCheckAt = new Date().toISOString();
-    return "smtp";
+  let lastError = null;
+  for (const candidate of buildEmailTransportCandidates()) {
+    const candidateTransporter = createEmailTransporter(candidate);
+    try {
+      await candidateTransporter.sendMail(mailOptions);
+      transporter = candidateTransporter;
+      activeEmailTransportOptions = candidate;
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+      console.log(
+        `[OK] Email inviata via ${describeEmailTransportOptions(candidate)}`,
+      );
+      return "smtp";
+    } catch (error) {
+      lastError = error;
+      markEmailFailure(error);
+      console.log(
+        `[WARN] Invio SMTP fallito (${describeEmailTransportOptions(candidate)}):`,
+        error.message,
+      );
+    }
   }
+
+  throw lastError || new Error("Invio email SMTP non riuscito");
 }
 
 if (hasResendCredentials) {
@@ -543,17 +663,9 @@ if (hasResendCredentials) {
 }
 
 if (hasSmtpCredentials && !hasResendCredentials) {
-  transporter = nodemailer.createTransport(buildEmailTransportOptions());
-  transporter.verify((error) => {
-    if (error) {
-      console.log("[WARN] Errore configurazione email (SMTP):", error.message);
-      markEmailFailure(error);
-    } else {
-      console.log("[OK] Email configurato e pronto");
-      emailReady = true;
-      lastEmailError = null;
-      lastEmailCheckAt = new Date().toISOString();
-    }
+  verifyEmailTransportCandidates().catch((error) => {
+    console.log("[WARN] Errore configurazione email (SMTP):", error.message);
+    markEmailFailure(error);
   });
 }
 function getOptionalAuthUser(req) {
@@ -1152,8 +1264,6 @@ const NOMINATIM_REQUEST_INTERVAL_MS = Math.max(
   1000,
   Number(process.env.NOMINATIM_REQUEST_INTERVAL_MS || 1000),
 );
-const ADDRESS_LOOKUP_ATTRIBUTION =
-  "Postal data from Zippopotam.us/GeoNames and OpenStreetMap contributors.";
 const addressLookupCache = new Map();
 let lastNominatimRequestAt = 0;
 let nominatimQueue = Promise.resolve();
@@ -1988,10 +2098,29 @@ async function sendOrderConfirmationEmail({
       message: "Ordine confermato (email non configurata)",
     };
   }
+  const plainItemsText = items
+    .map((item) => {
+      const quantity = Number(item.quantity || 0);
+      const lineTotal = Number(item.price || 0) * quantity;
+      return `- ${item.name} x${quantity}: EUR ${lineTotal.toFixed(2)}`;
+    })
+    .join("\n");
   const mailOptions = {
     from: EMAIL_FROM_ADDRESS,
     to: customerEmail,
     subject: `Ordine Confermato #${orderId} - ShopNow`,
+    text: `Ciao ${customerName},
+
+il tuo ordine #${orderId} e stato confermato.
+
+Totale pagato: EUR ${Number(amount || 0).toFixed(2)}
+Data ordine: ${orderDate}
+Indirizzo spedizione: ${shippingText}
+
+Articoli:
+${plainItemsText}
+
+Puoi controllare l'ordine dal tuo account ShopNow.`,
     html: `
 <!DOCTYPE html>
 <html lang="it">
@@ -2796,7 +2925,6 @@ app.get("/api/address-autofill", async (req, res) => {
       matches: result.matches,
       cached: Boolean(result.cached),
       providerAttempts: result.providerAttempts || [],
-      attribution: ADDRESS_LOOKUP_ATTRIBUTION,
       query: {
         country,
         postalCode,
@@ -2811,7 +2939,6 @@ app.get("/api/address-autofill", async (req, res) => {
       matches: [],
       cached: false,
       providerAttempts: [],
-      attribution: ADDRESS_LOOKUP_ATTRIBUTION,
     });
   }
 });
@@ -4008,10 +4135,10 @@ app.post("/admin/products/:id/image", requireAdmin, (req, res) => {
     const safeFileName = `${sanitizeFileSegment(existingProduct.name)}_${Date.now()}${extension}`;
     const targetAbsolutePath = path.join(RUNTIME_UPLOADS_DIR, safeFileName);
     const fileBuffer = Buffer.from(fileDataBase64, "base64");
-    const maxImageBytes = 8 * 1024 * 1024;
+    const maxImageBytes = 12 * 1024 * 1024;
     if (!fileBuffer.length || fileBuffer.length > maxImageBytes) {
       return res.status(400).json({
-        error: "Immagine troppo grande. Carica un file fino a 8 MB.",
+        error: "Immagine troppo grande. Carica un file fino a 12 MB.",
       });
     }
     fs.writeFileSync(targetAbsolutePath, fileBuffer);

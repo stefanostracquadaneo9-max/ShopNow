@@ -1070,7 +1070,7 @@ document.addEventListener("DOMContentLoaded", async function () {
   }
 
   // Funzioni di utilità locali (se non già globali, ora molte sono globali in auth.js)
-  const normalizeOrderItems = (items) => {
+  function normalizeOrderItems(items) {
     if (typeof items === "string") {
       try {
         items = JSON.parse(items);
@@ -1086,17 +1086,17 @@ document.addEventListener("DOMContentLoaded", async function () {
         quantity: Number(item.quantity || 0),
       }))
       .filter((item) => item.id && item.quantity > 0);
-  };
+  }
 
-  const formatOrderDate = (value) => {
+  function formatOrderDate(value) {
     if (!value) return "Data non disponibile";
     const date = new Date(value);
     return Number.isNaN(date.getTime())
       ? String(value)
       : date.toLocaleString("it-IT");
-  };
+  }
 
-  const formatShippingAddress = (shippingAddress) => {
+  function formatShippingAddress(shippingAddress) {
     if (!shippingAddress) return "";
     let address =
       typeof shippingAddress === "string"
@@ -1110,5 +1110,5 @@ document.addEventListener("DOMContentLoaded", async function () {
     return [line1, address.postalCode, address.city, address.country]
       .filter(Boolean)
       .join(", ");
-  };
+  }
 });
