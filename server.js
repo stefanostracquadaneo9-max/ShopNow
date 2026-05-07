@@ -513,6 +513,9 @@ async function sendMailMessage(mailOptions) {
   if (!hasSmtpCredentials) {
     throw new Error("Email non configurata");
   }
+  if (!emailReady) {
+    throw new Error(lastEmailError || "SMTP non pronto");
+  }
   if (!transporter) {
     transporter = nodemailer.createTransport(buildEmailTransportOptions());
   }
