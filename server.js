@@ -456,6 +456,11 @@ function buildEmailTransportOptions(overrides = {}) {
       : process.env.SMTP_SECURE !== undefined
         ? isExplicitTrue(process.env.SMTP_SECURE)
         : smtpPort === 465;
+  const smtpFamily = Number(
+    overrides.family ||
+      process.env.SMTP_FAMILY ||
+      (EMAIL_SERVICE === "gmail" ? 4 : 0),
+  );
 
   const options = {
     auth: {
@@ -466,6 +471,9 @@ function buildEmailTransportOptions(overrides = {}) {
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
   };
+  if (smtpFamily === 4 || smtpFamily === 6) {
+    options.family = smtpFamily;
+  }
 
   if (hasServiceOverride && overrides.service) {
     options.service = overrides.service;
@@ -495,6 +503,7 @@ function getEmailTransportKey(options) {
     options.host || "",
     options.port || "",
     options.secure === true ? "secure" : "starttls",
+    options.family || "",
   ].join("|");
 }
 
@@ -516,6 +525,7 @@ function buildEmailTransportCandidates() {
         host: "smtp.gmail.com",
         port: 465,
         secure: true,
+        family: 4,
       }),
     );
     addCandidate(
@@ -523,6 +533,7 @@ function buildEmailTransportCandidates() {
         host: "smtp.gmail.com",
         port: 587,
         secure: false,
+        family: 4,
       }),
     );
     addCandidate(buildEmailTransportOptions({ service: "gmail" }));
@@ -535,7 +546,7 @@ function describeEmailTransportOptions(options = {}) {
   if (options.service) return options.service;
   return `${options.host || "smtp"}:${options.port || ""}${
     options.secure ? "/ssl" : "/starttls"
-  }`;
+  }${options.family ? `/ipv${options.family}` : ""}`;
 }
 
 function createEmailTransporter(options) {
