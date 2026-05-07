@@ -396,68 +396,6 @@ let isEmailConfigured = Boolean(
 let emailReady = false;
 let lastEmailError = null;
 let lastEmailCheckAt = null;
-const EMAIL_SERVICE = String(process.env.EMAIL_SERVICE || "gmail")
-  .trim()
-  .toLowerCase();
-const SMTP_TIMEOUT_MS = Math.max(
-  5000,
-  Number(process.env.SMTP_TIMEOUT_MS || process.env.EMAIL_TIMEOUT_MS || 12000),
-);
-
-function getDefaultSmtpHost() {
-  const smtpHost =
-    process.env.SMTP_HOST ||
-    process.env.EMAIL_HOST ||
-    (EMAIL_SERVICE === "gmail" ? "smtp.gmail.com" : "");
-  return String(smtpHost || "").trim();
-}
-
-function getDefaultSmtpPort() {
-  const smtpPort = Number(
-    process.env.SMTP_PORT ||
-      process.env.EMAIL_PORT ||
-      (EMAIL_SERVICE === "gmail" ? 587 : 465),
-  );
-  return Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
-}
-
-function buildEmailTransportOptions() {
-  const smtpHost = getDefaultSmtpHost();
-  const smtpPort = getDefaultSmtpPort();
-  const smtpSecure =
-    process.env.SMTP_SECURE !== undefined
-      ? isExplicitTrue(process.env.SMTP_SECURE)
-      : smtpPort === 465;
-
-  const options = {
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-    connectionTimeout: SMTP_TIMEOUT_MS,
-    greetingTimeout: SMTP_TIMEOUT_MS,
-    socketTimeout: SMTP_TIMEOUT_MS,
-  };
-
-  if (smtpHost) {
-    options.host = smtpHost;
-    options.port = smtpPort;
-    options.secure = smtpSecure;
-    if (!smtpSecure) {
-      options.requireTLS = true;
-    }
-  } else if (EMAIL_SERVICE) {
-    options.service = EMAIL_SERVICE;
-  }
-
-  if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
-    options.tls = {
-      rejectUnauthorized: false,
-    };
-  }
-
-  return options;
-}
 
 function markEmailFailure(error) {
   emailReady = false;
@@ -466,7 +404,19 @@ function markEmailFailure(error) {
 }
 
 if (isEmailConfigured) {
-  transporter = nodemailer.createTransport(buildEmailTransportOptions());
+  const transporterOptions = {
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASSWORD,
+    },
+  };
+  if (!process.env.NODE_ENV || process.env.NODE_ENV === "development") {
+    transporterOptions.tls = { rejectUnauthorized: false };
+  }
+  transporter = nodemailer.createTransport(transporterOptions);
   transporter.verify((error) => {
     if (error) {
       console.log("[WARN] Errore configurazione email (SMTP):", error.message);
@@ -2649,9 +2599,9 @@ app.get("/config", (req, res) =>
     emailLastError: lastEmailError ? "Email non pronta" : null,
     emailLastCheckedAt: lastEmailCheckAt,
     emailTransport: {
-      service: EMAIL_SERVICE || "smtp",
-      host: getDefaultSmtpHost(),
-      port: getDefaultSmtpPort(),
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
     },
     addressAutofill: {
       enabled: true,
