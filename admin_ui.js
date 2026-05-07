@@ -705,21 +705,6 @@ function renderPaymentDetails(paymentDetails = {}) {
       .join("");
   }
 
-  if (paymentDetails.type === "paypal") {
-    const rows = [
-      ["Metodo", paymentDetails.typeLabel || "PayPal"],
-      ["Email PayPal", paymentDetails.email],
-      ["Nome pagatore", paymentDetails.payerName],
-      ["Paese", paymentDetails.country],
-      ["ID pagatore", paymentDetails.payerId],
-    ];
-    return rows
-      .map(([label, value]) =>
-        renderOrderDetailItem(label, formatPaymentDetailValue(value)),
-      )
-      .join("");
-  }
-
   return [
     ["Metodo", paymentDetails.typeLabel || paymentDetails.type],
     ["Titolare", paymentDetails.cardholderName],

@@ -17,8 +17,6 @@ let checkoutPreserveAddressOnCountryChange = false;
 let stripeScriptPromise = null;
 let checkoutCurrentUser = null;
 let checkoutSavedPaymentMethods = [];
-let checkoutPaymentConfig = null;
-let checkoutSelectedPaymentType = "";
 let checkoutPaymentReady = false;
 const CHECKOUT_ADDRESS_LOOKUP_DEBOUNCE_MS = 350;
 const CHECKOUT_ADDRESS_LOOKUP_CACHE = new Map();
@@ -781,44 +779,6 @@ function waitForStripeMountReady() {
   });
 }
 
-function updatePaypalCheckoutNote() {
-  const note = document.getElementById("paypal-payment-note");
-  if (!note) return;
-  const paypalEnabled = Boolean(checkoutPaymentConfig?.paypalEnabled);
-  const isPaypalSelected = checkoutSelectedPaymentType === "paypal";
-  note.style.display = paypalEnabled && isPaypalSelected ? "flex" : "none";
-  if (!isPaypalSelected) {
-    note.classList.remove("is-active");
-    const title = note.querySelector(".paypal-payment-note-title");
-    const text = note.querySelector(".paypal-payment-note-text");
-    if (title) title.textContent = "PayPal protetto da ShopNow";
-    if (text) {
-      text.textContent =
-        "Ti accompagneremo alla pagina sicura di autorizzazione e tornerai qui dopo il pagamento.";
-    }
-  }
-}
-
-function handlePaymentElementChange(event) {
-  checkoutSelectedPaymentType = String(event?.value?.type || "");
-  updatePaypalCheckoutNote();
-}
-
-function showPaypalRedirectState() {
-  const note = document.getElementById("paypal-payment-note");
-  if (note) {
-    note.style.display = "flex";
-    note.classList.add("is-active");
-    const title = note.querySelector(".paypal-payment-note-title");
-    const text = note.querySelector(".paypal-payment-note-text");
-    if (title) title.textContent = "Apro PayPal in modo sicuro";
-    if (text) {
-      text.textContent =
-        "Completa l'autorizzazione nella finestra sicura. Poi tornerai su ShopNow per la conferma.";
-    }
-  }
-}
-
 function escapeCheckoutHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -1046,6 +1006,7 @@ async function registerCheckoutOrder(payload) {
       }),
       body: JSON.stringify(payload),
     },
+    60000,
   );
 
   const data = await checkoutResponse.json();
@@ -1068,6 +1029,7 @@ async function confirmSavedCheckoutPayment(paymentIntentId, paymentMethodId) {
         paymentMethodId,
       }),
     },
+    45000,
   );
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -1134,7 +1096,6 @@ async function initializeStripeCheckout() {
       },
     );
     const config = await configResponse.json();
-    checkoutPaymentConfig = config?.paymentMethods || null;
 
     if (
       !configResponse.ok ||
@@ -1185,6 +1146,7 @@ async function initializeStripeCheckout() {
               ?.value.trim(),
           }),
         },
+        45000,
       );
       const intentData = await intentResponse.json();
       if (!intentResponse.ok || !intentData.clientSecret) {
@@ -1238,7 +1200,6 @@ async function initializeStripeCheckout() {
           "stripe-payment-element--focus",
         ),
       );
-      stripePaymentElement.on("change", handlePaymentElementChange);
       setCheckoutPaymentReady(true);
     }
   } catch (err) {
@@ -1376,9 +1337,6 @@ async function handleCheckoutSubmit(event) {
       if (submitResult.error) {
         showPaymentElementError(submitResult.error.message);
         throw new Error(submitResult.error.message);
-      }
-      if (checkoutSelectedPaymentType === "paypal") {
-        showPaypalRedirectState();
       }
 
       // 1. Conferma pagamento con Stripe Payment Element

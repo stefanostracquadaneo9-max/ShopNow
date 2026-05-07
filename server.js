@@ -315,21 +315,8 @@ function isCheckoutTestBypassAllowed() {
   return isExplicitTrue(process.env.ALLOW_TEST_CHECKOUT_BYPASS);
 }
 
-function isStripeTestSecretKey() {
-  return /^sk_test_/i.test(stripeSecretKey);
-}
-
-function isPaypalPaymentEnabled() {
-  return false;
-}
-
 function getCheckoutPaymentMethodTypes() {
   return ["card"];
-}
-
-function getPaypalPreferredLocale() {
-  const locale = String(process.env.PAYPAL_PREFERRED_LOCALE || "it-IT").trim();
-  return /^[a-z]{2}-[A-Z]{2}$/.test(locale) ? locale : "it-IT";
 }
 
 // Rotte prioritarie per Healthcheck e UI
@@ -403,7 +390,6 @@ function requireAdmin(req, res, next) {
   });
 }
 let transporter = null;
-let activeEmailTransportOptions = null;
 const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
 const EMAIL_FROM_ADDRESS = String(
   process.env.EMAIL_FROM || process.env.EMAIL_USER || "",
@@ -441,26 +427,13 @@ function getDefaultSmtpPort() {
   return Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
 }
 
-function buildEmailTransportOptions(overrides = {}) {
-  const hasServiceOverride = Object.prototype.hasOwnProperty.call(
-    overrides,
-    "service",
-  );
-  const smtpHost = hasServiceOverride
-    ? ""
-    : String(overrides.host || getDefaultSmtpHost()).trim();
-  const smtpPort = Number(overrides.port || getDefaultSmtpPort());
+function buildEmailTransportOptions() {
+  const smtpHost = getDefaultSmtpHost();
+  const smtpPort = getDefaultSmtpPort();
   const smtpSecure =
-    overrides.secure !== undefined
-      ? Boolean(overrides.secure)
-      : process.env.SMTP_SECURE !== undefined
-        ? isExplicitTrue(process.env.SMTP_SECURE)
-        : smtpPort === 465;
-  const smtpFamily = Number(
-    overrides.family ||
-      process.env.SMTP_FAMILY ||
-      (EMAIL_SERVICE === "gmail" ? 4 : 0),
-  );
+    process.env.SMTP_SECURE !== undefined
+      ? isExplicitTrue(process.env.SMTP_SECURE)
+      : smtpPort === 465;
 
   const options = {
     auth: {
@@ -471,13 +444,8 @@ function buildEmailTransportOptions(overrides = {}) {
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
   };
-  if (smtpFamily === 4 || smtpFamily === 6) {
-    options.family = smtpFamily;
-  }
 
-  if (hasServiceOverride && overrides.service) {
-    options.service = overrides.service;
-  } else if (smtpHost) {
+  if (smtpHost) {
     options.host = smtpHost;
     options.port = smtpPort;
     options.secure = smtpSecure;
@@ -495,97 +463,6 @@ function buildEmailTransportOptions(overrides = {}) {
   }
 
   return options;
-}
-
-function getEmailTransportKey(options) {
-  return [
-    options.service || "",
-    options.host || "",
-    options.port || "",
-    options.secure === true ? "secure" : "starttls",
-    options.family || "",
-  ].join("|");
-}
-
-function buildEmailTransportCandidates() {
-  const candidates = [];
-  const seen = new Set();
-  const addCandidate = (options) => {
-    const key = getEmailTransportKey(options);
-    if (seen.has(key)) return;
-    seen.add(key);
-    candidates.push(options);
-  };
-
-  addCandidate(buildEmailTransportOptions());
-
-  if (EMAIL_SERVICE === "gmail") {
-    addCandidate(
-      buildEmailTransportOptions({
-        host: "smtp.gmail.com",
-        port: 465,
-        secure: true,
-        family: 4,
-      }),
-    );
-    addCandidate(
-      buildEmailTransportOptions({
-        host: "smtp.gmail.com",
-        port: 587,
-        secure: false,
-        family: 4,
-      }),
-    );
-    addCandidate(buildEmailTransportOptions({ service: "gmail" }));
-  }
-
-  return candidates;
-}
-
-function describeEmailTransportOptions(options = {}) {
-  if (options.service) return options.service;
-  return `${options.host || "smtp"}:${options.port || ""}${
-    options.secure ? "/ssl" : "/starttls"
-  }${options.family ? `/ipv${options.family}` : ""}`;
-}
-
-function createEmailTransporter(options) {
-  return nodemailer.createTransport(options);
-}
-
-function verifyTransporter(transporterToVerify) {
-  return new Promise((resolve, reject) => {
-    transporterToVerify.verify((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-}
-
-async function verifyEmailTransportCandidates() {
-  let lastError = null;
-  for (const candidate of buildEmailTransportCandidates()) {
-    const candidateTransporter = createEmailTransporter(candidate);
-    try {
-      await verifyTransporter(candidateTransporter);
-      transporter = candidateTransporter;
-      activeEmailTransportOptions = candidate;
-      emailReady = true;
-      lastEmailError = null;
-      lastEmailCheckAt = new Date().toISOString();
-      console.log(
-        `[OK] Email configurato e pronto (${describeEmailTransportOptions(candidate)})`,
-      );
-      return;
-    } catch (error) {
-      lastError = error;
-      console.log(
-        `[WARN] SMTP non pronto (${describeEmailTransportOptions(candidate)}):`,
-        error.message,
-      );
-    }
-  }
-  markEmailFailure(lastError || new Error("SMTP non disponibile"));
 }
 
 function markEmailFailure(error) {
@@ -625,46 +502,25 @@ async function sendMailMessage(mailOptions) {
   if (!hasSmtpCredentials) {
     throw new Error("Email non configurata");
   }
-
-  if (transporter && activeEmailTransportOptions) {
-    try {
-      await transporter.sendMail(mailOptions);
-      emailReady = true;
-      lastEmailError = null;
-      lastEmailCheckAt = new Date().toISOString();
-      return "smtp";
-    } catch (error) {
-      markEmailFailure(error);
-      transporter = null;
-      activeEmailTransportOptions = null;
-    }
+  if (!transporter) {
+    transporter = nodemailer.createTransport(buildEmailTransportOptions());
   }
 
-  let lastError = null;
-  for (const candidate of buildEmailTransportCandidates()) {
-    const candidateTransporter = createEmailTransporter(candidate);
-    try {
-      await candidateTransporter.sendMail(mailOptions);
-      transporter = candidateTransporter;
-      activeEmailTransportOptions = candidate;
-      emailReady = true;
-      lastEmailError = null;
-      lastEmailCheckAt = new Date().toISOString();
-      console.log(
-        `[OK] Email inviata via ${describeEmailTransportOptions(candidate)}`,
-      );
-      return "smtp";
-    } catch (error) {
-      lastError = error;
-      markEmailFailure(error);
-      console.log(
-        `[WARN] Invio SMTP fallito (${describeEmailTransportOptions(candidate)}):`,
-        error.message,
-      );
-    }
+  try {
+    await transporter.sendMail(mailOptions);
+    emailReady = true;
+    lastEmailError = null;
+    lastEmailCheckAt = new Date().toISOString();
+    return "smtp";
+  } catch (error) {
+    markEmailFailure(error);
+    transporter = nodemailer.createTransport(buildEmailTransportOptions());
+    await transporter.sendMail(mailOptions);
+    emailReady = true;
+    lastEmailError = null;
+    lastEmailCheckAt = new Date().toISOString();
+    return "smtp";
   }
-
-  throw lastError || new Error("Invio email SMTP non riuscito");
 }
 
 if (hasResendCredentials) {
@@ -674,9 +530,17 @@ if (hasResendCredentials) {
 }
 
 if (hasSmtpCredentials && !hasResendCredentials) {
-  verifyEmailTransportCandidates().catch((error) => {
-    console.log("[WARN] Errore configurazione email (SMTP):", error.message);
-    markEmailFailure(error);
+  transporter = nodemailer.createTransport(buildEmailTransportOptions());
+  transporter.verify((error) => {
+    if (error) {
+      console.log("[WARN] Errore configurazione email (SMTP):", error.message);
+      markEmailFailure(error);
+    } else {
+      console.log("[OK] Email configurato e pronto");
+      emailReady = true;
+      lastEmailError = null;
+      lastEmailCheckAt = new Date().toISOString();
+    }
   });
 }
 function getOptionalAuthUser(req) {
@@ -877,7 +741,6 @@ function formatStripePaymentMethodType(type) {
     .toLowerCase();
   const labels = {
     card: "Carta",
-    paypal: "PayPal",
     sepa_debit: "Addebito SEPA",
     klarna: "Klarna",
     link: "Link",
@@ -900,20 +763,6 @@ function buildCardPaymentDetails({ card, paymentMethod, charge }) {
     wallet: card?.wallet?.type || "",
     cardholderName: billingDetails?.name || "",
     billingEmail: billingDetails?.email || "",
-  };
-}
-
-function buildPaypalPaymentDetails({ paypal, paymentMethod, charge }) {
-  const billingDetails =
-    paymentMethod?.billing_details || charge?.billing_details;
-  return {
-    available: true,
-    type: "paypal",
-    typeLabel: "PayPal",
-    email: paypal?.payer_email || billingDetails?.email || "",
-    payerId: paypal?.payer_id || "",
-    country: paypal?.country || "",
-    payerName: billingDetails?.name || "",
   };
 }
 
@@ -975,14 +824,6 @@ async function getAdminOrderPaymentDetails(order) {
         charge,
       });
     }
-    if (type === "paypal") {
-      return buildPaypalPaymentDetails({
-        paypal: chargeDetails.paypal || null,
-        paymentMethod,
-        charge,
-      });
-    }
-
     return buildGenericPaymentDetails({ type, paymentMethod, charge });
   } catch (error) {
     console.error("Errore recupero metodo pagamento admin:", error.message);
@@ -2493,13 +2334,6 @@ app.post("/create-payment-intent", requireAuth, async (req, res) => {
     if (customerEmail) {
       paymentIntentParams.receipt_email = String(customerEmail).trim();
     }
-    if (isPaypalPaymentEnabled()) {
-      paymentIntentParams.payment_method_options = {
-        paypal: {
-          preferred_locale: getPaypalPreferredLocale(),
-        },
-      };
-    }
     if (authUser) {
       paymentIntentParams.customer =
         await getOrCreateStripeCustomerForUser(authUser);
@@ -2895,7 +2729,6 @@ app.get("/config", (req, res) =>
     },
     paymentMethods: {
       types: getCheckoutPaymentMethodTypes(),
-      paypalEnabled: isPaypalPaymentEnabled(),
     },
   }),
 );
