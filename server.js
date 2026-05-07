@@ -420,9 +420,11 @@ if (isEmailConfigured) {
   transporter.verify((error) => {
     if (error) {
       console.log("[WARN] Errore configurazione email (SMTP):", error.message);
+      isEmailConfigured = false;
       markEmailFailure(error);
     } else {
       console.log("[OK] Email configurato e pronto");
+      isEmailConfigured = true;
       emailReady = true;
       lastEmailError = null;
       lastEmailCheckAt = new Date().toISOString();
