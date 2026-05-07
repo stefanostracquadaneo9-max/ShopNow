@@ -446,7 +446,7 @@ function buildEmailTransportOptions(overrides = {}) {
     connectionTimeout: SMTP_TIMEOUT_MS,
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
-    family: 4,
+    family: overrides.family !== undefined ? overrides.family : 4,
   };
 
   if (smtpHost) {
@@ -489,20 +489,41 @@ function getEmailTransportCandidates() {
   if (EMAIL_SERVICE === "gmail") {
     return [
       {
-        label: "gmail-587-starttls",
+        label: "gmail-587-starttls-ipv6",
         options: buildEmailTransportOptions({
           host: "smtp.gmail.com",
           port: 587,
           secure: false,
           requireTLS: true,
+          family: 6,
         }),
       },
       {
-        label: "gmail-465-ssl",
+        label: "gmail-465-ssl-ipv6",
         options: buildEmailTransportOptions({
           host: "smtp.gmail.com",
           port: 465,
           secure: true,
+          family: 6,
+        }),
+      },
+      {
+        label: "gmail-587-starttls-ipv4",
+        options: buildEmailTransportOptions({
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          requireTLS: true,
+          family: 4,
+        }),
+      },
+      {
+        label: "gmail-465-ssl-ipv4",
+        options: buildEmailTransportOptions({
+          host: "smtp.gmail.com",
+          port: 465,
+          secure: true,
+          family: 4,
         }),
       },
       {
