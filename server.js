@@ -409,6 +409,14 @@ const SMTP_TIMEOUT_MS = Math.max(
   5000,
   Number(process.env.SMTP_TIMEOUT_MS || process.env.EMAIL_TIMEOUT_MS || 12000),
 );
+const SMTP_FAMILY = Number(
+  process.env.SMTP_FAMILY ||
+    process.env.EMAIL_FAMILY ||
+    (EMAIL_SERVICE === "gmail" &&
+    (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID)
+      ? 6
+      : 0),
+);
 
 function getDefaultSmtpHost() {
   const smtpHost =
@@ -444,6 +452,9 @@ function buildEmailTransportOptions() {
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
   };
+  if (SMTP_FAMILY === 4 || SMTP_FAMILY === 6) {
+    options.family = SMTP_FAMILY;
+  }
 
   if (smtpHost) {
     options.host = smtpHost;
@@ -2721,6 +2732,7 @@ app.get("/config", (req, res) =>
       service: hasResendCredentials ? null : EMAIL_SERVICE || "smtp",
       host: hasResendCredentials ? "api.resend.com" : getDefaultSmtpHost(),
       port: hasResendCredentials ? 443 : getDefaultSmtpPort(),
+      family: hasResendCredentials || !SMTP_FAMILY ? null : SMTP_FAMILY,
     },
     addressAutofill: {
       enabled: true,
