@@ -422,7 +422,7 @@ function getDefaultSmtpPort() {
   const smtpPort = Number(
     process.env.SMTP_PORT ||
       process.env.EMAIL_PORT ||
-      (EMAIL_SERVICE === "gmail" ? 465 : 465),
+      (EMAIL_SERVICE === "gmail" ? 587 : 465),
   );
   return Number.isFinite(smtpPort) && smtpPort > 0 ? smtpPort : 465;
 }
