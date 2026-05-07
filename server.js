@@ -7,6 +7,8 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const https = require("https");
+const net = require("net");
+const tls = require("tls");
 const stripeSecretKey = String(process.env.STRIPE_SECRET_KEY || "").trim();
 const shouldRelaxStripeTls =
   process.env.NODE_ENV !== "production" && process.platform === "win32";
@@ -421,6 +423,51 @@ function getExplicitSmtpPort() {
   return Number.isFinite(port) && port > 0 ? port : null;
 }
 
+function createSmtpSocketFactory({ family, secure }) {
+  return (options, callback) => {
+    const host = options.host;
+    const port = Number(options.port) || (secure ? 465 : 587);
+    const connectOptions = {
+      host,
+      port,
+      family,
+      timeout: SMTP_TIMEOUT_MS,
+    };
+
+    if (secure) {
+      connectOptions.servername =
+        options.servername || options.tls?.servername || host;
+    }
+
+    const socket = secure
+      ? tls.connect(connectOptions)
+      : net.createConnection(connectOptions);
+    let settled = false;
+
+    const finish = (error, socketOptions) => {
+      if (settled) return;
+      settled = true;
+      socket.removeListener("error", onError);
+      socket.removeListener("timeout", onTimeout);
+      callback(error, socketOptions);
+    };
+    const onError = (error) => finish(error);
+    const onTimeout = () => {
+      const error = new Error(`Timeout connessione SMTP IPv${family}`);
+      error.code = "ETIMEDOUT";
+      socket.destroy();
+      finish(error);
+    };
+
+    socket.once(secure ? "secureConnect" : "connect", () => {
+      socket.setKeepAlive(true);
+      finish(null, { connection: socket, secured: secure });
+    });
+    socket.once("error", onError);
+    socket.once("timeout", onTimeout);
+  };
+}
+
 function buildEmailTransportOptions(overrides = {}) {
   const smtpHost =
     overrides.host !== undefined ? overrides.host : getExplicitSmtpHost();
@@ -453,6 +500,13 @@ function buildEmailTransportOptions(overrides = {}) {
     options.host = smtpHost;
     options.port = smtpPort || 465;
     options.secure = smtpSecure;
+    options.servername = smtpHost;
+    if (overrides.family === 6) {
+      options.getSocket = createSmtpSocketFactory({
+        family: 6,
+        secure: smtpSecure,
+      });
+    }
     if (!smtpSecure || overrides.requireTLS) {
       options.requireTLS = true;
     }
