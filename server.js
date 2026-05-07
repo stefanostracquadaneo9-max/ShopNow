@@ -2168,23 +2168,6 @@ async function sendPasswordResetEmail({
   };
 }
 
-async function sendPasswordResetEmailSafely(payload) {
-  try {
-    return await sendPasswordResetEmail(payload);
-  } catch (error) {
-    markEmailFailure(error);
-    console.error(
-      `[EMAIL ERROR] Reset password non inviato a ${payload.customerEmail}:`,
-      error.message,
-    );
-    return {
-      success: false,
-      emailSent: false,
-      message: error.message || "Email reset password non inviata",
-    };
-  }
-}
-
 app.post("/create-payment-intent", requireAuth, async (req, res) => {
   try {
     const { amount, customerName, customerEmail, items } = req.body;
@@ -2838,17 +2821,22 @@ app.post("/api/auth/forgot-password", async (req, res) => {
       `reset-password.html?token=${resetToken}`,
     );
 
-    const emailResult = await sendPasswordResetEmailSafely({
-      customerName: user.name,
-      customerEmail: user.email,
-      resetLink: resetLink,
-      siteBaseUrl: getPublicSiteBaseUrl(req),
-    });
-
-    if (!emailResult.emailSent) {
+    try {
+      await sendPasswordResetEmail({
+        customerName: user.name,
+        customerEmail: user.email,
+        resetLink: resetLink,
+        siteBaseUrl: getPublicSiteBaseUrl(req),
+      });
+    } catch (error) {
+      markEmailFailure(error);
+      console.error(
+        `[EMAIL ERROR] Reset password non inviato a ${user.email}:`,
+        error.message,
+      );
       return res.status(503).json({
         error:
-          emailResult.message ||
+          error.message ||
           "Servizio email temporaneamente non disponibile. Riprova tra qualche minuto.",
       });
     }
