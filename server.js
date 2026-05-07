@@ -390,15 +390,9 @@ function requireAdmin(req, res, next) {
   });
 }
 let transporter = null;
-const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
-const EMAIL_FROM_ADDRESS = String(
-  process.env.EMAIL_FROM || process.env.EMAIL_USER || "",
-).trim();
-const hasSmtpCredentials = Boolean(
+let isEmailConfigured = Boolean(
   process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
 );
-const hasResendCredentials = Boolean(RESEND_API_KEY && EMAIL_FROM_ADDRESS);
-let isEmailConfigured = hasSmtpCredentials || hasResendCredentials;
 let emailReady = false;
 let lastEmailError = null;
 let lastEmailCheckAt = null;
@@ -408,14 +402,6 @@ const EMAIL_SERVICE = String(process.env.EMAIL_SERVICE || "gmail")
 const SMTP_TIMEOUT_MS = Math.max(
   5000,
   Number(process.env.SMTP_TIMEOUT_MS || process.env.EMAIL_TIMEOUT_MS || 12000),
-);
-const SMTP_FAMILY = Number(
-  process.env.SMTP_FAMILY ||
-    process.env.EMAIL_FAMILY ||
-    (EMAIL_SERVICE === "gmail" &&
-    (process.env.RAILWAY_ENVIRONMENT || process.env.RAILWAY_PROJECT_ID)
-      ? 6
-      : 0),
 );
 
 function getDefaultSmtpHost() {
@@ -452,9 +438,6 @@ function buildEmailTransportOptions() {
     greetingTimeout: SMTP_TIMEOUT_MS,
     socketTimeout: SMTP_TIMEOUT_MS,
   };
-  if (SMTP_FAMILY === 4 || SMTP_FAMILY === 6) {
-    options.family = SMTP_FAMILY;
-  }
 
   if (smtpHost) {
     options.host = smtpHost;
@@ -482,68 +465,7 @@ function markEmailFailure(error) {
   lastEmailCheckAt = new Date().toISOString();
 }
 
-async function sendResendEmail(mailOptions) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: mailOptions.from,
-      to: [mailOptions.to],
-      subject: mailOptions.subject,
-      html: mailOptions.html,
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(
-      data?.message || data?.error || "Invio email Resend non riuscito",
-    );
-  }
-  return data;
-}
-
-async function sendMailMessage(mailOptions) {
-  if (hasResendCredentials) {
-    await sendResendEmail(mailOptions);
-    return "resend";
-  }
-  if (!hasSmtpCredentials) {
-    throw new Error("Email non configurata");
-  }
-  if (!emailReady) {
-    throw new Error(lastEmailError || "SMTP non pronto");
-  }
-  if (!transporter) {
-    transporter = nodemailer.createTransport(buildEmailTransportOptions());
-  }
-
-  try {
-    await transporter.sendMail(mailOptions);
-    emailReady = true;
-    lastEmailError = null;
-    lastEmailCheckAt = new Date().toISOString();
-    return "smtp";
-  } catch (error) {
-    markEmailFailure(error);
-    transporter = nodemailer.createTransport(buildEmailTransportOptions());
-    await transporter.sendMail(mailOptions);
-    emailReady = true;
-    lastEmailError = null;
-    lastEmailCheckAt = new Date().toISOString();
-    return "smtp";
-  }
-}
-
-if (hasResendCredentials) {
-  emailReady = true;
-  lastEmailError = null;
-  lastEmailCheckAt = new Date().toISOString();
-}
-
-if (hasSmtpCredentials && !hasResendCredentials) {
+if (isEmailConfigured) {
   transporter = nodemailer.createTransport(buildEmailTransportOptions());
   transporter.verify((error) => {
     if (error) {
@@ -1972,7 +1894,7 @@ async function sendOrderConfirmationEmail({
     })
     .join("\n");
   const mailOptions = {
-    from: EMAIL_FROM_ADDRESS,
+    from: process.env.EMAIL_USER,
     to: customerEmail,
     subject: `Ordine Confermato #${orderId} - ShopNow`,
     text: `Ciao ${customerName},
@@ -2135,7 +2057,7 @@ Puoi controllare l'ordine dal tuo account ShopNow.`,
 </html>
         `,
   };
-  const emailProvider = await sendMailMessage(mailOptions);
+  await transporter.sendMail(mailOptions);
   emailReady = true;
   lastEmailError = null;
   lastEmailCheckAt = new Date().toISOString();
@@ -2145,9 +2067,8 @@ Puoi controllare l'ordine dal tuo account ShopNow.`,
     text: `Ordine #${orderId} confermato - Totale EUR ${amount.toFixed(2)}`,
     timestamp: new Date().toLocaleString("it-IT"),
     orderId: orderId,
-    provider: emailProvider,
   });
-  console.log(`[OK] Email inviata a ${customerEmail} via ${emailProvider}`);
+  console.log(`[OK] Email inviata a ${customerEmail}`);
   return {
     success: true,
     emailSent: true,
@@ -2194,7 +2115,7 @@ async function sendPasswordResetEmail({
 
   const safeName = customerName || "Utente";
   const mailOptions = {
-    from: EMAIL_FROM_ADDRESS,
+    from: process.env.EMAIL_USER,
     to: customerEmail,
     subject: "ShopNow - Ripristina la tua password",
     text: `Ciao ${safeName},\n\nUsa questo link entro 1 ora per ripristinare la password del tuo account ShopNow:\n${resetLink}\n\nSe non hai richiesto tu il reset, ignora questa email.`,
@@ -2276,7 +2197,7 @@ async function sendPasswordResetEmail({
         `,
   };
 
-  const emailProvider = await sendMailMessage(mailOptions);
+  await transporter.sendMail(mailOptions);
   emailReady = true;
   lastEmailError = null;
   lastEmailCheckAt = new Date().toISOString();
@@ -2286,11 +2207,8 @@ async function sendPasswordResetEmail({
     text: "Richiesta recupero password ShopNow",
     timestamp: new Date().toLocaleString("it-IT"),
     type: "password-reset",
-    provider: emailProvider,
   });
-  console.log(
-    `[OK] Email reset password inviata a ${customerEmail} via ${emailProvider}`,
-  );
+  console.log(`[OK] Email reset password inviata a ${customerEmail}`);
   return {
     success: true,
     emailSent: true,
@@ -2731,11 +2649,9 @@ app.get("/config", (req, res) =>
     emailLastError: lastEmailError ? "Email non pronta" : null,
     emailLastCheckedAt: lastEmailCheckAt,
     emailTransport: {
-      provider: hasResendCredentials ? "resend" : "smtp",
-      service: hasResendCredentials ? null : EMAIL_SERVICE || "smtp",
-      host: hasResendCredentials ? "api.resend.com" : getDefaultSmtpHost(),
-      port: hasResendCredentials ? 443 : getDefaultSmtpPort(),
-      family: hasResendCredentials || !SMTP_FAMILY ? null : SMTP_FAMILY,
+      service: EMAIL_SERVICE || "smtp",
+      host: getDefaultSmtpHost(),
+      port: getDefaultSmtpPort(),
     },
     addressAutofill: {
       enabled: true,
