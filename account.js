@@ -1069,7 +1069,7 @@ document.addEventListener("DOMContentLoaded", async function () {
     accountMessage.textContent = "";
   }
 
-  // Funzioni di utilità locali (se non già globali, ora molte sono globali in auth.js)
+  // Funzioni di utilità locali (se non già globali, ora molte sono nel bundle comune)
   function normalizeOrderItems(items) {
     if (typeof items === "string") {
       try {

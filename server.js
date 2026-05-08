@@ -46,10 +46,8 @@ const PUBLIC_STATIC_FILES = new Set([
   "account.js",
   "admin.html",
   "admin_ui.js",
-  "auth.js",
   "auth_ui.js",
   "cart.html",
-  "cart.js",
   "checkout.html",
   "checkout.js",
   "favicon.svg",
@@ -67,17 +65,15 @@ const PUBLIC_STATIC_FILES = new Set([
   "register.html",
   "reset-password.html",
   "reset_password_ui.js",
-  "site_boot.js",
+  "shopnow-common.js",
   "style.css",
-  "utils.js",
 ]);
 const STATIC_MAX_AGE = process.env.NODE_ENV === "production" ? "1d" : 0;
 const NO_STORE_STATIC_FILES = new Set([
   "admin.html",
   "admin_ui.js",
-  "auth.js",
   "auth_ui.js",
-  "site_boot.js",
+  "shopnow-common.js",
   "style.css",
 ]);
 
@@ -3075,7 +3071,7 @@ app.post("/login", async (req, res) => {
     res.json({
       success: true,
       user: {
-        // Struttura garantita per il reindirizzamento in auth.js
+        // Struttura garantita per il reindirizzamento nel bundle comune
         id: user.id,
         email: user.email,
         name: user.name,

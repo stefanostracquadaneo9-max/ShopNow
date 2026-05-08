@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", async function () {
-  await loadOrders(); // La chiamata a updateCartCount() è ora in auth.js
+  await loadOrders(); // La chiamata a updateCartCount() è ora nel bundle comune
 });
 async function loadOrders() {
   const ordersContainer = document.getElementById("orders-container");
