@@ -1,0 +1,23 @@
+[Unit]
+Description=ShopNow Node.js application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=shopnow
+Group=shopnow
+WorkingDirectory=/opt/shopnow/app
+EnvironmentFile=/etc/shopnow/shopnow.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+KillSignal=SIGINT
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/shopnow /opt/shopnow/app /var/log/shopnow
+
+[Install]
+WantedBy=multi-user.target
