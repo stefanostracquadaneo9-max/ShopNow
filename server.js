@@ -81,7 +81,6 @@ const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const CHECKOUT_VAT_RATE = 0.22;
 const DEFAULT_PUBLIC_SITE_URL = "https://shopnow-production.up.railway.app";
-let sentEmails = [];
 const {
   db,
   createUser,
@@ -309,10 +308,6 @@ function isExplicitTrue(value) {
   return value === true || String(value || "").toLowerCase() === "true";
 }
 
-function isCheckoutTestBypassAllowed() {
-  return isExplicitTrue(process.env.ALLOW_TEST_CHECKOUT_BYPASS);
-}
-
 function getCheckoutPaymentMethodTypes() {
   return ["card"];
 }
@@ -354,9 +349,6 @@ function isAdminDataPath(pathname) {
   return (
     pathname.startsWith("/api/admin") ||
     pathname === "/api/auth/users" ||
-    pathname === "/admin/users" ||
-    pathname.startsWith("/admin/users/") ||
-    pathname === "/admin/orders" ||
     pathname === "/admin/products" ||
     pathname.startsWith("/admin/products/")
   );
@@ -388,15 +380,13 @@ function requireAdmin(req, res, next) {
   });
 }
 let transporter = null;
-const RESEND_API_KEY = String(process.env.RESEND_API_KEY || "").trim();
 const EMAIL_FROM_ADDRESS = String(
   process.env.EMAIL_FROM || process.env.EMAIL_USER || "",
 ).trim();
 const hasSmtpCredentials = Boolean(
   process.env.EMAIL_USER && process.env.EMAIL_PASSWORD,
 );
-const hasResendCredentials = Boolean(RESEND_API_KEY && EMAIL_FROM_ADDRESS);
-let isEmailConfigured = hasSmtpCredentials || hasResendCredentials;
+let isEmailConfigured = hasSmtpCredentials;
 let emailReady = false;
 let lastEmailError = null;
 let lastEmailCheckAt = null;
@@ -611,7 +601,7 @@ async function verifyEmailTransport(candidateTransporter) {
 }
 
 async function initializeSmtpTransport() {
-  if (!hasSmtpCredentials || hasResendCredentials) return false;
+  if (!hasSmtpCredentials) return false;
   let lastError = null;
   for (const candidate of getEmailTransportCandidates()) {
     const candidateTransporter = nodemailer.createTransport(candidate.options);
@@ -646,34 +636,7 @@ function markEmailFailure(error) {
   lastEmailCheckAt = new Date().toISOString();
 }
 
-async function sendResendEmail(mailOptions) {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: mailOptions.from,
-      to: [mailOptions.to],
-      subject: mailOptions.subject,
-      html: mailOptions.html,
-    }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(
-      data?.message || data?.error || "Invio email Resend non riuscito",
-    );
-  }
-  return data;
-}
-
 async function sendMailMessage(mailOptions) {
-  if (hasResendCredentials) {
-    await sendResendEmail(mailOptions);
-    return "resend";
-  }
   if (!hasSmtpCredentials) {
     throw new Error("Email non configurata");
   }
@@ -726,13 +689,7 @@ async function sendMailMessage(mailOptions) {
   throw lastError || new Error("Email non configurata");
 }
 
-if (hasResendCredentials) {
-  emailReady = true;
-  lastEmailError = null;
-  lastEmailCheckAt = new Date().toISOString();
-}
-
-if (hasSmtpCredentials && !hasResendCredentials) {
+if (hasSmtpCredentials) {
   initializeSmtpTransport().catch((error) => {
     console.log("[WARN] Errore configurazione email (SMTP):", error.message);
     markEmailFailure(error);
@@ -982,7 +939,7 @@ async function getAdminOrderPaymentDetails(order) {
       message: "Metodo di pagamento non registrato per questo ordine",
     };
   }
-  if (!stripe || paymentIntentId.startsWith("pi_bypass_")) {
+  if (!stripe) {
     return {
       available: false,
       typeLabel: "Pagamento registrato",
@@ -2320,14 +2277,6 @@ Puoi controllare l'ordine dal tuo account ShopNow.`,
   emailReady = true;
   lastEmailError = null;
   lastEmailCheckAt = new Date().toISOString();
-  sentEmails.push({
-    subject: mailOptions.subject,
-    to: customerEmail,
-    text: `Ordine #${orderId} confermato - Totale EUR ${amount.toFixed(2)}`,
-    timestamp: new Date().toLocaleString("it-IT"),
-    orderId: orderId,
-    provider: emailProvider,
-  });
   console.log(`[OK] Email inviata a ${customerEmail} via ${emailProvider}`);
   return {
     success: true,
@@ -2461,14 +2410,6 @@ async function sendPasswordResetEmail({
   emailReady = true;
   lastEmailError = null;
   lastEmailCheckAt = new Date().toISOString();
-  sentEmails.push({
-    subject: mailOptions.subject,
-    to: customerEmail,
-    text: "Richiesta recupero password ShopNow",
-    timestamp: new Date().toLocaleString("it-IT"),
-    type: "password-reset",
-    provider: emailProvider,
-  });
   console.log(
     `[OK] Email reset password inviata a ${customerEmail} via ${emailProvider}`,
   );
@@ -2546,30 +2487,6 @@ app.post("/create-payment-intent", requireAuth, async (req, res) => {
     });
   }
 });
-app.post("/confirm-payment", async (req, res) => {
-  try {
-    const { paymentIntentId } = req.body;
-    const stripeClient = getStripeClient();
-    const paymentIntent =
-      await stripeClient.paymentIntents.retrieve(paymentIntentId);
-    if (paymentIntent.status === "succeeded") {
-      res.json({
-        success: true,
-        orderId: paymentIntent.id,
-        amount: paymentIntent.amount / 100,
-        message: "Pagamento completato con successo!",
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: "Pagamento non completato",
-      });
-    }
-  } catch (error) {
-    console.error("Errore conferma pagamento:", error);
-    res.status(500).json({ error: error.message });
-  }
-});
 app.post("/api/checkout", requireAuth, async (req, res) => {
   try {
     const {
@@ -2579,34 +2496,11 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       shippingAddress,
       customerName,
       customerEmail,
-      fileModeCheckout,
-      cardSummary,
       savePaymentMethod,
       savePaymentMethodAsDefault,
-      skipStripe,
-      skipEmail,
-      skipValidation,
     } = req.body;
-    const checkoutTestBypassAllowed = isCheckoutTestBypassAllowed();
-    const wantsSkipStripe = isExplicitTrue(skipStripe);
-    const wantsSkipEmail = isExplicitTrue(skipEmail);
-    const wantsSkipValidation = isExplicitTrue(skipValidation);
-    const wantsFileModeCheckout =
-      isExplicitTrue(fileModeCheckout) || !paymentIntentId;
-
     if (
-      (wantsSkipStripe || wantsSkipValidation || wantsFileModeCheckout) &&
-      !checkoutTestBypassAllowed
-    ) {
-      return res.status(403).json({
-        error: "Checkout non disponibile in questa configurazione",
-      });
-    }
-
-    const shouldSkipEmail = wantsSkipEmail && checkoutTestBypassAllowed;
-    const isFileModeCheckout =
-      wantsFileModeCheckout && checkoutTestBypassAllowed;
-    if (
+      !paymentIntentId ||
       !Array.isArray(items) ||
       !items.length ||
       !total ||
@@ -2619,90 +2513,34 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       );
       return res.status(400).json({ error: "Dati checkout incompleti" });
     }
-    let checkoutSnapshot = null;
-    if (wantsSkipValidation && checkoutTestBypassAllowed) {
-      console.log("[INFO] Validazione checkout bypassata da configurazione.");
-      checkoutSnapshot = {
-        items: items.map((item) => ({
-          id: item.id,
-          name: `Product ${item.id}`,
-          price: 100,
-          quantity: item.quantity,
-          image: "",
-          stock: 100,
-        })),
-        subtotal: 200,
-        vat: calculateIncludedVatAmount(200),
-        shipping: 0,
-        total: total || 200,
-      };
-    } else {
-      checkoutSnapshot = buildCheckoutStockSnapshot(items);
-      if (Math.abs(checkoutSnapshot.total - Number(total)) > 0.01) {
-        console.error(
-          `[ERROR] Checkout fallito: discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`,
-        );
-        return res.status(400).json({
-          error: "Totale ordine non coerente con i prezzi correnti",
-        });
-      }
+    const checkoutSnapshot = buildCheckoutStockSnapshot(items);
+    if (Math.abs(checkoutSnapshot.total - Number(total)) > 0.01) {
+      console.error(
+        `[ERROR] Checkout fallito: discrepanza totale. Client: ${total}, Server: ${checkoutSnapshot.total}`,
+      );
+      return res.status(400).json({
+        error: "Totale ordine non coerente con i prezzi correnti",
+      });
     }
     const expectedAmount = Math.round(checkoutSnapshot.total * 100);
-    let confirmedPaymentIntent = null;
-
-    if (wantsSkipStripe && checkoutTestBypassAllowed) {
-      console.log("[INFO] Stripe bypassato tramite skipStripe flag.");
-      confirmedPaymentIntent = {
-        id: `pi_bypass_${Date.now()}`,
-        status: "succeeded",
-        amount: expectedAmount,
-        currency: "eur",
-        client_secret: "bypass_secret",
-        metadata: {
-          customer_name: customerName,
-          customer_email: customerEmail,
-          checkout_mode: "bypass",
-        },
-      };
-    } else if (isFileModeCheckout) {
-      const stripeClient = getStripeClient();
-      confirmedPaymentIntent = await stripeClient.paymentIntents.create({
-        amount: expectedAmount,
-        currency: "eur",
-        payment_method: "pm_card_visa",
-        confirm: true,
-        payment_method_types: ["card"],
-        receipt_email: customerEmail,
-        description: `Ordine file mode - ${customerName}`,
-        metadata: {
-          customer_name: customerName,
-          customer_email: customerEmail,
-          card_brand: cardSummary?.brand || "Carta",
-          card_last4: cardSummary?.last4 || "0000",
-          checkout_mode: "file",
-        },
+    const stripeClient = getStripeClient();
+    const confirmedPaymentIntent =
+      await stripeClient.paymentIntents.retrieve(paymentIntentId);
+    if (!confirmedPaymentIntent || confirmedPaymentIntent.status !== "succeeded") {
+      console.error(
+        `[ERROR] Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`,
+      );
+      return res
+        .status(400)
+        .json({ error: "Pagamento non confermato da Stripe" });
+    }
+    if (confirmedPaymentIntent.amount !== expectedAmount) {
+      console.error(
+        `[ERROR] Checkout fallito: l'importo Stripe (${confirmedPaymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`,
+      );
+      return res.status(400).json({
+        error: "Importo pagamento non coerente con l'ordine",
       });
-    } else {
-      const stripeClient = getStripeClient();
-      const paymentIntent =
-        await stripeClient.paymentIntents.retrieve(paymentIntentId);
-      if (!paymentIntent || paymentIntent.status !== "succeeded") {
-        console.error(
-          `[ERROR] Checkout fallito: PaymentIntent ${paymentIntentId} non riuscito.`,
-        );
-        return res
-          .status(400)
-          .json({ error: "Pagamento non confermato da Stripe" });
-      }
-      if (paymentIntent.amount !== expectedAmount) {
-        console.error(
-          `[ERROR] Checkout fallito: l'importo Stripe (${paymentIntent.amount}) non corrisponde all'ordine (${expectedAmount})`,
-        );
-        return res.status(400).json({
-          error: "Importo pagamento non coerente con l'ordine",
-        });
-      }
-      confirmedPaymentIntent = paymentIntent;
     }
     const authUser = getOptionalAuthUser(req);
     const checkoutUser =
@@ -2728,7 +2566,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         emailSent: false,
         message: "Ordine gia registrato",
       };
-      if (isEmailConfigured && !shouldSkipEmail) {
+      if (isEmailConfigured) {
         emailResult = await sendOrderConfirmationEmailSafely({
           customerName: customerName,
           customerEmail: customerEmail,
@@ -2749,41 +2587,24 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
         emailSent: Boolean(emailResult.emailSent),
         emailMessage: emailResult.message,
         paymentIntentId: confirmedPaymentIntent.id,
-        updatedProducts:
-          wantsSkipStripe && checkoutTestBypassAllowed ? [] : getAllProducts(),
+        updatedProducts: getAllProducts(),
       });
     }
 
-    let updatedOrder = null;
-    if (!wantsSkipStripe || !checkoutTestBypassAllowed) {
-      updatedOrder = db_module.executeCheckoutTransaction(
-        checkoutUser.id,
-        checkoutSnapshot.total,
-        purchasedItems,
-        JSON.stringify(shippingAddress),
-        confirmedPaymentIntent.id,
-      );
-      updatedOrder = updateOrderStatus(updatedOrder.id, "paid");
-    } else {
-      updatedOrder = {
-        id: Date.now(),
-        userId: checkoutUser.id,
-        total: checkoutSnapshot.total,
-        status: "paid",
-        items: purchasedItems,
-        shippingAddress: JSON.stringify(shippingAddress),
-        createdAt: new Date().toISOString(),
-        stripePaymentIntentId: confirmedPaymentIntent.id,
-      };
-    }
+    let updatedOrder = db_module.executeCheckoutTransaction(
+      checkoutUser.id,
+      checkoutSnapshot.total,
+      purchasedItems,
+      JSON.stringify(shippingAddress),
+      confirmedPaymentIntent.id,
+    );
+    updatedOrder = updateOrderStatus(updatedOrder.id, "paid");
     let emailResult = {
       success: true,
       emailSent: false,
-      message: shouldSkipEmail
-        ? "Email non inviata in questa configurazione"
-        : "Email non configurata",
+      message: "Email non configurata",
     };
-    if (isEmailConfigured && !shouldSkipEmail) {
+    if (isEmailConfigured) {
       console.log(
         `[EMAIL] Inizio procedura invio email per ordine #${updatedOrder.id} a ${customerEmail}`,
       );
@@ -2802,9 +2623,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     if (
       authUser &&
       isExplicitTrue(savePaymentMethod) &&
-      confirmedPaymentIntent?.id &&
-      !wantsSkipStripe &&
-      !isFileModeCheckout
+      confirmedPaymentIntent?.id
     ) {
       try {
         paymentMethodSaveResult = await savePaymentMethodFromPaymentIntent({
@@ -2834,8 +2653,7 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
       paymentMethodSaved: Boolean(paymentMethodSaveResult.saved),
       paymentMethodSaveMessage: paymentMethodSaveResult.reason || null,
       paymentIntentId: confirmedPaymentIntent.id,
-      updatedProducts:
-        wantsSkipStripe && checkoutTestBypassAllowed ? [] : getAllProducts(),
+      updatedProducts: getAllProducts(),
     });
   } catch (error) {
     console.error(
@@ -2857,36 +2675,6 @@ app.post("/api/checkout", requireAuth, async (req, res) => {
     });
   }
 });
-app.post("/send-order-email", async (req, res) => {
-  try {
-    const {
-      customerName,
-      customerEmail,
-      orderId,
-      amount,
-      items,
-      orderDate,
-      shippingAddress,
-    } = req.body;
-    const result = await sendOrderConfirmationEmail({
-      customerName: customerName,
-      customerEmail: customerEmail,
-      orderId: orderId,
-      amount: amount,
-      items: items,
-      orderDate: orderDate,
-      shippingAddress: shippingAddress,
-    });
-    res.json(result);
-  } catch (error) {
-    console.error("Errore invio email:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      emailSent: false,
-    });
-  }
-});
 app.get("/config", (req, res) =>
   res.json({
     stripePublicKey: process.env.STRIPE_PUBLIC_KEY || "",
@@ -2895,11 +2683,11 @@ app.get("/config", (req, res) =>
     emailLastError: lastEmailError ? "Email non pronta" : null,
     emailLastCheckedAt: lastEmailCheckAt,
     emailTransport: {
-      provider: hasResendCredentials ? "resend" : "smtp",
-      service: hasResendCredentials ? null : EMAIL_SERVICE || "smtp",
+      provider: "smtp",
+      service: EMAIL_SERVICE || "smtp",
       active: activeEmailTransportLabel || null,
-      host: hasResendCredentials ? "api.resend.com" : getExplicitSmtpHost(),
-      port: hasResendCredentials ? 443 : getExplicitSmtpPort(),
+      host: getExplicitSmtpHost(),
+      port: getExplicitSmtpPort(),
     },
     addressAutofill: {
       enabled: true,
@@ -2997,40 +2785,6 @@ app.get("/admin", (req, res) => {
 });
 app.get("/order-confirmation", (req, res) => {
   sendPublicStaticFile(res, "order-confirmation.html");
-});
-app.get("/emails-view", (req, res) => {
-  const emailsHtml = sentEmails
-    .map(
-      (email) => `
-            <div class="card mb-3">
-                <div class="card-body">
-                    <h5 class="card-title">${email.subject}</h5>
-                    <h6 class="card-subtitle mb-2 text-muted">A: ${email.to}</h6>
-                    <p class="card-text">${email.text}</p>
-                    <small class="text-muted">Inviato: ${email.timestamp}</small>
-                </div>
-            </div>
-        `,
-    )
-    .join("");
-  res.send(`
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Email Inviate - Ecommerce</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body>
-    <div class="container mt-5">
-        <h1>Email inviate (${sentEmails.length})</h1>
-        <a href="/" class="btn btn-primary mb-3">&larr; Torna al menu</a>
-        ${emailsHtml || '<p class="text-muted">Nessuna email inviata ancora.</p>'}
-    </div>
-</body>
-</html>
-        `);
 });
 app.post("/register", async (req, res) => {
   try {
@@ -3858,40 +3612,7 @@ app.delete("/api/cart", requireAuth, (req, res) => {
     res.status(500).json({ error: "Errore interno del server" });
   }
 });
-app.get("/admin/users", requireAdmin, (req, res) => {
-  try {
-    const users = getAllUsers();
-    res.json(users);
-  } catch (error) {
-    console.error("Errore recupero utenti admin:", error);
-    res.status(500).json({ error: "Errore interno del server" });
-  }
-});
-app.get("/admin/users/:id", requireAdmin, (req, res) => {
-  try {
-    const userId = Number(req.params.id);
-    const user = buildAdminUserPayload(userId);
-    if (!user) return res.status(404).json({ error: "Utente non trovato" });
-    res.json({ success: true, user: user });
-  } catch (error) {
-    console.error("Errore dettaglio utente admin:", error);
-    res.status(500).json({ error: "Errore interno del server" });
-  }
-});
-app.get("/admin/orders", requireAdmin, (req, res) => {
-  try {
-    const allOrders = getAllOrders();
-    res.json(allOrders);
-  } catch (error) {
-    console.error("Errore recupero ordini admin:", error);
-    res.status(500).json({ error: "Errore interno del server" });
-  }
-});
-app.get(
-  ["/admin/orders/:id", "/api/admin/orders/:id"],
-  requireAdmin,
-  sendAdminOrderDetails,
-);
+app.get("/api/admin/orders/:id", requireAdmin, sendAdminOrderDetails);
 app.delete("/api/admin/users/:id", requireAdmin, (req, res) => {
   try {
     const userId = Number(req.params.id);

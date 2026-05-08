@@ -1,7 +1,4 @@
-// shopnow-common.js - bundle comune generato da: site_boot.js, utils.js, auth.js, cart.js
-// Aggiornare le sezioni qui se si modificano i file comuni accorpati.
-
-/* ===== site_boot.js ===== */
+/* ===== site boot ===== */
 (function () {
   function revealPage() {
     if (!document.body) return;
@@ -28,238 +25,9 @@
 })();
 
 
-/* ===== utils.js ===== */
-/**
- * utils.js - Shared utilities for performance optimization
- * Cache, lazy loading, and common functions
- */
-
-(function () {
-// DOM Element Cache
-class DOMCache {
-  constructor() {
-    this.cache = new Map();
-  }
-
-  get(id) {
-    if (!this.cache.has(id)) {
-      this.cache.set(id, document.getElementById(id));
-    }
-    return this.cache.get(id);
-  }
-
-  clear() {
-    this.cache.clear();
-  }
-
-  // Bulk get for multiple elements
-  getBulk(ids) {
-    return ids.reduce((acc, id) => {
-      acc[id] = this.get(id);
-      return acc;
-    }, {});
-  }
-}
-
-// Global cache instance
-const domCache = new DOMCache();
-
-// Fast element retrieval
-const $ = (id) => domCache.get(id);
-const $$ = (ids) => domCache.getBulk(ids);
-
-// Safe event listener wrapper
-function addEventListener(elementId, event, handler) {
-  const element = $(elementId);
-  if (element) element.addEventListener(event, handler);
-}
-
-// Safe element manipulation
-function setElementValue(elementId, value) {
-  const element = $(elementId);
-  if (element) element.value = value;
-}
-
-function getElementValue(elementId) {
-  const element = $(elementId);
-  return element ? element.value : "";
-}
-
-function setElementText(elementId, text) {
-  const element = $(elementId);
-  if (element) element.textContent = text;
-}
-
-function setElementHTML(elementId, html) {
-  const element = $(elementId);
-  if (element) element.innerHTML = html;
-}
-
-function addElementClass(elementId, className) {
-  const element = $(elementId);
-  if (element) element.classList.add(className);
-}
-
-function removeElementClass(elementId, className) {
-  const element = $(elementId);
-  if (element) element.classList.remove(className);
-}
-
-function toggleElementClass(elementId, className) {
-  const element = $(elementId);
-  if (element) element.classList.toggle(className);
-}
-
-function hasElementClass(elementId, className) {
-  const element = $(elementId);
-  return element ? element.classList.contains(className) : false;
-}
-
-// API call with error handling
-async function apiCall(url, options = {}) {
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        ...options.headers,
-      },
-      ...options,
-    });
-
-    if (!response.ok) throw new Error(`API error: ${response.status}`);
-    return await response.json();
-  } catch (error) {
-    throw new Error(`API call failed: ${error.message}`);
-  }
-}
-
-// POST helper
-async function apiPost(url, data) {
-  return apiCall(url, {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
-}
-
-// GET helper
-async function apiGet(url) {
-  return apiCall(url, { method: "GET" });
-}
-
-// PUT helper
-async function apiPut(url, data) {
-  return apiCall(url, {
-    method: "PUT",
-    body: JSON.stringify(data),
-  });
-}
-
-// DELETE helper
-async function apiDelete(url) {
-  return apiCall(url, { method: "DELETE" });
-}
-
-// Debounce function for input handling
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-// Throttle function for scroll/resize
-function throttle(func, limit) {
-  let inThrottle;
-  return function (...args) {
-    if (!inThrottle) {
-      func.apply(this, args);
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    }
-  };
-}
-
-// Format currency
-function formatCurrency(value, currency = "EUR") {
-  return new Intl.NumberFormat("it-IT", {
-    style: "currency",
-    currency: currency,
-  }).format(value);
-}
-
-// Format date
-function formatDate(date, locale = "it-IT") {
-  return new Date(date).toLocaleDateString(locale);
-}
-
-// Validate email
-function isValidEmail(email) {
-  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return re.test(email);
-}
-
-// Validate phone
-function isValidPhone(phone) {
-  const re = /^[+]?[0-9\s-()]{10,}$/;
-  return re.test(phone);
-}
-
-// Safe JSON parse
-function safeJSONParse(jsonString, defaultValue = null) {
-  try {
-    return JSON.parse(jsonString);
-  } catch {
-    return defaultValue;
-  }
-}
-
-// Safe JSON stringify
-function safeJSONStringify(obj, defaultValue = "{}") {
-  try {
-    return JSON.stringify(obj);
-  } catch {
-    return defaultValue;
-  }
-}
-
-// Get value from local storage
-function getFromStorage(key, defaultValue = null) {
-  try {
-    const item = localStorage.getItem(key);
-    return item ? safeJSONParse(item, defaultValue) : defaultValue;
-  } catch {
-    return defaultValue;
-  }
-}
-
-// Save value to local storage
-function saveToStorage(key, value) {
-  try {
-    localStorage.setItem(key, safeJSONStringify(value));
-  } catch {
-    // Storage full or disabled
-  }
-}
-
-// Remove from local storage
-function removeFromStorage(key) {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // Storage disabled
-  }
-}
-
-// Show notification (minimal)
+/* ===== shared notification helper ===== */
 function showNotification(message, type = "info", duration = 3000) {
-  const notificationId = `notification-${Date.now()}`;
   const notification = document.createElement("div");
-  notification.id = notificationId;
   notification.className = `notification notification-${type}`;
   notification.textContent = message;
   notification.style.cssText = `
@@ -271,111 +39,12 @@ function showNotification(message, type = "info", duration = 3000) {
     color: white;
     border-radius: 8px;
     z-index: 9999;
-    animation: slideIn 0.3s ease;
   `;
   document.body.appendChild(notification);
   setTimeout(() => notification.remove(), duration);
 }
-
-// Lazy load images
-function lazyLoadImages() {
-  if ("IntersectionObserver" in window) {
-    const imageObserver = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          const img = entry.target;
-          img.src = img.dataset.src;
-          img.classList.remove("lazy");
-          imageObserver.unobserve(img);
-        }
-      });
-    });
-
-    document.querySelectorAll("img.lazy").forEach((img) => {
-      imageObserver.observe(img);
-    });
-  }
-}
-
-// Ready promise - waits for DOM ready
-const ready = new Promise((resolve) => {
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", resolve);
-  } else {
-    resolve();
-  }
-});
-
-// Make functions available globally for browser use
-window.domCache = domCache;
-window.setElementValue = setElementValue;
-window.getElementValue = getElementValue;
-window.setElementText = setElementText;
-window.setElementHTML = setElementHTML;
-window.addElementClass = addElementClass;
-window.removeElementClass = removeElementClass;
-window.toggleElementClass = toggleElementClass;
-window.hasElementClass = hasElementClass;
-window.apiCall = apiCall;
-window.apiPost = apiPost;
-window.apiGet = apiGet;
-window.apiPut = apiPut;
-window.apiDelete = apiDelete;
-window.debounce = debounce;
-window.throttle = throttle;
-window.formatCurrency = formatCurrency;
-window.formatDate = formatDate;
-window.isValidEmail = isValidEmail;
-window.isValidPhone = isValidPhone;
-window.safeJSONParse = safeJSONParse;
-window.safeJSONStringify = safeJSONStringify;
-window.getFromStorage = getFromStorage;
-window.saveToStorage = saveToStorage;
-window.removeFromStorage = removeFromStorage;
 window.showNotification = showNotification;
-window.lazyLoadImages = lazyLoadImages;
-window.ready = ready;
-
-// Export for Node.js/CommonJS if available
-if (typeof module !== "undefined" && module.exports) {
-  module.exports = {
-    domCache,
-    $,
-    $$,
-    addEventListener,
-    setElementValue,
-    getElementValue,
-    setElementText,
-    setElementHTML,
-    addElementClass,
-    removeElementClass,
-    toggleElementClass,
-    hasElementClass,
-    apiCall,
-    apiPost,
-    apiGet,
-    apiPut,
-    apiDelete,
-    debounce,
-    throttle,
-    formatCurrency,
-    formatDate,
-    isValidEmail,
-    isValidPhone,
-    safeJSONParse,
-    safeJSONStringify,
-    getFromStorage,
-    saveToStorage,
-    removeFromStorage,
-    showNotification,
-    lazyLoadImages,
-    ready,
-  };
-}
-})();
-
-
-/* ===== auth.js ===== */
+/* ===== auth ===== */
 const DB_KEY_PREFIX = "ecommerce_";
 const AUTH_SESSION_KEY = "ecommerce-session-token";
 const AUTH_REFRESH_KEY = "ecommerce-refresh-token";
@@ -2368,28 +2037,11 @@ window.loginUser = loginUser;
 window.registerUser = registerUser;
 
 
-/* ===== cart.js ===== */
+/* ===== cart ===== */
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const VAT_RATE = 0.22;
 const BUY_NOW_CART_KEY = "shopnow-buy-now-cart";
-const CART_BRIDGE_KEYS = [
-  "ecommerce_users",
-  "ecommerce-session-token",
-  "cart",
-  "cart-count",
-];
-const cartCurrencyFormatter = new Intl.NumberFormat("it-IT", {
-  style: "currency",
-  currency: "EUR",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-let bridgedCheckoutPrefill = null;
-redirectFileModeCartPage();
-function redirectFileModeCartPage() {
-  return false;
-}
 function isServerCheckoutMode() {
   return typeof prefersServerAuth === "function"
     ? prefersServerAuth()
@@ -2398,26 +2050,8 @@ function isServerCheckoutMode() {
 function isStaticCheckoutMode() {
   return !isServerCheckoutMode();
 }
-function isLocalhostMode() {
-  return isServerCheckoutMode();
-}
 function isBuyNowMode() {
   return new URLSearchParams(window.location.search).get("mode") === "buy-now";
-}
-function shouldFocusCheckout() {
-  return new URLSearchParams(window.location.search).get("checkout") === "1";
-}
-function clearCheckoutFocusFlag() {
-  const currentUrl = new URL(window.location.href);
-  if (!currentUrl.searchParams.has("checkout")) {
-    return;
-  }
-  currentUrl.searchParams.delete("checkout");
-  window.history.replaceState(
-    {},
-    "",
-    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
-  );
 }
 /**
  * Gestione "Acquista ora" in stile Amazon
@@ -2481,64 +2115,6 @@ function getApiRequestHeaders(extraHeaders = {}) {
   return typeof getBackendRequestHeaders === "function"
     ? getBackendRequestHeaders(extraHeaders)
     : { ...extraHeaders };
-}
-function renderSavedPaymentMethod(method) {
-  const box = document.getElementById("saved-payment-method");
-  if (!box) {
-    return;
-  }
-  if (
-    !method ||
-    (!method.alias && !method.brand && !method.last4 && !method.expiry)
-  ) {
-    box.style.display = "none";
-    box.textContent = "";
-    return;
-  }
-  const label = method.alias || "Metodo salvato";
-  const brand = method.brand || "Carta";
-  const last4 = method.last4 ? `**** ${method.last4}` : "";
-  const expiry = method.expiry ? `Scadenza ${method.expiry}` : "";
-  box.textContent = `${label}: ${brand} ${last4} ${expiry}`
-    .replace(/\s+/g, " ")
-    .trim();
-  box.style.display = "block";
-}
-function consumeBridgeData() {
-  if (!isLocalhostMode()) {
-    return;
-  }
-  const currentUrl = new URL(window.location.href);
-  const bridgeParam = currentUrl.searchParams.get("bridge");
-  const prefillParam = currentUrl.searchParams.get("prefill");
-  if (!bridgeParam && !prefillParam) {
-    return;
-  }
-  if (bridgeParam) {
-    try {
-      const payload = JSON.parse(bridgeParam);
-      Object.entries(payload).forEach(([key, value]) => {
-        if (typeof value === "string") {
-          localStorage.setItem(key, value);
-        }
-      });
-    } catch (error) {
-      console.error("Errore import dati checkout:", error);
-    }
-  }
-  try {
-    bridgedCheckoutPrefill = prefillParam ? JSON.parse(prefillParam) : null;
-  } catch (error) {
-    console.error("Errore prefill checkout:", error);
-    bridgedCheckoutPrefill = null;
-  }
-  currentUrl.searchParams.delete("bridge");
-  currentUrl.searchParams.delete("prefill");
-  window.history.replaceState(
-    {},
-    "",
-    `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
-  );
 }
 function getCart() {
   try {
@@ -2677,9 +2253,6 @@ function fetchWithTimeout(url, options = {}, timeout = 30000) {
       throw error;
     });
 }
-function formatCurrency(value) {
-  return cartCurrencyFormatter.format(Number(value || 0));
-}
 function calculateShippingCost(subtotal) {
   const normalizedSubtotal = Number(subtotal || 0);
   if (
@@ -2697,146 +2270,7 @@ function calculateIncludedVatAmount(grossAmount) {
   if (!Number.isFinite(amount) || amount <= 0) return 0;
   return Number((amount - amount / (1 + VAT_RATE)).toFixed(2));
 }
-function normalizeCountryCode(value) {
-  const normalized = String(value || "")
-    .trim()
-    .toUpperCase();
 
-  // Mappa paesi comuni con variazioni
-  const countryMap = {
-    // Italia
-    ITALIA: "IT",
-    ITALY: "IT",
-    IT: "IT",
-    // Stati Uniti
-    "STATI UNITI": "US",
-    USA: "US",
-    "UNITED STATES": "US",
-    US: "US",
-    // Regno Unito
-    "REGNO UNITO": "GB",
-    "UNITED KINGDOM": "GB",
-    UK: "GB",
-    GB: "GB",
-    // Germania
-    GERMANIA: "DE",
-    GERMANY: "DE",
-    DE: "DE",
-    // Francia
-    FRANCIA: "FR",
-    FRANCE: "FR",
-    FR: "FR",
-    // Spagna
-    SPAGNA: "ES",
-    SPAIN: "ES",
-    ES: "ES",
-    // Altri paesi europei comuni
-    AUSTRIA: "AT",
-    AUSTRIA: "AT",
-    AT: "AT",
-    BELGIO: "BE",
-    BELGIUM: "BE",
-    BE: "BE",
-    OLANDA: "NL",
-    NETHERLANDS: "NL",
-    NL: "NL",
-    SVEZIA: "SE",
-    SWEDEN: "SE",
-    SE: "SE",
-    NORVEGIA: "NO",
-    NORWAY: "NO",
-    NO: "NO",
-    DANIMARCA: "DK",
-    DENMARK: "DK",
-    DK: "DK",
-    SVIZZERA: "CH",
-    SWITZERLAND: "CH",
-    CH: "CH",
-    PORTOGALLO: "PT",
-    PORTUGAL: "PT",
-    PT: "PT",
-    IRLANDA: "IE",
-    IRELAND: "IE",
-    IE: "IE",
-    FINLANDIA: "FI",
-    FINLAND: "FI",
-    FI: "FI",
-    POLONIA: "PL",
-    POLAND: "PL",
-    PL: "PL",
-    CECOSLOVACCHIA: "CZ",
-    "REPUBBLICA CECA": "CZ",
-    CZECH: "CZ",
-    CZ: "CZ",
-    UNGHERIA: "HU",
-    HUNGARY: "HU",
-    HU: "HU",
-    GRECIA: "GR",
-    GREECE: "GR",
-    GR: "GR",
-    // Altri paesi
-    CANADA: "CA",
-    CA: "CA",
-    AUSTRALIA: "AU",
-    AU: "AU",
-    GIAPPONE: "JP",
-    JAPAN: "JP",
-    JP: "JP",
-    CINA: "CN",
-    CHINA: "CN",
-    CN: "CN",
-    INDIA: "IN",
-    IN: "IN",
-    BRASILE: "BR",
-    BRAZIL: "BR",
-    BR: "BR",
-    MESSICO: "MX",
-    MEXICO: "MX",
-    MX: "MX",
-    ARGENTINA: "AR",
-    AR: "AR",
-    CILE: "CL",
-    CHILE: "CL",
-    CL: "CL",
-    COLOMBIA: "CO",
-    CO: "CO",
-    PERU: "PE",
-    PE: "PE",
-    VENEZUELA: "VE",
-    VE: "VE",
-    URUGUAY: "UY",
-    UY: "UY",
-    PARAGUAY: "PY",
-    PY: "PY",
-    BOLIVIA: "BO",
-    BO: "BO",
-    ECUADOR: "EC",
-    EC: "EC",
-  };
-
-  // Se è nella mappa, usa il codice corrispondente
-  if (countryMap[normalized]) {
-    return countryMap[normalized];
-  }
-
-  // Se è già un codice ISO a 2 lettere valido, restituiscilo
-  if (/^[A-Z]{2}$/.test(normalized)) {
-    return normalized;
-  }
-
-  // Per paesi non riconosciuti, prova a estrarre un codice a 2 lettere
-  // o usa una logica di fallback
-  const words = normalized.split(/\s+/);
-  if (words.length > 0) {
-    const firstWord = words[0];
-    if (firstWord.length >= 2) {
-      return firstWord.substring(0, 2).toUpperCase();
-    }
-  }
-
-  // Fallback: restituisci i primi 2 caratteri
-  return normalized.substring(0, 2).toUpperCase() || "IT";
-}
 function getProductsForCart() {
   if (typeof getAllProducts === "function") {
     const products = getAllProducts();
@@ -3118,36 +2552,19 @@ if (typeof window !== "undefined") {
   window.proceedToCheckout = proceedToCheckout;
   window.checkoutSingleItem = checkoutSingleItem;
   window.clearFullCart = clearFullCart;
-  window.consumeBridgeData = consumeBridgeData;
+  window.getCart = getCart;
   window.getCartStorageArea = getCartStorageArea;
   window.getCartDetails = getCartDetails;
   window.getApiUrl = getApiUrl;
   window.getApiRequestHeaders = getApiRequestHeaders;
   window.isStaticCheckoutMode = isStaticCheckoutMode;
   window.showCheckoutMessage = showCheckoutMessage;
+  window.setCheckoutLoading = setCheckoutLoading;
   window.fetchWithTimeout = fetchWithTimeout;
   window.clearLocalCart = clearLocalCart;
 }
 document.addEventListener("DOMContentLoaded", async () => {
-  consumeBridgeData(); // Deve essere chiamato prima di prefillCheckoutForm
   await ensureCartCatalogReady();
   updateCartCount();
   renderCart();
-
-  window.removeFromCart = removeFromCart;
-  window.updateQuantity = updateQuantity;
-  window.addToCart = addToCart;
-  window.buyNow = buyNow;
-  window.proceedToCheckout = proceedToCheckout;
-  window.checkoutSingleItem = checkoutSingleItem;
-  window.clearFullCart = clearFullCart;
-  window.consumeBridgeData = consumeBridgeData;
-  window.getCartStorageArea = getCartStorageArea;
-  window.getCartDetails = getCartDetails;
-  window.getApiUrl = getApiUrl;
-  window.getApiRequestHeaders = getApiRequestHeaders;
-  window.isStaticCheckoutMode = isStaticCheckoutMode;
-  window.showCheckoutMessage = showCheckoutMessage;
-  window.fetchWithTimeout = fetchWithTimeout;
-  window.clearLocalCart = clearLocalCart;
 });
