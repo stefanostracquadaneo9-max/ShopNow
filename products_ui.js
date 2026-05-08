@@ -217,20 +217,12 @@ function createProductCard(product) {
         <div class="small text-muted mb-2">IVA inclusa</div>
         <div class="product-availability small mb-3 ${isOutOfStock ? "text-danger" : stock <= 10 ? "text-warning" : "text-success"}">${getAvailabilityLabel(stock)}</div>
         <div class="mt-auto d-grid gap-2">
-          <button type="button" class="btn btn-outline-secondary btn-sm" onclick="window.openProductPage(${Number(product.id)})">
-            <i class="fas fa-arrow-right me-1"></i>Dettagli
-          </button>
           <button type="button" class="btn btn-primary btn-sm" onclick="window.addToCart(${Number(product.id)})" ${isOutOfStock ? "disabled" : ""}>
             <i class="fas fa-cart-plus me-1"></i>${isOutOfStock ? "Esaurito" : "Aggiungi al carrello"}
           </button>
           <button type="button" class="btn btn-warning btn-sm fw-bold" onclick="window.buyNow(${Number(product.id)})" ${isOutOfStock ? "disabled" : ""}>
             <i class="fas fa-bolt me-1"></i>Acquista ora
           </button>
-          ${
-            product.image
-              ? `<button type="button" class="btn btn-link btn-sm p-0 mt-2" onclick="window.openProductImage(${Number(product.id)})">Visualizza immagine ingrandita</button>`
-              : ""
-          }
         </div>
       </div>
     </div>
