@@ -84,8 +84,7 @@ const NO_STORE_STATIC_FILES = new Set([
 const FREE_SHIPPING_THRESHOLD = 30;
 const SHIPPING_RATE_UNDER_THRESHOLD = 0.05;
 const CHECKOUT_VAT_RATE = 0.22;
-const LOCAL_PUBLIC_SITE_URL = `http://localhost:${PORT}`;
-const DEFAULT_PUBLIC_SITE_URL = "";
+const DEFAULT_PUBLIC_SITE_URL = "https://shopnow-production.up.railway.app";
 let sentEmails = [];
 const {
   db,
@@ -292,14 +291,12 @@ function getPublicSiteBaseUrl(req) {
   if (configuredUrl && !isLocalPublicBaseUrl(configuredUrl))
     return configuredUrl;
 
-  return requestUrl || configuredUrl || LOCAL_PUBLIC_SITE_URL;
+  return requestUrl || configuredUrl || DEFAULT_PUBLIC_SITE_URL;
 }
 
 function buildPublicUrl(baseUrl, pathName = "") {
   const normalizedBaseUrl =
-    normalizePublicBaseUrl(baseUrl) ||
-    getConfiguredPublicSiteBaseUrl() ||
-    LOCAL_PUBLIC_SITE_URL;
+    normalizePublicBaseUrl(baseUrl) || DEFAULT_PUBLIC_SITE_URL;
   const normalizedPath = String(pathName || "").replace(/^\/+/, "");
   return normalizedPath
     ? `${normalizedBaseUrl}/${normalizedPath}`

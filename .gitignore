@@ -44,9 +44,6 @@ ngrok-*.log
 
 # Backup files
 *.backup
-*.tar
-*.tar.gz
-backups/
 *_backup.js
 *_new.js
 
