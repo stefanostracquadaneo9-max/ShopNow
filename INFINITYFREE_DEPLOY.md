@@ -13,6 +13,8 @@ Dal pannello InfinityFree crea un database MySQL e prendi:
 
 Le tabelle vengono create automaticamente alla prima richiesta.
 
+In alternativa puoi importare manualmente `api/schema.mysql.sql` da phpMyAdmin.
+
 ## 2. Configura le chiavi
 
 Copia:
@@ -31,7 +33,42 @@ e inserisci dati MySQL, Stripe, Gmail SMTP e dominio pubblico.
 
 `api/config.local.php` è ignorato da Git e non va caricato su repository pubblici.
 
+Puoi generarlo automaticamente partendo dal tuo `.env` locale e dai dati MySQL InfinityFree:
+
+```powershell
+.\tools\create-infinityfree-config.ps1 `
+  -DbHost "sqlXXX.infinityfree.com" `
+  -DbName "if0_XXXXXXXX_shopnow" `
+  -DbUser "if0_XXXXXXXX" `
+  -DbPass "PASSWORD_DATABASE" `
+  -PublicUrl "https://tuodominio.infinityfreeapp.com"
+```
+
+Lo script stampa anche l'URL `/api/install-check?token=...` da aprire dopo l'upload.
+
+Imposta anche `security.install_token`: serve solo per aprire il controllo installazione senza mostrare informazioni tecniche a chiunque.
+
+Esempio:
+
+```php
+'security' => [
+    'install_token' => 'metti-qui-un-token-lungo-casuale',
+],
+```
+
 ## 3. Carica i file
+
+Per creare uno zip pulito da caricare in `htdocs`:
+
+```powershell
+.\tools\build-infinityfree-package.ps1
+```
+
+Se hai già creato `api/config.local.php` e vuoi includerlo nello zip:
+
+```powershell
+.\tools\build-infinityfree-package.ps1 -IncludeLocalConfig
+```
 
 Carica nella cartella `htdocs` di InfinityFree:
 
@@ -87,6 +124,7 @@ Dopo il caricamento apri:
 ```text
 https://tuodominio/health
 https://tuodominio/config
+https://tuodominio/api/install-check?token=IL_TUO_TOKEN
 https://tuodominio/products.html
 ```
 
@@ -95,3 +133,9 @@ https://tuodominio/products.html
 ```json
 {"status":"healthy","mode":"infinityfree-php"}
 ```
+
+`/api/install-check` deve indicare:
+
+- `database.connected: true`
+- `stripeConfigured: true`
+- `emailConfigured: true`

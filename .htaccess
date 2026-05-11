@@ -29,7 +29,7 @@ DirectoryIndex index.html
   RewriteRule ^admin/?$ admin.html [L]
   RewriteRule ^order-confirmation/?$ order-confirmation.html [L]
 
-  RewriteRule ^(api/.*|health/?$|config/?$|create-payment-intent/?$|login/?$|register/?$|admin/products.*)$ api/index.php [QSA,L]
+  RewriteRule ^(api/.*|health/?$|install-check/?$|config/?$|create-payment-intent/?$|login/?$|register/?$|admin/products.*)$ api/index.php [QSA,L]
 </IfModule>
 
 <IfModule mod_headers.c>

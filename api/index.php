@@ -62,6 +62,9 @@ function app_config(): array
         'site' => [
             'public_url' => getenv('PUBLIC_SITE_URL') ?: '',
         ],
+        'security' => [
+            'install_token' => getenv('INSTALL_CHECK_TOKEN') ?: '',
+        ],
         'admin' => [
             'email' => getenv('ADMIN_EMAIL') ?: 'admin@gmail.com',
             'name' => getenv('ADMIN_NAME') ?: 'Administrator',
@@ -109,7 +112,7 @@ function normalized_path(): string
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
     $path = '/' . trim($path, '/');
     if ($path === '/') return '/';
-    foreach (['/api/', '/admin/products', '/create-payment-intent', '/config', '/login', '/register'] as $marker) {
+    foreach (['/api/', '/admin/products', '/create-payment-intent', '/install-check', '/config', '/login', '/register'] as $marker) {
         $pos = strpos($path, $marker);
         if ($pos !== false) return substr($path, $pos);
     }
@@ -978,12 +981,77 @@ function table_columns(string $table): array
     return $cache[$table];
 }
 
+function is_local_request(): bool
+{
+    $addr = $_SERVER['REMOTE_ADDR'] ?? '';
+    return in_array($addr, ['127.0.0.1', '::1'], true);
+}
+
+function handle_install_check(): void
+{
+    $cfg = app_config();
+    $token = (string)($cfg['security']['install_token'] ?? '');
+    $providedToken = (string)($_GET['token'] ?? '');
+    if (!$token && !is_local_request()) {
+        json_error('Configura security.install_token in api/config.local.php per usare questo controllo.', 403);
+    }
+    if ($token && !hash_equals($token, $providedToken)) {
+        json_error('Token controllo installazione non valido', 403);
+    }
+
+    $dbCfg = $cfg['db'];
+    $dbConfigured = (bool)($dbCfg['host'] && $dbCfg['name'] && $dbCfg['user']);
+    $dbOk = false;
+    $dbError = null;
+    $tables = [];
+    if ($dbConfigured) {
+        try {
+            $dsn = 'mysql:host=' . $dbCfg['host'] . ';dbname=' . $dbCfg['name'] . ';charset=utf8mb4';
+            $checkPdo = new PDO($dsn, $dbCfg['user'], $dbCfg['pass'], [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                PDO::ATTR_EMULATE_PREPARES => false,
+            ]);
+            initialize_database($checkPdo);
+            $dbOk = true;
+            foreach (['users', 'products', 'orders', 'addresses', 'paymentMethods', 'reviews', 'cartItems'] as $table) {
+                $tables[$table] = (int)$checkPdo->query('SELECT COUNT(*) FROM `' . $table . '`')->fetchColumn();
+            }
+        } catch (Throwable $e) {
+            $dbError = $e->getMessage();
+        }
+    }
+
+    json_response([
+        'success' => $dbOk,
+        'mode' => 'infinityfree-php',
+        'phpVersion' => PHP_VERSION,
+        'extensions' => [
+            'pdo_mysql' => extension_loaded('pdo_mysql'),
+            'curl' => extension_loaded('curl'),
+            'openssl' => extension_loaded('openssl'),
+            'mbstring' => extension_loaded('mbstring'),
+            'fileinfo' => extension_loaded('fileinfo'),
+        ],
+        'database' => [
+            'configured' => $dbConfigured,
+            'connected' => $dbOk,
+            'error' => $dbOk ? null : $dbError,
+            'tables' => $tables,
+        ],
+        'stripeConfigured' => (bool)($cfg['stripe']['public_key'] && $cfg['stripe']['secret_key']),
+        'emailConfigured' => (bool)($cfg['email']['user'] && $cfg['email']['pass']),
+        'publicUrl' => site_base_url(),
+    ], $dbOk ? 200 : 500);
+}
+
 try {
     $method = request_method();
     $path = normalized_path();
     $body = in_array($method, ['POST', 'PUT', 'DELETE'], true) ? body_json() : [];
 
     if ($path === '/health') json_response(['status' => 'healthy', 'mode' => 'infinityfree-php']);
+    if (($path === '/api/install-check' || $path === '/install-check') && $method === 'GET') handle_install_check();
     if ($path === '/config') {
         $cfg = app_config();
         json_response([

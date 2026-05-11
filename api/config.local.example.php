@@ -22,6 +22,9 @@ return [
     'site' => [
         'public_url' => 'https://tuodominio.infinityfreeapp.com',
     ],
+    'security' => [
+        'install_token' => 'CAMBIA_QUESTO_TOKEN_LUNGO',
+    ],
     'admin' => [
         'email' => 'admin@gmail.com',
         'name' => 'Administrator',
