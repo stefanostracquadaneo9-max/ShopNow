@@ -4,6 +4,8 @@
 .env.*.local
 .env.production
 .env.*.production
+api/config.local.php
+infinityfree.config.php
 
 # Node modules
 node_modules/

@@ -1,0 +1,37 @@
+Options -Indexes
+DirectoryIndex index.html
+
+<FilesMatch "^(server\.js|db\.js|package(-lock)?\.json|railway\.json|\.env.*|.*\.db|.*\.sqlite|config\.local\.php|infinityfree\.config\.php)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  RewriteCond %{HTTP:Authorization} .
+  RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+  RewriteCond %{REQUEST_METHOD} !POST
+  RewriteRule ^login/?$ index.html [L]
+
+  RewriteCond %{REQUEST_METHOD} !POST
+  RewriteRule ^register/?$ register.html [L]
+
+  RewriteRule ^registrazione/?$ register.html [L]
+  RewriteRule ^forgot-password/?$ forgot-password.html [L]
+  RewriteRule ^reset-password/?$ reset-password.html [L]
+  RewriteRule ^products/?$ products.html [L]
+  RewriteRule ^cart/?$ cart.html [L]
+  RewriteRule ^checkout/?$ checkout.html [L]
+  RewriteRule ^orders/?$ orders.html [L]
+  RewriteRule ^profile/?$ account.html [L]
+  RewriteRule ^account/?$ account.html [L]
+  RewriteRule ^admin/?$ admin.html [L]
+  RewriteRule ^order-confirmation/?$ order-confirmation.html [L]
+
+  RewriteRule ^(api/.*|health/?$|config/?$|create-payment-intent/?$|login/?$|register/?$|admin/products.*)$ api/index.php [QSA,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>
